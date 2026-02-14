@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Handy Voice</string>
+    <string name="settings">Settings</string>
+    
+    <!-- Main Screen -->
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_listening">Listening…</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_running">Running</string>
+    
+    <!-- Voice Commands Info -->
+    <string name="voice_commands_title">Voice Commands</string>
+    <string name="cmd_start">\"Start\" or \"Go\"</string>
+    <string name="cmd_stop">\"Stop\"</string>
+    <string name="cmd_faster">\"Faster\" or \"Speed up\"</string>
+    <string name="cmd_slower">\"Slower\" or \"Slow down\"</string>
+    <string name="cmd_speed">\"Set speed to [number]\"</string>
+    <string name="cmd_stroke">\"Set stroke to [percent]\"</string>
+    
+    <!-- Buttons -->
+    <string name="btn_start_listening">Start Listening</string>
+    <string name="btn_stop_listening">Stop Listening</string>
+    <string name="btn_connect">Connect</string>
+    <string name="btn_disconnect">Disconnect</string>
+    <string name="btn_emergency_stop">EMERGENCY STOP</string>
+    
+    <!-- Settings -->
+    <string name="api_key_label">Handy API Key</string>
+    <string name="connection_key_label">Connection Key</string>
+    <string name="save">Save</string>
+    <string name="api_key_hint">Enter your Handy API key</string>
+    <string name="connection_key_hint">Enter your connection key</string>
+    
+    <!-- Feedback -->
+    <string name="listening_for_commands">Listening for commands…</string>
+    <string name="command_recognized">Command: %s</string>
+    <string name="speed_set_to">Speed set to %d%%</string>
+    <string name="stroke_set_to">Stroke set to %d%%</string>
+    <string name="device_started">Device started</string>
+    <string name="device_stopped">Device stopped</string>
+    <string name="error_no_connection">Not connected to device</string>
+    <string name="error_voice_permission">Microphone permission required</string>
+    
+    <!-- Accessibility -->
+    <string name="content_desc_mic">Microphone button</string>
+    <string name="content_desc_settings">Settings</string>
+    <string name="content_desc_speed_slider">Speed control slider</string>
+    <string name="content_desc_stroke_slider">Stroke length slider</string>
+</resources>

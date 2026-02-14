@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.HandyVoice" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorSecondary">@color/secondary</item>
+        <item name="android:colorBackground">@color/background_dark</item>
+        <item name="colorSurface">@color/surface_dark</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        
+        <!-- Large text for accessibility -->
+        <item name="android:textSize">18sp</item>
+    </style>
+    
+    <!-- Large accessible button style -->
+    <style name="Widget.HandyVoice.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">64dp</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    
+    <!-- Emergency stop button -->
+    <style name="Widget.HandyVoice.Button.Emergency" parent="Widget.HandyVoice.Button">
+        <item name="android:background">@color/emergency_red</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:minHeight">80dp</item>
+        <item name="android:textSize">24sp</item>
+    </style>
+</resources>

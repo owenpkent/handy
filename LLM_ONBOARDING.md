@@ -6,9 +6,14 @@ Quick reference for AI assistants working on this repository.
 
 ## Project Overview
 
-**Name:** Handy Voice  
-**Purpose:** Voice-controlled web app for The Handy device, designed for users with disabilities who have no hand control.  
-**Status:** In Development
+**Name:** Handy Voice Control  
+**Purpose:** Accessible control apps for The Handy device, designed for users with disabilities.  
+**Status:** Active Development
+
+### Apps
+- **v2-web/** — Handy V2 web app (ACTIVE, working)
+- **v1-web/** — Handy V1 web app with voice control (legacy)
+- **android/** — Android app with voice commands (in progress)
 
 ## About the Owner
 
@@ -28,25 +33,25 @@ I'm Owen — a wheelchair user with muscular dystrophy.
 |------|---------|
 | `README.md` | Project overview, status, quick start |
 | `TODO.md` | Task tracking (use `- [ ]` checkbox format) |
-| `DEEPGRAM_GUIDE.md` | Deepgram setup and usage guide |
-| `index.html` | Main web app interface |
-| `css/style.css` | Accessible styling with high contrast |
-| `js/deepgram-voice.js` | **Deepgram AI voice recognition (PRIMARY)** |
-| `js/voice.js` | Web Speech API voice recognition (fallback) |
-| `js/handy-api.js` | Handy REST API v3 integration |
-| `js/app.js` | Main application logic and state management |
+| `v2-web/index.html` | V2 web app interface |
+| `v2-web/style.css` | V2 accessible styling |
+| `v2-web/app.js` | V2 app logic with presets |
+| `v2-web/handy-v2-api.js` | Handy REST API v2 client |
+| `v1-web/` | Legacy V1 web app (Deepgram voice) |
+| `android/` | Android Studio project |
+| `docs/` | Setup guides and documentation |
 
 ---
 
 ## Tech Stack
 
-- **Language:** HTML5, CSS3, JavaScript (ES6+)
-- **Framework:** Vanilla JS (no framework - keep it simple and accessible)
-- **Voice Recognition:** 
-  - **Deepgram AI** (primary - superior accuracy for non-standard voices)
-  - Web Speech API (fallback option)
-- **Device API:** Handy REST API v3 (https://www.handyfeeling.com/api/handy-rest/v3)
-- **Hosting:** Static files (can run locally or deploy to Netlify/Vercel)
+- **Language:** HTML5, CSS3, JavaScript (ES6+), Kotlin (Android)
+- **Framework:** Vanilla JS (web), Android SDK (mobile)
+- **Voice Recognition:** Deepgram AI (V1), Android SpeechRecognizer
+- **Device API:**
+  - V2: `https://www.handyfeeling.com/api/handy/v2`
+  - V1: `https://www.handyfeeling.com/api/handy-rest/v3`
+- **Hosting:** Static files (run locally with `python -m http.server`)
 
 ---
 

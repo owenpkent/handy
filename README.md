@@ -1,101 +1,88 @@
-# Handy Voice
+# Handy Voice Control
 
-Voice-controlled web app for The Handy device, designed for users with disabilities who have no hand control.
+Accessible control apps for The Handy device, designed for users with disabilities.
 
 ## Status
 
-**In Development** — Planning and initial setup phase.
+**Active Development** — V2 Web App functional, Android in progress.
 
-## Purpose
+## Apps
 
-This app provides hands-free voice control for The Handy (v1.1) device, enabling users with limited or no hand mobility to operate the device independently using voice commands.
+| App | Device | Status | Description |
+|-----|--------|--------|-------------|
+| **v2-web** | Handy V2 | Working | Web app with preset grid, safety limits, debug panel |
+| **v1-web** | Handy V1 | Legacy | Original web app with voice control (Deepgram) |
+| **android** | Handy V1 | In Progress | Android app with voice commands |
 
-## Key Features
+## Quick Start (V2 Web App)
 
-- **Advanced Voice Recognition** — Deepgram AI for superior accuracy with non-standard voices and speech difficulties
-- **Dual Engine Support** — Choose between Deepgram or browser Web Speech API
-- **WiFi Connection** — Uses Handy REST API v3 (avoids finicky Bluetooth)
-- **Accessible Design** — High contrast UI, large buttons, screen reader support
-- **Simple Setup** — Easy configuration wizard for API credentials
-- **Multiple Control Modes** — Speed control, stroke range adjustment, start/stop
-- **Real-time Feedback** — Interim transcription shows what's being heard
-
-## Tech Stack
-
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Voice Recognition**: Deepgram AI (primary) + Web Speech API (fallback)
-- **Device API**: Handy REST API v3
-- **Hosting**: Static web app (can run locally or deploy)
-
-## Quick Start
-
-### Prerequisites
-
-1. The Handy device (v1.1 with Firmware v4+)
-2. Handy account at [user.handyfeeling.com](https://user.handyfeeling.com)
-3. Handy API key from your account
-4. Device connection key
-5. **Deepgram API key** (recommended - free at [console.deepgram.com](https://console.deepgram.com/signup))
-6. Modern browser (Chrome or Edge recommended)
-
-### Running Locally
-
-```bash
-# Clone or download this repository
-cd handy-v1
-
-# Open index.html in your browser
-# Or use a simple HTTP server:
-python -m http.server 8000
-# Then visit http://localhost:8000
+```powershell
+cd v2-web
+python -m http.server 8080
+# Open http://localhost:8080
 ```
 
-## Voice Commands
+**Requirements:**
+- Handy V2 with Firmware v4+
+- Connection Key from [handyfeeling.com](https://user.handyfeeling.com)
+- Modern browser (Chrome/Edge)
 
-*(Coming soon - will include commands like "start", "stop", "speed up", "slow down", "set speed to 50", etc.)*
+## Features
+
+### V2 Web App
+- **Preset Grid** — 15 speed/position presets (Slow/Med/Fast × Top/Middle/Bottom/Full/Natural)
+- **Stroke Sliders** — Adjust min/max stroke position
+- **Speed Multiplier** — Scale all speeds (10-100%), applies immediately
+- **Safety Limit** — Global max position, applies immediately on change
+- **Debug Panel** — Live API call logging
+- **High Contrast UI** — Accessible dark theme
+
+### Voice Commands (V1/Android)
+- Start, Stop, Faster, Slower
+- "Set speed to 50"
+- "Set stroke to 75"
 
 ## Project Structure
 
 ```
 handy-v1/
-├── index.html              # Main app interface
-├── css/
-│   └── style.css          # Accessible styling
-├── js/
-│   ├── voice.js           # Voice recognition handler
-│   ├── handy-api.js       # Handy API integration
-│   └── app.js             # Main app logic
-├── README.md              # This file
-├── TODO.md                # Task tracking
-└── LLM_ONBOARDING.md      # AI assistant reference
+├── v2-web/                 # Handy V2 web app (ACTIVE)
+│   ├── index.html
+│   ├── style.css
+│   ├── app.js
+│   └── handy-v2-api.js
+├── v1-web/                 # Handy V1 web app (legacy)
+│   ├── index.html
+│   ├── css/
+│   └── js/
+├── android/                # Android app (in progress)
+├── docs/                   # Documentation
+│   ├── HANDY_API_NOTES.md  # API findings (HAMP, HSSP, HBSP)
+│   ├── SETUP_GUIDE.md
+│   ├── DEEPGRAM_GUIDE.md
+│   └── CONSTELLATION_INTEGRATION_GUIDE.md
+├── README.md               # This file
+├── TODO.md                 # Task tracking
+└── LLM_ONBOARDING.md       # AI assistant reference
 ```
-
-## Accessibility Features
-
-- **Deepgram AI** — Superior accuracy for non-standard voices, speech impediments, and accents
-- **Interim transcription** — See what's being heard in real-time
-- Large, high-contrast buttons for users with limited vision
-- Full keyboard navigation support
-- Screen reader compatible
-- Voice feedback for all actions
-- Dual voice engine support (Deepgram + Web Speech API)
 
 ## Safety
 
-- Built-in safety limits for speed and stroke range
-- Emergency stop voice command
-- Visual and audio feedback for all actions
+- **Global max stroke position** — Device never exceeds this limit
+- **Emergency stop** — Spacebar or Escape key
+- **Visual feedback** — All actions confirmed on screen
+
+## API Notes
+
+| Device | API | Base URL |
+|--------|-----|----------|
+| V2 | REST v2 | `https://www.handyfeeling.com/api/handy/v2` |
+| V1 | REST v3 | `https://www.handyfeeling.com/api/handy-rest/v3` |
 
 ## License
 
 MIT
 
-## Support
-
-For issues or questions, refer to:
-- [Handy API Documentation](https://www.handyfeeling.com/api/handy-rest/v3/docs/)
-- [The Handy Support](https://intercom.help/ohdoki/en/)
-
 ---
 
-**Note**: This is an independent accessibility project and is not officially affiliated with Ohdoki/The Handy.
+**Note**: Independent accessibility project, not affiliated with Ohdoki/The Handy.
