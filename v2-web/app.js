@@ -65,10 +65,13 @@ const speedMultiplierSlider = document.getElementById('speedMultiplier');
 const speedMultiplierInput = document.getElementById('speedMultiplierInput');
 let SPEED_MULTIPLIER = 100; // Percentage (10-100)
 
-// Safety settings
-const safetyMaxSlider = document.getElementById('safetyMax');
-const safetyMaxInput = document.getElementById('safetyMaxInput');
-let SAFETY_MAX = 90; // Global safety limit
+// Global limits
+const globalMinSlider = document.getElementById('globalMin');
+const globalMinInput = document.getElementById('globalMinInput');
+const globalMaxSlider = document.getElementById('globalMax');
+const globalMaxInput = document.getElementById('globalMaxInput');
+let GLOBAL_MIN = 0;
+let GLOBAL_MAX = 100;
 
 // DOM Elements
 const setupPanel = document.getElementById('setupPanel');
@@ -217,18 +220,21 @@ async function stop() {
 }
 
 async function setStrokeRange(min, max) {
-    // Always apply safety limit
-    const safeMax = applySafetyLimit(max);
+    // Apply global limits
+    const limited = applyGlobalLimits(min, max);
     try {
-        await api.setStrokeRange(min, safeMax);
+        await api.setStrokeRange(limited.min, limited.max);
     } catch (error) {
         showFeedback(error.message, 'error');
     }
 }
 
-function applySafetyLimit(max) {
-    // Enforce safety max
-    return Math.min(max, SAFETY_MAX);
+function applyGlobalLimits(min, max) {
+    // Enforce global min/max limits
+    return {
+        min: Math.max(min, GLOBAL_MIN),
+        max: Math.min(max, GLOBAL_MAX)
+    };
 }
 
 function applySpeedMultiplier(speed) {
@@ -242,12 +248,10 @@ async function applyPreset(speed, position, btn) {
     
     if (!speedVal || !posVal) return;
     
-    // Scale both min and max proportionally within safety limit
-    // Example: if preset is 20-80 and safety is 60, scale to 15-60 (preserve ratio)
-    const presetRange = posVal.max - posVal.min;
-    const safetyScale = SAFETY_MAX / 100;
-    const scaledMin = Math.round(posVal.min * safetyScale);
-    const scaledMax = Math.round(posVal.max * safetyScale);
+    // Scale preset within global limits
+    const globalRange = GLOBAL_MAX - GLOBAL_MIN;
+    const scaledMin = Math.round(GLOBAL_MIN + (posVal.min / 100) * globalRange);
+    const scaledMax = Math.round(GLOBAL_MIN + (posVal.max / 100) * globalRange);
     
     // Update sliders to match scaled preset
     strokeMinSlider.value = scaledMin;
@@ -400,7 +404,7 @@ strokeMaxSlider.addEventListener('change', (e) => {
 
 strokeMaxInput.addEventListener('change', (e) => {
     let val = parseInt(e.target.value) || 0;
-    val = Math.max(parseInt(strokeMinSlider.value) + 1, Math.min(SAFETY_MAX, val));
+    val = Math.max(parseInt(strokeMinSlider.value) + 1, Math.min(GLOBAL_MAX, val));
     e.target.value = val;
     strokeMaxSlider.value = val;
     clearActivePreset();
@@ -481,43 +485,83 @@ speedMultiplierInput.addEventListener('change', async (e) => {
     }
 });
 
-// Safety slider
-safetyMaxSlider.addEventListener('input', (e) => {
-    safetyMaxInput.value = e.target.value;
+// Global Min slider
+globalMinSlider.addEventListener('input', (e) => {
+    globalMinInput.value = e.target.value;
 });
 
-safetyMaxSlider.addEventListener('change', async (e) => {
-    SAFETY_MAX = parseInt(e.target.value);
-    localStorage.setItem('handy_safety_max', SAFETY_MAX);
-    strokeMaxSlider.max = SAFETY_MAX;
-    const newMax = Math.min(parseInt(strokeMaxSlider.value), SAFETY_MAX);
-    strokeMaxSlider.value = newMax;
-    strokeMaxInput.value = newMax;
+globalMinSlider.addEventListener('change', async (e) => {
+    GLOBAL_MIN = parseInt(e.target.value);
+    localStorage.setItem('handy_global_min', GLOBAL_MIN);
+    strokeMinSlider.min = GLOBAL_MIN;
+    const newMin = Math.max(parseInt(strokeMinSlider.value), GLOBAL_MIN);
+    strokeMinSlider.value = newMin;
+    strokeMinInput.value = newMin;
     try {
-        const currentMin = parseInt(strokeMinSlider.value);
-        await api.setStrokeRange(currentMin, newMax);
-        showFeedback(`Safety: ${newMax}%`, 'success');
+        const currentMax = parseInt(strokeMaxSlider.value);
+        await api.setStrokeRange(newMin, currentMax);
+        showFeedback(`G.Min: ${newMin}%`, 'success');
     } catch (err) {
         showFeedback(err.message, 'error');
     }
 });
 
-// Safety number input
-safetyMaxInput.addEventListener('change', async (e) => {
-    let val = parseInt(e.target.value) || 20;
-    val = Math.max(20, Math.min(100, val));
+globalMinInput.addEventListener('change', async (e) => {
+    let val = parseInt(e.target.value) || 0;
+    val = Math.max(0, Math.min(GLOBAL_MAX - 10, val));
     e.target.value = val;
-    safetyMaxSlider.value = val;
-    SAFETY_MAX = val;
-    localStorage.setItem('handy_safety_max', SAFETY_MAX);
-    strokeMaxSlider.max = SAFETY_MAX;
-    const newMax = Math.min(parseInt(strokeMaxSlider.value), SAFETY_MAX);
+    globalMinSlider.value = val;
+    GLOBAL_MIN = val;
+    localStorage.setItem('handy_global_min', GLOBAL_MIN);
+    strokeMinSlider.min = GLOBAL_MIN;
+    const newMin = Math.max(parseInt(strokeMinSlider.value), GLOBAL_MIN);
+    strokeMinSlider.value = newMin;
+    strokeMinInput.value = newMin;
+    try {
+        const currentMax = parseInt(strokeMaxSlider.value);
+        await api.setStrokeRange(newMin, currentMax);
+        showFeedback(`G.Min: ${newMin}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
+    }
+});
+
+// Global Max slider
+globalMaxSlider.addEventListener('input', (e) => {
+    globalMaxInput.value = e.target.value;
+});
+
+globalMaxSlider.addEventListener('change', async (e) => {
+    GLOBAL_MAX = parseInt(e.target.value);
+    localStorage.setItem('handy_global_max', GLOBAL_MAX);
+    strokeMaxSlider.max = GLOBAL_MAX;
+    const newMax = Math.min(parseInt(strokeMaxSlider.value), GLOBAL_MAX);
     strokeMaxSlider.value = newMax;
     strokeMaxInput.value = newMax;
     try {
         const currentMin = parseInt(strokeMinSlider.value);
         await api.setStrokeRange(currentMin, newMax);
-        showFeedback(`Safety: ${newMax}%`, 'success');
+        showFeedback(`G.Max: ${newMax}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
+    }
+});
+
+globalMaxInput.addEventListener('change', async (e) => {
+    let val = parseInt(e.target.value) || 100;
+    val = Math.max(GLOBAL_MIN + 10, Math.min(100, val));
+    e.target.value = val;
+    globalMaxSlider.value = val;
+    GLOBAL_MAX = val;
+    localStorage.setItem('handy_global_max', GLOBAL_MAX);
+    strokeMaxSlider.max = GLOBAL_MAX;
+    const newMax = Math.min(parseInt(strokeMaxSlider.value), GLOBAL_MAX);
+    strokeMaxSlider.value = newMax;
+    strokeMaxInput.value = newMax;
+    try {
+        const currentMin = parseInt(strokeMinSlider.value);
+        await api.setStrokeRange(currentMin, newMax);
+        showFeedback(`G.Max: ${newMax}%`, 'success');
     } catch (err) {
         showFeedback(err.message, 'error');
     }
@@ -543,16 +587,25 @@ function init() {
         speedMultiplierInput.value = SPEED_MULTIPLIER;
     }
     
-    // Load safety max setting
-    const savedSafetyMax = localStorage.getItem('handy_safety_max');
-    if (savedSafetyMax) {
-        SAFETY_MAX = parseInt(savedSafetyMax);
-        safetyMaxSlider.value = SAFETY_MAX;
-        safetyMaxInput.value = SAFETY_MAX;
+    // Load global min setting
+    const savedGlobalMin = localStorage.getItem('handy_global_min');
+    if (savedGlobalMin) {
+        GLOBAL_MIN = parseInt(savedGlobalMin);
+        globalMinSlider.value = GLOBAL_MIN;
+        globalMinInput.value = GLOBAL_MIN;
     }
     
-    // Apply safety limit to stroke max slider
-    strokeMaxSlider.max = SAFETY_MAX;
+    // Load global max setting
+    const savedGlobalMax = localStorage.getItem('handy_global_max');
+    if (savedGlobalMax) {
+        GLOBAL_MAX = parseInt(savedGlobalMax);
+        globalMaxSlider.value = GLOBAL_MAX;
+        globalMaxInput.value = GLOBAL_MAX;
+    }
+    
+    // Apply global limits to stroke sliders
+    strokeMinSlider.min = GLOBAL_MIN;
+    strokeMaxSlider.max = GLOBAL_MAX;
     
     showSetup();
 }
