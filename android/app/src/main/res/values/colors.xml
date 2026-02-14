@@ -28,4 +28,9 @@
     
     <!-- Active/listening state -->
     <color name="listening_glow">#4CAF50</color>
+    
+    <!-- Slider colors -->
+    <color name="slider_orange">#FF9800</color>
+    <color name="slider_blue">#2196F3</color>
+    <color name="slider_red">#F44336</color>
 </resources>
