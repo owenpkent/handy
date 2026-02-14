@@ -74,17 +74,185 @@ h2 {
     animation: pulse 1s infinite;
 }
 
-.battery-status {
-    margin-left: 12px;
-    padding: 4px 8px;
-    background: rgba(76, 175, 80, 0.2);
-    border-radius: 4px;
-    font-size: 14px;
+.slider-input {
+    width: 70px;
+    padding: 12px 8px;
+    font-size: 20px;
+    text-align: center;
+    background: var(--surface);
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    color: var(--text);
+    appearance: textfield;
+    -moz-appearance: textfield;
 }
 
-.battery-status.low {
-    background: rgba(244, 67, 54, 0.2);
-    color: #f44336;
+.slider-input::-webkit-outer-spin-button,
+.slider-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+/* Header */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.menu-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 24px;
+    padding: 4px 8px;
+    cursor: pointer;
+    margin-left: 12px;
+}
+
+.menu-btn:hover {
+    color: var(--primary);
+}
+
+/* Compact Controls */
+.controls-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-label {
+    width: 50px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.control-value {
+    width: 30px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.control-input {
+    width: 50px;
+    padding: 6px 4px;
+    font-size: 14px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    color: var(--text);
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.control-input::-webkit-outer-spin-button,
+.control-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+.controls-compact .slider {
+    flex: 1;
+    height: 28px;
+}
+
+/* Settings Panel */
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.settings-header h3 {
+    margin: 0;
+}
+
+.settings-section {
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+.settings-section h4 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+}
+
+.settings-note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+/* Mobile Optimization */
+@media (max-width: 480px) {
+    .container {
+        padding: 12px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    .panel {
+        padding: 16px;
+    }
+    
+    .slider-row {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    .slider-row label {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+    
+    .slider {
+        flex: 1;
+        min-width: 120px;
+        height: 44px;
+    }
+    
+    .slider-input {
+        width: 80px;
+        padding: 14px 10px;
+        font-size: 22px;
+    }
+    
+    .preset-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    
+    .preset-btn {
+        padding: 14px 8px;
+        font-size: 12px;
+    }
+    
+    .action-buttons {
+        gap: 12px;
+    }
+    
+    .btn-large {
+        padding: 18px 24px;
+        font-size: 20px;
+    }
 }
 
 @keyframes pulse {
