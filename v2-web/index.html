@@ -10,11 +10,11 @@
     <div class="container">
         <!-- Header -->
         <header>
-            <h1>Handy V2</h1>
-            <div class="status-bar">
+            <h1>SmartDong</h1>
+            <div class="header-right">
                 <span class="status-dot" id="statusDot"></span>
                 <span id="statusText">Disconnected</span>
-                <span id="batteryStatus" class="battery-status hidden">🔋 --%</span>
+                <button id="menuBtn" class="menu-btn hidden">☰</button>
             </div>
         </header>
 
@@ -31,46 +31,47 @@
 
         <!-- Control Panel -->
         <section id="controlPanel" class="panel hidden">
-            <!-- Stroke Position Sliders -->
-            <div class="stroke-sliders">
-                <div class="slider-row">
-                    <label>Lowest stroke position:</label>
+            <!-- Compact Controls -->
+            <div class="controls-compact">
+                <div class="control-row">
+                    <span class="control-label">Min</span>
                     <input type="range" id="strokeMin" min="0" max="100" value="10" class="slider slider-orange">
-                    <span id="strokeMinValue" class="slider-value">10</span>
+                    <input type="number" id="strokeMinInput" min="0" max="100" value="10" class="control-input">
                 </div>
-                <div class="slider-row">
-                    <label>Highest stroke position:</label>
+                <div class="control-row">
+                    <span class="control-label">Max</span>
                     <input type="range" id="strokeMax" min="0" max="100" value="90" class="slider slider-orange">
-                    <span id="strokeMaxValue" class="slider-value">90</span>
+                    <input type="number" id="strokeMaxInput" min="0" max="100" value="90" class="control-input">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Speed</span>
+                    <input type="range" id="speedMultiplier" min="10" max="100" value="100" class="slider slider-blue">
+                    <input type="number" id="speedMultiplierInput" min="10" max="100" value="100" class="control-input">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Safety</span>
+                    <input type="range" id="safetyMax" min="20" max="100" value="90" class="slider slider-red">
+                    <input type="number" id="safetyMaxInput" min="20" max="100" value="90" class="control-input">
                 </div>
             </div>
 
             <!-- Preset Grid -->
             <div class="preset-grid">
-                <!-- Top Row -->
-                <button class="preset-btn" data-speed="slow" data-position="top">Slow top</button>
-                <button class="preset-btn" data-speed="medium" data-position="top">Medium top</button>
-                <button class="preset-btn" data-speed="fast" data-position="top">Fast top</button>
+                <button class="preset-btn" data-speed="slow" data-position="top">Slow Top</button>
+                <button class="preset-btn" data-speed="medium" data-position="top">Med Top</button>
+                <button class="preset-btn" data-speed="fast" data-position="top">Fast Top</button>
                 
-                <!-- Middle Row -->
-                <button class="preset-btn" data-speed="slow" data-position="middle">Slow middle</button>
-                <button class="preset-btn" data-speed="medium" data-position="middle">Medium middle</button>
-                <button class="preset-btn" data-speed="fast" data-position="middle">Fast middle</button>
+                <button class="preset-btn" data-speed="slow" data-position="middle">Slow Mid</button>
+                <button class="preset-btn" data-speed="medium" data-position="middle">Med Mid</button>
+                <button class="preset-btn" data-speed="fast" data-position="middle">Fast Mid</button>
                 
-                <!-- Bottom Row -->
-                <button class="preset-btn" data-speed="slow" data-position="bottom">Slow Bottom</button>
-                <button class="preset-btn" data-speed="medium" data-position="bottom">Medium Bottom</button>
-                <button class="preset-btn" data-speed="fast" data-position="bottom">Fast Bottom</button>
+                <button class="preset-btn" data-speed="slow" data-position="bottom">Slow Bot</button>
+                <button class="preset-btn" data-speed="medium" data-position="bottom">Med Bot</button>
+                <button class="preset-btn" data-speed="fast" data-position="bottom">Fast Bot</button>
                 
-                <!-- Full Row -->
                 <button class="preset-btn" data-speed="slow" data-position="full">Slow Full</button>
-                <button class="preset-btn" data-speed="medium" data-position="full">Medium Full</button>
+                <button class="preset-btn" data-speed="medium" data-position="full">Med Full</button>
                 <button class="preset-btn" data-speed="fast" data-position="full">Fast Full</button>
-                
-                <!-- Natural Row -->
-                <button class="preset-btn" data-speed="slow" data-position="natural">Slow Natural 🐢</button>
-                <button class="preset-btn" data-speed="medium" data-position="natural">Med Natural</button>
-                <button class="preset-btn" data-speed="fast" data-position="natural">Fast Natural 🚀</button>
             </div>
 
             <!-- Start/Stop Buttons -->
@@ -79,43 +80,39 @@
                 <button id="stopBtn" class="btn btn-danger btn-large">STOP</button>
             </div>
 
-            <!-- Speed Control -->
-            <div class="speed-control-section">
-                <h3>🎚️ Speed Control</h3>
-                <div class="slider-row">
-                    <label>Speed multiplier:</label>
-                    <input type="range" id="speedMultiplier" min="10" max="100" value="100" class="slider slider-blue">
-                    <span id="speedMultiplierValue" class="slider-value">100%</span>
-                </div>
-                <p class="control-note">Scales all speed values (Slow=25% → <span id="scaledSlow">25</span>%)</p>
-            </div>
+        </section>
 
-            <!-- Safety Settings -->
-            <div class="safety-settings">
-                <h3>⚠️ Safety Limit</h3>
-                <div class="slider-row">
-                    <label>Max stroke position:</label>
-                    <input type="range" id="safetyMax" min="20" max="100" value="90" class="slider slider-red">
-                    <span id="safetyMaxValue" class="slider-value">90</span>
-                </div>
+        <!-- Settings Panel (hidden by default) -->
+        <section id="settingsPanel" class="panel hidden">
+            <div class="settings-header">
+                <h3>⚙️ Settings</h3>
+                <button id="closeSettings" class="btn-small">✕</button>
             </div>
-
+            
             <!-- HRPP Experiment -->
-            <div class="experiment-section">
-                <h3>🧪 HRPP Experiment</h3>
-                <p class="experiment-note">Try HBSP mode (mode 4) to access pattern presets</p>
+            <div class="settings-section">
+                <h4>🧪 HRPP Experiment</h4>
+                <p class="settings-note">Try HBSP mode (mode 4) to access pattern presets</p>
                 <button id="tryHrppBtn" class="btn btn-experiment">Try HRPP Mode</button>
             </div>
-
+            
+            <!-- Debug Toggle -->
+            <div class="settings-section">
+                <h4>🔧 Debug Panel</h4>
+                <button id="toggleDebug" class="btn btn-outline">Show Debug</button>
+            </div>
+            
             <!-- Disconnect -->
-            <button id="disconnectBtn" class="btn btn-outline">Disconnect</button>
+            <div class="settings-section">
+                <button id="disconnectBtn" class="btn btn-danger">Disconnect</button>
+            </div>
         </section>
 
         <!-- Feedback -->
         <div id="feedback" class="feedback hidden"></div>
 
-        <!-- Debug Panel -->
-        <section id="debugPanel" class="panel debug-panel">
+        <!-- Debug Panel (hidden by default) -->
+        <section id="debugPanel" class="panel debug-panel hidden">
             <div class="debug-header">
                 <h3>Debug</h3>
                 <button id="clearDebugBtn" class="btn-small">Clear</button>

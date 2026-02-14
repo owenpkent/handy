@@ -62,18 +62,18 @@ function clearDebug() {
 
 // Speed control
 const speedMultiplierSlider = document.getElementById('speedMultiplier');
-const speedMultiplierValue = document.getElementById('speedMultiplierValue');
-const scaledSlowSpan = document.getElementById('scaledSlow');
+const speedMultiplierInput = document.getElementById('speedMultiplierInput');
 let SPEED_MULTIPLIER = 100; // Percentage (10-100)
 
 // Safety settings
 const safetyMaxSlider = document.getElementById('safetyMax');
-const safetyMaxValue = document.getElementById('safetyMaxValue');
+const safetyMaxInput = document.getElementById('safetyMaxInput');
 let SAFETY_MAX = 90; // Global safety limit
 
 // DOM Elements
 const setupPanel = document.getElementById('setupPanel');
 const controlPanel = document.getElementById('controlPanel');
+const settingsPanel = document.getElementById('settingsPanel');
 const connectionKeyInput = document.getElementById('connectionKey');
 const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
@@ -81,13 +81,15 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const strokeMinSlider = document.getElementById('strokeMin');
 const strokeMaxSlider = document.getElementById('strokeMax');
-const strokeMinValue = document.getElementById('strokeMinValue');
-const strokeMaxValue = document.getElementById('strokeMaxValue');
+const strokeMinInput = document.getElementById('strokeMinInput');
+const strokeMaxInput = document.getElementById('strokeMaxInput');
 const presetBtns = document.querySelectorAll('.preset-btn');
 const tryHrppBtn = document.getElementById('tryHrppBtn');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
-const batteryStatus = document.getElementById('batteryStatus');
+const menuBtn = document.getElementById('menuBtn');
+const closeSettings = document.getElementById('closeSettings');
+const toggleDebugBtn = document.getElementById('toggleDebug');
 const feedback = document.getElementById('feedback');
 
 // Preset definitions
@@ -136,79 +138,20 @@ function setStatus(status) {
 function showSetup() {
     setupPanel.classList.remove('hidden');
     controlPanel.classList.add('hidden');
+    settingsPanel.classList.add('hidden');
+    menuBtn.classList.add('hidden');
     setStatus('disconnected');
 }
 
 function showControls() {
     setupPanel.classList.add('hidden');
     controlPanel.classList.remove('hidden');
+    menuBtn.classList.remove('hidden');
     setStatus('connected');
-    // Start battery polling
-    fetchBattery();
-    startBatteryPolling();
 }
 
-let batteryInterval = null;
-
-function startBatteryPolling() {
-    if (batteryInterval) clearInterval(batteryInterval);
-    batteryInterval = setInterval(fetchBattery, 30000); // Every 30 seconds
-}
-
-function stopBatteryPolling() {
-    if (batteryInterval) {
-        clearInterval(batteryInterval);
-        batteryInterval = null;
-    }
-}
-
-async function fetchBattery() {
-    try {
-        // Try multiple endpoints for battery info
-        let battery = null;
-        
-        // Try /info endpoint
-        try {
-            const info = await api.request('/info');
-            if (info.battery !== undefined) battery = info.battery;
-        } catch (e) {}
-        
-        // Try /settings endpoint
-        if (battery === null) {
-            try {
-                const settings = await api.request('/settings');
-                if (settings.battery !== undefined) battery = settings.battery;
-            } catch (e) {}
-        }
-        
-        // Try /status endpoint
-        if (battery === null) {
-            try {
-                const status = await api.request('/status');
-                if (status.battery !== undefined) battery = status.battery;
-            } catch (e) {}
-        }
-        
-        if (battery !== null) {
-            updateBatteryDisplay(battery);
-        } else {
-            // Battery not available in API
-            batteryStatus.classList.add('hidden');
-        }
-    } catch (e) {
-        batteryStatus.classList.add('hidden');
-    }
-}
-
-function updateBatteryDisplay(level) {
-    batteryStatus.classList.remove('hidden');
-    batteryStatus.textContent = `🔋 ${level}%`;
-    if (level < 20) {
-        batteryStatus.classList.add('low');
-    } else {
-        batteryStatus.classList.remove('low');
-    }
-}
+// Note: Battery endpoint not available in V2 REST API
+// The Handy 2 Pro has battery but it's not exposed via /battery endpoint
 
 async function connect() {
     const key = connectionKeyInput.value.trim();
@@ -237,8 +180,6 @@ async function connect() {
 }
 
 async function disconnect() {
-    stopBatteryPolling();
-    batteryStatus.classList.add('hidden');
     try {
         await api.disconnect();
     } catch (e) {
@@ -295,26 +236,24 @@ function applySpeedMultiplier(speed) {
     return Math.round(speed * (SPEED_MULTIPLIER / 100));
 }
 
-function updateSpeedPreview() {
-    // Show what "slow" will actually be
-    const scaledSlow = applySpeedMultiplier(SPEED_VALUES.slow);
-    scaledSlowSpan.textContent = scaledSlow;
-}
-
 async function applyPreset(speed, position, btn) {
     const speedVal = SPEED_VALUES[speed];
     const posVal = POSITION_VALUES[position];
     
     if (!speedVal || !posVal) return;
     
-    // Apply safety limit to max
-    const safeMax = applySafetyLimit(posVal.max);
+    // Scale both min and max proportionally within safety limit
+    // Example: if preset is 20-80 and safety is 60, scale to 15-60 (preserve ratio)
+    const presetRange = posVal.max - posVal.min;
+    const safetyScale = SAFETY_MAX / 100;
+    const scaledMin = Math.round(posVal.min * safetyScale);
+    const scaledMax = Math.round(posVal.max * safetyScale);
     
-    // Update sliders to match preset (with safety limit)
-    strokeMinSlider.value = posVal.min;
-    strokeMaxSlider.value = safeMax;
-    strokeMinValue.textContent = posVal.min;
-    strokeMaxValue.textContent = safeMax;
+    // Update sliders to match scaled preset
+    strokeMinSlider.value = scaledMin;
+    strokeMaxSlider.value = scaledMax;
+    strokeMinInput.value = scaledMin;
+    strokeMaxInput.value = scaledMax;
     
     // Mark button as active
     clearActivePreset();
@@ -325,13 +264,13 @@ async function applyPreset(speed, position, btn) {
     const scaledSpeed = applySpeedMultiplier(speedVal);
     
     try {
-        // Set stroke range first (with safety limit applied)
-        await api.setStrokeRange(posVal.min, safeMax);
+        // Set stroke range (both scaled by safety limit)
+        await api.setStrokeRange(scaledMin, scaledMax);
         // Start motion
         await api.start();
         // Set speed AFTER starting (with multiplier applied)
         await api.setSpeed(scaledSpeed);
-        showFeedback(`${speed} ${position} (${scaledSpeed}%)`, 'success');
+        showFeedback(`${speed} ${position} (${scaledMin}-${scaledMax}%)`, 'success');
     } catch (error) {
         showFeedback(error.message, 'error');
     }
@@ -425,11 +364,10 @@ tryHrppBtn.addEventListener('click', tryHrppMode);
 
 // Stroke sliders
 strokeMinSlider.addEventListener('input', (e) => {
-    strokeMinValue.textContent = e.target.value;
-    // Ensure min doesn't exceed max
+    strokeMinInput.value = e.target.value;
     if (parseInt(e.target.value) >= parseInt(strokeMaxSlider.value)) {
         strokeMaxSlider.value = parseInt(e.target.value) + 10;
-        strokeMaxValue.textContent = strokeMaxSlider.value;
+        strokeMaxInput.value = strokeMaxSlider.value;
     }
 });
 
@@ -438,18 +376,35 @@ strokeMinSlider.addEventListener('change', (e) => {
     setStrokeRange(parseInt(strokeMinSlider.value), parseInt(strokeMaxSlider.value));
 });
 
+strokeMinInput.addEventListener('change', (e) => {
+    let val = parseInt(e.target.value) || 0;
+    val = Math.max(0, Math.min(parseInt(strokeMaxSlider.value) - 1, val));
+    e.target.value = val;
+    strokeMinSlider.value = val;
+    clearActivePreset();
+    setStrokeRange(val, parseInt(strokeMaxSlider.value));
+});
+
 strokeMaxSlider.addEventListener('input', (e) => {
-    strokeMaxValue.textContent = e.target.value;
-    // Ensure max doesn't go below min
+    strokeMaxInput.value = e.target.value;
     if (parseInt(e.target.value) <= parseInt(strokeMinSlider.value)) {
         strokeMinSlider.value = parseInt(e.target.value) - 10;
-        strokeMinValue.textContent = strokeMinSlider.value;
+        strokeMinInput.value = strokeMinSlider.value;
     }
 });
 
 strokeMaxSlider.addEventListener('change', (e) => {
     clearActivePreset();
     setStrokeRange(parseInt(strokeMinSlider.value), parseInt(strokeMaxSlider.value));
+});
+
+strokeMaxInput.addEventListener('change', (e) => {
+    let val = parseInt(e.target.value) || 0;
+    val = Math.max(parseInt(strokeMinSlider.value) + 1, Math.min(SAFETY_MAX, val));
+    e.target.value = val;
+    strokeMaxSlider.value = val;
+    clearActivePreset();
+    setStrokeRange(parseInt(strokeMinSlider.value), val);
 });
 
 // Preset buttons
@@ -474,44 +429,97 @@ document.addEventListener('keydown', (e) => {
 // Clear debug button
 clearDebugBtn.addEventListener('click', clearDebug);
 
+// Hamburger menu toggle
+menuBtn.addEventListener('click', () => {
+    settingsPanel.classList.remove('hidden');
+    controlPanel.classList.add('hidden');
+});
+
+closeSettings.addEventListener('click', () => {
+    settingsPanel.classList.add('hidden');
+    controlPanel.classList.remove('hidden');
+});
+
+// Debug panel toggle
+toggleDebugBtn.addEventListener('click', () => {
+    const isHidden = debugPanel.classList.toggle('hidden');
+    toggleDebugBtn.textContent = isHidden ? 'Show Debug' : 'Hide Debug';
+});
+
 // Speed multiplier slider
 speedMultiplierSlider.addEventListener('input', (e) => {
-    speedMultiplierValue.textContent = e.target.value + '%';
+    speedMultiplierInput.value = e.target.value;
     SPEED_MULTIPLIER = parseInt(e.target.value);
-    updateSpeedPreview();
 });
 
 speedMultiplierSlider.addEventListener('change', async (e) => {
     SPEED_MULTIPLIER = parseInt(e.target.value);
     localStorage.setItem('handy_speed_multiplier', SPEED_MULTIPLIER);
-    updateSpeedPreview();
-    // Apply new speed immediately to device using stored base speed
-    if (api.isConnected) {
+    try {
         const scaledSpeed = applySpeedMultiplier(currentBaseSpeed);
         await api.setSpeed(scaledSpeed);
         showFeedback(`Speed: ${scaledSpeed}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
+    }
+});
+
+// Speed multiplier number input
+speedMultiplierInput.addEventListener('change', async (e) => {
+    let val = parseInt(e.target.value) || 10;
+    val = Math.max(10, Math.min(100, val));
+    e.target.value = val;
+    speedMultiplierSlider.value = val;
+    SPEED_MULTIPLIER = val;
+    localStorage.setItem('handy_speed_multiplier', SPEED_MULTIPLIER);
+    try {
+        const scaledSpeed = applySpeedMultiplier(currentBaseSpeed);
+        await api.setSpeed(scaledSpeed);
+        showFeedback(`Speed: ${scaledSpeed}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
     }
 });
 
 // Safety slider
 safetyMaxSlider.addEventListener('input', (e) => {
-    safetyMaxValue.textContent = e.target.value;
+    safetyMaxInput.value = e.target.value;
 });
 
 safetyMaxSlider.addEventListener('change', async (e) => {
     SAFETY_MAX = parseInt(e.target.value);
     localStorage.setItem('handy_safety_max', SAFETY_MAX);
-    // Update the stroke max slider's max attribute and value
     strokeMaxSlider.max = SAFETY_MAX;
-    // Force current max to respect new safety limit
     const newMax = Math.min(parseInt(strokeMaxSlider.value), SAFETY_MAX);
     strokeMaxSlider.value = newMax;
-    strokeMaxValue.textContent = newMax;
-    // Apply immediately to device
-    if (api.isConnected) {
+    strokeMaxInput.value = newMax;
+    try {
         const currentMin = parseInt(strokeMinSlider.value);
         await api.setStrokeRange(currentMin, newMax);
-        showFeedback(`Stroke: ${currentMin}-${newMax}%`, 'success');
+        showFeedback(`Safety: ${newMax}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
+    }
+});
+
+// Safety number input
+safetyMaxInput.addEventListener('change', async (e) => {
+    let val = parseInt(e.target.value) || 20;
+    val = Math.max(20, Math.min(100, val));
+    e.target.value = val;
+    safetyMaxSlider.value = val;
+    SAFETY_MAX = val;
+    localStorage.setItem('handy_safety_max', SAFETY_MAX);
+    strokeMaxSlider.max = SAFETY_MAX;
+    const newMax = Math.min(parseInt(strokeMaxSlider.value), SAFETY_MAX);
+    strokeMaxSlider.value = newMax;
+    strokeMaxInput.value = newMax;
+    try {
+        const currentMin = parseInt(strokeMinSlider.value);
+        await api.setStrokeRange(currentMin, newMax);
+        showFeedback(`Safety: ${newMax}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
     }
 });
 
@@ -532,8 +540,7 @@ function init() {
     if (savedSpeedMultiplier) {
         SPEED_MULTIPLIER = parseInt(savedSpeedMultiplier);
         speedMultiplierSlider.value = SPEED_MULTIPLIER;
-        speedMultiplierValue.textContent = SPEED_MULTIPLIER + '%';
-        updateSpeedPreview();
+        speedMultiplierInput.value = SPEED_MULTIPLIER;
     }
     
     // Load safety max setting
@@ -541,7 +548,7 @@ function init() {
     if (savedSafetyMax) {
         SAFETY_MAX = parseInt(savedSafetyMax);
         safetyMaxSlider.value = SAFETY_MAX;
-        safetyMaxValue.textContent = SAFETY_MAX;
+        safetyMaxInput.value = SAFETY_MAX;
     }
     
     // Apply safety limit to stroke max slider
