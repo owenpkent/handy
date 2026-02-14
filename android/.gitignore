@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+
+# Android Studio
+*.iml
+.idea/
+local.properties
+
+# Keystore
+*.jks
+*.keystore
+
+# Build outputs
+app/release/
+app/debug/
+
+# Misc
+*.log
+.DS_Store

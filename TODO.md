@@ -2,17 +2,32 @@
 
 ## Current Sprint
 
+- [x] Build V2 web app with preset grid
+- [x] Add stroke position sliders (min/max)
+- [x] Add safety limit feature (global max position)
+- [x] Add speed multiplier control
+- [x] Add debug panel with live API logging
+- [x] Organize project folder structure
+- [x] Update documentation
+- [x] Experiment with HRPP/HSSP/HBSP modes
+- [x] Document API findings (see docs/HANDY_API_NOTES.md)
+- [ ] Add HSSP support (funscript playback)
+- [ ] Add voice control to V2 web app
+- [ ] Test Android app on real device
+
+## Next Up
+
+- [ ] **HSSP Integration** - Play funscripts from URLs
+- [ ] **Custom Patterns** - Host looping funscripts for HRPP-like behavior
+- [ ] **Voice Commands (V2)** - Port Deepgram voice to V2 web app
+- [ ] **Android V2 Support** - Update Android app for V2 API
+
+## Completed (V1 Legacy)
+
 - [x] Research Handy API v3 capabilities
-- [x] Create project documentation structure
-- [x] **Build core web app files (HTML/CSS/JS)**
-- [x] Implement voice recognition system (Deepgram + Web Speech API)
-- [x] Integrate Handy API v3 authentication
-- [x] Add HAMP protocol controls
-- [x] Design accessible UI components
-- [x] Create setup wizard for credentials
-- [x] Add Deepgram integration for non-standard voices
-- [ ] Test voice commands thoroughly with real device
-- [ ] Get user feedback on voice recognition accuracy
+- [x] Build V1 web app with voice control
+- [x] Implement Deepgram voice recognition
+- [x] Android app structure
 
 ## Voice Commands to Implement
 
