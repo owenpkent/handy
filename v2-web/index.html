@@ -85,6 +85,34 @@
                 <button id="stopBtn" class="btn btn-danger btn-large">STOP</button>
             </div>
 
+            <!-- FunScript Player -->
+            <div class="funscript-section">
+                <div class="funscript-header">
+                    <span class="control-label">📜 FunScript</span>
+                    <input type="file" id="funscriptFile" accept=".funscript,.json" class="hidden">
+                    <button id="loadScriptBtn" class="btn btn-small">Load</button>
+                </div>
+                <div id="funscriptInfo" class="funscript-info hidden">
+                    <span id="scriptName">No script loaded</span>
+                    <span id="scriptDuration"></span>
+                </div>
+                <div id="funscriptControls" class="funscript-controls hidden">
+                    <div class="funscript-progress">
+                        <div id="progressBar" class="progress-bar"></div>
+                    </div>
+                    <div class="funscript-time">
+                        <span id="currentTime">0:00</span> / <span id="totalTime">0:00</span>
+                    </div>
+                    <div class="funscript-buttons">
+                        <button id="playScriptBtn" class="btn btn-success">▶ Play</button>
+                        <button id="stopScriptBtn" class="btn btn-danger">⏹ Stop</button>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="loopScript"> Loop
+                        </label>
+                    </div>
+                </div>
+            </div>
+
         </section>
 
         <!-- Settings Panel (hidden by default) -->

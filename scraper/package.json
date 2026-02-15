@@ -1,0 +1,12 @@
+{
+  "name": "funscript-scraper",
+  "version": "1.0.0",
+  "description": "Scraper for downloading funscripts from funscripthub.com",
+  "type": "module",
+  "scripts": {
+    "scrape": "node scraper.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}

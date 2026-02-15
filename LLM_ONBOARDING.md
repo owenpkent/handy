@@ -199,6 +199,56 @@ For the dashboard to pick up this project:
 3. Add loading states in UI
 4. Test with invalid credentials
 
+---
+
+## FunScript Support
+
+### What is FunScript?
+FunScript is a JSON format for scripting device movements synchronized to video/audio. Each script contains timed position commands.
+
+### FunScript Format
+```json
+{
+  "version": "1.0",
+  "inverted": false,
+  "range": 100,
+  "actions": [
+    {"at": 0, "pos": 0},      // at: timestamp in ms, pos: position 0-100
+    {"at": 500, "pos": 100},
+    {"at": 1000, "pos": 0}
+  ]
+}
+```
+
+### Key Fields
+- **at**: Timestamp in milliseconds
+- **pos**: Position 0-100 (0=bottom, 100=top)
+- **inverted**: If true, flip positions
+- **range**: Max range of motion (usually 100)
+
+### FunScript Player (v2-web)
+The web app includes a FunScript player that:
+- Loads `.funscript` files from your device
+- Plays using HDSP mode (direct position control)
+- Respects G.Min/G.Max global limits (scales positions to fit)
+- Supports looping
+
+### FunScript Generator CLI
+Located at `tools/funscript-generator.js`:
+
+```powershell
+# Basic usage
+node tools/funscript-generator.js --pattern stroke --speed 90 --output my-script.funscript
+
+# Available patterns: stroke, wave, random, pulse, tease, edge
+# Options: --pattern, --duration (ms), --speed (bpm), --min, --max, --output
+```
+
+### Where to Find FunScripts
+- [ScriptAxis](https://scriptaxis.com/) - Large collection
+- [EroScripts Forum](https://discuss.eroscripts.com/) - Community scripts
+- [FunScriptHub](https://funscripthub.com/) - Another collection (Cloudflare protected)
+
 ### Improving accessibility
 1. Test with screen reader first
 2. Check ARIA labels

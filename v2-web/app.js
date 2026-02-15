@@ -572,6 +572,186 @@ connectionKeyInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') connect();
 });
 
+// ============ FUNSCRIPT PLAYER ============
+const funscriptFile = document.getElementById('funscriptFile');
+const loadScriptBtn = document.getElementById('loadScriptBtn');
+const funscriptInfo = document.getElementById('funscriptInfo');
+const funscriptControls = document.getElementById('funscriptControls');
+const scriptNameEl = document.getElementById('scriptName');
+const scriptDurationEl = document.getElementById('scriptDuration');
+const progressBar = document.getElementById('progressBar');
+const currentTimeEl = document.getElementById('currentTime');
+const totalTimeEl = document.getElementById('totalTime');
+const playScriptBtn = document.getElementById('playScriptBtn');
+const stopScriptBtn = document.getElementById('stopScriptBtn');
+const loopScriptCheckbox = document.getElementById('loopScript');
+
+let currentScript = null;
+let scriptPlaying = false;
+let scriptStartTime = 0;
+let scriptAnimationFrame = null;
+let lastActionIndex = 0;
+
+// Load script button triggers file input
+loadScriptBtn.addEventListener('click', () => {
+    funscriptFile.click();
+});
+
+// Handle file selection
+funscriptFile.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+        const text = await file.text();
+        const script = JSON.parse(text);
+        
+        if (!script.actions || !Array.isArray(script.actions)) {
+            throw new Error('Invalid funscript format');
+        }
+        
+        // Sort actions by time
+        script.actions.sort((a, b) => a.at - b.at);
+        
+        currentScript = script;
+        const duration = script.actions[script.actions.length - 1].at;
+        
+        scriptNameEl.textContent = file.name;
+        scriptDurationEl.textContent = `${script.actions.length} actions`;
+        totalTimeEl.textContent = formatTime(duration);
+        currentTimeEl.textContent = '0:00';
+        progressBar.style.width = '0%';
+        
+        funscriptInfo.classList.remove('hidden');
+        funscriptControls.classList.remove('hidden');
+        
+        showFeedback(`Loaded: ${file.name}`, 'success');
+    } catch (error) {
+        showFeedback(`Error loading script: ${error.message}`, 'error');
+    }
+});
+
+function formatTime(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Apply G.Min/G.Max to funscript position
+function applyLimitsToPosition(pos) {
+    // pos is 0-100, scale to fit within GLOBAL_MIN and GLOBAL_MAX
+    const range = GLOBAL_MAX - GLOBAL_MIN;
+    return GLOBAL_MIN + (pos / 100) * range;
+}
+
+// Play funscript
+playScriptBtn.addEventListener('click', async () => {
+    if (!currentScript || scriptPlaying) return;
+    
+    try {
+        // Switch to HDSP mode for direct position control
+        await api.setHDSPMode();
+        
+        // Set stroke range to enforce G.Min/G.Max limits on device
+        await api.setStrokeRange(GLOBAL_MIN, GLOBAL_MAX);
+        
+        scriptPlaying = true;
+        scriptStartTime = performance.now();
+        lastActionIndex = 0;
+        
+        playScriptBtn.disabled = true;
+        playScriptBtn.textContent = '▶ Playing...';
+        
+        showFeedback(`Playing (range: ${GLOBAL_MIN}-${GLOBAL_MAX}%)`, 'success');
+        
+        // Start playback loop
+        playbackLoop();
+    } catch (error) {
+        showFeedback(`Error: ${error.message}`, 'error');
+        stopScript();
+    }
+});
+
+async function playbackLoop() {
+    if (!scriptPlaying || !currentScript) return;
+    
+    const elapsed = performance.now() - scriptStartTime;
+    const duration = currentScript.actions[currentScript.actions.length - 1].at;
+    
+    // Update progress UI
+    const progress = Math.min((elapsed / duration) * 100, 100);
+    progressBar.style.width = `${progress}%`;
+    currentTimeEl.textContent = formatTime(elapsed);
+    
+    // Find and execute actions
+    while (lastActionIndex < currentScript.actions.length - 1) {
+        const currentAction = currentScript.actions[lastActionIndex];
+        const nextAction = currentScript.actions[lastActionIndex + 1];
+        
+        if (elapsed >= currentAction.at && elapsed < nextAction.at) {
+            // Calculate position with limits applied
+            const targetPos = applyLimitsToPosition(nextAction.pos);
+            const moveDuration = nextAction.at - currentAction.at;
+            
+            try {
+                await api.hdspSetPosition(Math.round(targetPos), Math.round(moveDuration));
+            } catch (e) {
+                // Ignore position errors during playback
+            }
+            
+            lastActionIndex++;
+            break;
+        } else if (elapsed >= nextAction.at) {
+            lastActionIndex++;
+        } else {
+            break;
+        }
+    }
+    
+    // Check if script ended
+    if (elapsed >= duration) {
+        if (loopScriptCheckbox.checked) {
+            // Loop: restart
+            scriptStartTime = performance.now();
+            lastActionIndex = 0;
+        } else {
+            stopScript();
+            return;
+        }
+    }
+    
+    // Continue loop
+    scriptAnimationFrame = requestAnimationFrame(playbackLoop);
+}
+
+// Stop funscript
+stopScriptBtn.addEventListener('click', stopScript);
+
+async function stopScript() {
+    scriptPlaying = false;
+    
+    if (scriptAnimationFrame) {
+        cancelAnimationFrame(scriptAnimationFrame);
+        scriptAnimationFrame = null;
+    }
+    
+    playScriptBtn.disabled = false;
+    playScriptBtn.textContent = '▶ Play';
+    
+    try {
+        // Switch back to HAMP mode
+        await api.setHAMPMode();
+        await api.stop();
+    } catch (e) {
+        // Ignore errors on stop
+    }
+    
+    showFeedback('Script stopped', 'info');
+}
+
+// ============ END FUNSCRIPT PLAYER ============
+
 // Init - check for saved connection key and settings
 function init() {
     const savedKey = api.loadConnectionKey();

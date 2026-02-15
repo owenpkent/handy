@@ -211,6 +211,55 @@ class HandyV2API {
         }
         this.isConnected = false;
     }
+
+    // HDSP Mode - Direct position control for funscript playback
+    async setHDSPMode() {
+        return await this.setMode(2); // HDSP = mode 2
+    }
+
+    async hdspSetPosition(position, duration) {
+        // position: 0-100, duration: milliseconds
+        return await this.request('/hdsp/xpt', {
+            method: 'PUT',
+            body: JSON.stringify({ 
+                position: Math.max(0, Math.min(100, position)),
+                duration: Math.max(0, duration)
+            })
+        });
+    }
+
+    // HSSP Mode - Server-side script playback
+    async setHSSPMode() {
+        return await this.setMode(1); // HSSP = mode 1
+    }
+
+    async hsspSetup(url, sha256 = '') {
+        return await this.request('/hssp/setup', {
+            method: 'PUT',
+            body: JSON.stringify({ url, sha256 })
+        });
+    }
+
+    async hsspPlay(startTime = 0) {
+        const estimatedServerTime = Date.now(); // Simplified - should use proper sync
+        return await this.request('/hssp/play', {
+            method: 'PUT',
+            body: JSON.stringify({ 
+                estimatedServerTime,
+                startTime
+            })
+        });
+    }
+
+    async hsspStop() {
+        return await this.request('/hssp/stop', {
+            method: 'PUT'
+        });
+    }
+
+    async hsspGetState() {
+        return await this.request('/hssp/state');
+    }
 }
 
 window.HandyV2API = HandyV2API;
