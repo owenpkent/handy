@@ -10,29 +10,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class VoiceRecognitionService(private val context: Context) {
+class VoiceRecognitionService(private val context: Context) : VoiceEngine {
     
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     
     private val _listeningState = MutableStateFlow(false)
-    val listeningState: StateFlow<Boolean> = _listeningState.asStateFlow()
+    override val listeningState: StateFlow<Boolean> = _listeningState.asStateFlow()
     
     private val _partialResult = MutableStateFlow("")
-    val partialResult: StateFlow<String> = _partialResult.asStateFlow()
+    override val partialResult: StateFlow<String> = _partialResult.asStateFlow()
     
     private val _finalResult = MutableStateFlow("")
-    val finalResult: StateFlow<String> = _finalResult.asStateFlow()
+    override val finalResult: StateFlow<String> = _finalResult.asStateFlow()
     
     private val _recognizedCommand = MutableStateFlow<VoiceCommand>(VoiceCommand.Unknown)
     val recognizedCommand: StateFlow<VoiceCommand> = _recognizedCommand.asStateFlow()
     
     private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    override val error: StateFlow<String?> = _error.asStateFlow()
     
     private var continuousListening = false
     
-    fun initialize() {
+    override fun initialize() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             _error.value = "Speech recognition not available on this device"
             return
@@ -43,7 +43,7 @@ class VoiceRecognitionService(private val context: Context) {
         }
     }
     
-    fun startListening(continuous: Boolean = true) {
+    override fun startListening(continuous: Boolean) {
         if (speechRecognizer == null) {
             initialize()
         }
@@ -65,14 +65,14 @@ class VoiceRecognitionService(private val context: Context) {
         speechRecognizer?.startListening(intent)
     }
     
-    fun stopListening() {
+    override fun stopListening() {
         continuousListening = false
         isListening = false
         _listeningState.value = false
         speechRecognizer?.stopListening()
     }
     
-    fun destroy() {
+    override fun destroy() {
         stopListening()
         speechRecognizer?.destroy()
         speechRecognizer = null

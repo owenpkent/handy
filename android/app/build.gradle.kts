@@ -60,6 +60,9 @@ dependencies {
     // DataStore for preferences
     implementation("androidx.datastore:datastore-preferences:1.2.0")
     
+    // Vosk - offline speech recognition with grammar constraints
+    implementation("com.alphacephei:vosk-android:0.3.47")
+    
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
