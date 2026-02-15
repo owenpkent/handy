@@ -16,6 +16,8 @@ class PreferencesManager(private val context: Context) {
     companion object {
         private val API_KEY = stringPreferencesKey("api_key")
         private val CONNECTION_KEY = stringPreferencesKey("connection_key")
+        private val DEEPGRAM_API_KEY = stringPreferencesKey("deepgram_api_key")
+        private val VOICE_ENGINE = stringPreferencesKey("voice_engine")
     }
     
     val apiKey: Flow<String> = context.dataStore.data.map { prefs ->
@@ -42,6 +44,26 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[API_KEY] = apiKey
             prefs[CONNECTION_KEY] = connectionKey
+        }
+    }
+    
+    val deepgramApiKey: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[DEEPGRAM_API_KEY] ?: ""
+    }
+    
+    val voiceEngine: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[VOICE_ENGINE] ?: "vosk"
+    }
+    
+    suspend fun saveDeepgramApiKey(key: String) {
+        context.dataStore.edit { prefs ->
+            prefs[DEEPGRAM_API_KEY] = key
+        }
+    }
+    
+    suspend fun saveVoiceEngine(engine: String) {
+        context.dataStore.edit { prefs ->
+            prefs[VOICE_ENGINE] = engine
         }
     }
 }

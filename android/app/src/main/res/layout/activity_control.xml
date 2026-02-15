@@ -241,7 +241,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:max="50"
+                        android:max="100"
                         android:progress="0"
                         android:progressTint="@color/slider_red"
                         android:thumbTint="@color/slider_red" />
@@ -278,7 +278,6 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:max="100"
-                        android:min="50"
                         android:progress="100"
                         android:progressTint="@color/slider_red"
                         android:thumbTint="@color/slider_red" />
@@ -303,7 +302,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:columnCount="3"
-                android:rowCount="2"
+                android:rowCount="4"
                 android:useDefaultMargins="true">
 
                 <com.google.android.material.button.MaterialButton
@@ -313,8 +312,9 @@
                     android:layout_height="48dp"
                     android:layout_columnWeight="1"
                     android:text="Slow Top"
+                    android:textColor="@color/slider_orange"
                     android:textSize="12sp"
-                    app:strokeColor="@color/text_secondary" />
+                    app:strokeColor="@color/slider_orange" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/presetMedTop"
@@ -323,8 +323,9 @@
                     android:layout_height="48dp"
                     android:layout_columnWeight="1"
                     android:text="Med Top"
+                    android:textColor="@color/slider_orange"
                     android:textSize="12sp"
-                    app:strokeColor="@color/text_secondary" />
+                    app:strokeColor="@color/slider_orange" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/presetFastTop"
@@ -333,8 +334,9 @@
                     android:layout_height="48dp"
                     android:layout_columnWeight="1"
                     android:text="Fast Top"
+                    android:textColor="@color/slider_orange"
                     android:textSize="12sp"
-                    app:strokeColor="@color/text_secondary" />
+                    app:strokeColor="@color/slider_orange" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/presetSlowMid"
@@ -343,8 +345,9 @@
                     android:layout_height="48dp"
                     android:layout_columnWeight="1"
                     android:text="Slow Mid"
+                    android:textColor="@color/slider_orange"
                     android:textSize="12sp"
-                    app:strokeColor="@color/text_secondary" />
+                    app:strokeColor="@color/slider_orange" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/presetMedMid"
@@ -353,8 +356,9 @@
                     android:layout_height="48dp"
                     android:layout_columnWeight="1"
                     android:text="Med Mid"
+                    android:textColor="@color/slider_orange"
                     android:textSize="12sp"
-                    app:strokeColor="@color/text_secondary" />
+                    app:strokeColor="@color/slider_orange" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/presetFastMid"
@@ -363,8 +367,75 @@
                     android:layout_height="48dp"
                     android:layout_columnWeight="1"
                     android:text="Fast Mid"
+                    android:textColor="@color/slider_orange"
                     android:textSize="12sp"
-                    app:strokeColor="@color/text_secondary" />
+                    app:strokeColor="@color/slider_orange" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/presetSlowBot"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_columnWeight="1"
+                    android:text="Slow Bot"
+                    android:textColor="@color/slider_orange"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/slider_orange" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/presetMedBot"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_columnWeight="1"
+                    android:text="Med Bot"
+                    android:textColor="@color/slider_orange"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/slider_orange" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/presetFastBot"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_columnWeight="1"
+                    android:text="Fast Bot"
+                    android:textColor="@color/slider_orange"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/slider_orange" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/presetSlowFull"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_columnWeight="1"
+                    android:text="Slow Full"
+                    android:textColor="@color/slider_orange"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/slider_orange" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/presetMedFull"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_columnWeight="1"
+                    android:text="Med Full"
+                    android:textColor="@color/slider_orange"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/slider_orange" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/presetFastFull"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_columnWeight="1"
+                    android:text="Fast Full"
+                    android:textColor="@color/slider_orange"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/slider_orange" />
             </GridLayout>
 
             <!-- Action Buttons -->
@@ -377,23 +448,86 @@
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/startButton"
                     android:layout_width="0dp"
-                    android:layout_height="56dp"
+                    android:layout_height="64dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="8dp"
-                    android:text="Start"
-                    android:textSize="18sp"
+                    android:text="START"
+                    android:textAllCaps="true"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
                     app:backgroundTint="@color/status_connected"
                     app:cornerRadius="8dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/stopButton"
                     android:layout_width="0dp"
-                    android:layout_height="56dp"
+                    android:layout_height="64dp"
                     android:layout_weight="1"
-                    android:text="Stop"
-                    android:textSize="18sp"
+                    android:text="STOP"
+                    android:textAllCaps="true"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
                     app:backgroundTint="@color/emergency_red"
                     app:cornerRadius="8dp" />
+            </LinearLayout>
+
+            <!-- Voice Control Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <!-- Voice Engine Label -->
+                <TextView
+                    android:id="@+id/voiceEngineLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Voice: Android STT"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Mic Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/micButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="@dimen/mic_button_size"
+                    android:layout_height="@dimen/mic_button_size"
+                    android:contentDescription="@string/content_desc_mic"
+                    android:text="MIC"
+                    android:textSize="16sp"
+                    android:textColor="@color/text_primary"
+                    app:cornerRadius="48dp"
+                    app:strokeColor="@color/text_secondary"
+                    app:strokeWidth="2dp" />
+
+                <!-- Partial Transcript (interim results) -->
+                <TextView
+                    android:id="@+id/partialTranscript"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:textStyle="italic"
+                    android:minHeight="20dp"
+                    tools:text="listening..." />
+
+                <!-- Last Command -->
+                <TextView
+                    android:id="@+id/lastCommandText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:textColor="@color/status_connected"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:minHeight="24dp"
+                    tools:text="Command: Start" />
             </LinearLayout>
 
             <!-- Feedback -->
@@ -408,6 +542,80 @@
                 android:visibility="gone"
                 tools:text="Speed set to 50%"
                 tools:visibility="visible" />
+
+            <!-- Debug Panel -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/debugToggleButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:text="Show Debug"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:id="@+id/debugPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Debug Log"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/debugCopyButton"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="Copy"
+                        android:textColor="@color/slider_orange"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/debugClearButton"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="Clear"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <ScrollView
+                    android:id="@+id/debugScrollView"
+                    android:layout_width="match_parent"
+                    android:layout_height="240dp"
+                    android:layout_marginTop="4dp"
+                    android:background="#1A1A1A"
+                    android:padding="8dp">
+
+                    <TextView
+                        android:id="@+id/debugLogText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textColor="#AAAAAA"
+                        android:textSize="11sp"
+                        android:lineSpacingExtra="2dp"
+                        tools:text="[12:00:01] Vosk: initialized\n[12:00:02] Vosk: listening...\n[12:00:05] partial: slow\n[12:00:06] result: slow top" />
+                </ScrollView>
+            </LinearLayout>
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

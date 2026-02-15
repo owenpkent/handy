@@ -246,6 +246,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         getString(R.string.stroke_set_to, command.percent)
                     } else null
                 }
+                is VoiceCommand.Preset -> null
+                is VoiceCommand.SetGlobalMin -> null
+                is VoiceCommand.SetGlobalMax -> null
                 is VoiceCommand.Unknown -> null
             }
             

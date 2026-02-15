@@ -129,11 +129,12 @@ class HandyV2ApiClient {
             if (response.isSuccessful) {
                 _isRunning.value = true
                 _lastError.value = null
-                log("Started")
+                log("Started OK")
                 true
             } else {
+                val body = response.errorBody()?.string() ?: "no body"
                 _lastError.value = "Start failed: ${response.code()}"
-                log("Start failed: ${response.code()}")
+                log("Start failed: code=${response.code()} body=$body")
                 false
             }
         } catch (e: Exception) {
@@ -173,13 +174,17 @@ class HandyV2ApiClient {
             if (response.isSuccessful) {
                 _currentSpeed.value = velocity
                 _lastError.value = null
+                log("Speed set OK: $velocity%")
                 true
             } else {
+                val body = response.errorBody()?.string() ?: "no body"
                 _lastError.value = "Set speed failed: ${response.code()}"
+                log("Speed failed: code=${response.code()} body=$body")
                 false
             }
         } catch (e: Exception) {
             _lastError.value = "Set speed error: ${e.message}"
+            log("Speed error: ${e.message}")
             false
         }
     }
@@ -194,21 +199,24 @@ class HandyV2ApiClient {
         val safeMax = max.coerceIn(0, 100)
         
         return try {
-            log("Setting stroke: $safeMin-$safeMax%")
-            val minResponse = api.setSlideMin(connectionKey, SlideMinRequest(safeMin))
-            val maxResponse = api.setSlideMax(connectionKey, SlideMaxRequest(safeMax))
+            log("Setting stroke: $safeMin-$safeMax% (sending {min:$safeMin, max:$safeMax})")
+            val response = api.setSlide(connectionKey, SlideRangeRequest(safeMin, safeMax))
             
-            if (minResponse.isSuccessful && maxResponse.isSuccessful) {
+            if (response.isSuccessful) {
                 _strokeMin.value = safeMin
                 _strokeMax.value = safeMax
                 _lastError.value = null
+                log("Stroke set OK: $safeMin-$safeMax%")
                 true
             } else {
-                _lastError.value = "Set stroke failed"
+                val body = response.errorBody()?.string() ?: "no body"
+                _lastError.value = "Set stroke failed (code=${response.code()}, range=$safeMin-$safeMax)"
+                log("Stroke failed: code=${response.code()} body=$body")
                 false
             }
         } catch (e: Exception) {
             _lastError.value = "Set stroke error: ${e.message}"
+            log("Stroke error: ${e.message}")
             false
         }
     }
@@ -270,16 +278,10 @@ interface HandyV2ApiService {
         @Header("X-Connection-Key") connectionKey: String
     ): Response<VelocityInfo>
     
-    @PUT("slide/min")
-    suspend fun setSlideMin(
+    @PUT("slide")
+    suspend fun setSlide(
         @Header("X-Connection-Key") connectionKey: String,
-        @Body request: SlideMinRequest
-    ): Response<Unit>
-    
-    @PUT("slide/max")
-    suspend fun setSlideMax(
-        @Header("X-Connection-Key") connectionKey: String,
-        @Body request: SlideMaxRequest
+        @Body request: SlideRangeRequest
     ): Response<Unit>
 }
 
@@ -288,5 +290,4 @@ data class ConnectedResponse(val connected: Boolean)
 data class ModeRequest(val mode: Int)
 // VelocityRequest is defined in HandyApiService.kt
 // VelocityInfo is defined in HandyApiService.kt
-data class SlideMinRequest(val min: Int)
-data class SlideMaxRequest(val max: Int)
+data class SlideRangeRequest(val min: Int, val max: Int)
