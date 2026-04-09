@@ -213,6 +213,20 @@
           ]
         },
         {
+          "name": "WhatCanISayIntent",
+          "samples": [
+            "what can I say",
+            "what can I do",
+            "what are my options",
+            "what are the commands",
+            "what commands are there",
+            "list commands",
+            "what do you do",
+            "what's available",
+            "options"
+          ]
+        },
+        {
           "name": "AMAZON.HelpIntent",
           "samples": []
         },
