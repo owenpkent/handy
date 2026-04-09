@@ -437,6 +437,24 @@ function handleHelp(session) {
   );
 }
 
+function handleWhatCanISay(session) {
+  const gMin = getGlobalMin(session);
+  const gMax = getGlobalMax(session);
+  const gMaxSpeed = getGlobalMaxSpeed(session);
+  const speedMsg = gMaxSpeed < 100 ? ` Speed is capped at ${gMaxSpeed}.` : '';
+  return say(
+    `Here's what you can tell me. ` +
+    'To control: say start, stop, faster, slower, or set speed to a number. ' +
+    'For presets: say a speed and position, like slow top, fast full, or medium bottom. ' +
+    'For sensations: say vibrate, pulse, tease, deep, intense, edge, gentle, or jackhammer. ' +
+    'For patterns: say play wave, play surge, play heartbeat, play storm, or play breathe. ' +
+    'For limits: say set global minimum, set global maximum, or set speed limit, followed by a number. ' +
+    `Right now your range is ${gMin} to ${gMax}.${speedMsg}`,
+    false,
+    session
+  );
+}
+
 // ── Main handler ───────────────────────────────────────────────────
 
 export const handler = async (event) => {
@@ -476,6 +494,8 @@ export const handler = async (event) => {
           return handleSetGlobalMax(slots, session);
         case 'SetMaxSpeedIntent':
           return handleSetGlobalMaxSpeed(slots, session);
+        case 'WhatCanISayIntent':
+          return handleWhatCanISay(session);
         case 'AMAZON.HelpIntent':
           return handleHelp(session);
         case 'AMAZON.StopIntent':
