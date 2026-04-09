@@ -28,6 +28,7 @@ Echo Device ──► Alexa Cloud (voice → intent) ──► AWS Lambda ──
    | `HANDY_CONNECTION_KEY` | Your Handy connection key | Yes |
    | `GLOBAL_MIN` | Default minimum position, 0-100 | No (default: 0) |
    | `GLOBAL_MAX` | Default maximum position, 0-100 (recommended: `30`) | No (default: 100) |
+   | `GLOBAL_MAX_SPEED` | Default maximum speed, 0-100 | No (default: 100) |
    | `FUNSCRIPT_BASE_URL` | URL where funscript files are hosted | No |
 
 5. **Configuration → General configuration** → set **Timeout** to **10 seconds**.
@@ -130,13 +131,20 @@ Limits ensure the device never exceeds a safe range. All presets and commands re
 
 ### Permanent (recommended)
 
-Set `GLOBAL_MIN` and `GLOBAL_MAX` as Lambda environment variables. These apply to every session automatically — you never need to say them.
+Set these as Lambda environment variables — they apply to every session automatically:
+
+| Variable | What it controls |
+|---|---|
+| `GLOBAL_MIN` | Minimum stroke position |
+| `GLOBAL_MAX` | Maximum stroke position (recommended: `30`) |
+| `GLOBAL_MAX_SPEED` | Maximum speed — no command will exceed this |
 
 ### Temporary (per-session)
 
 > "set global max to 40"
+> "set speed limit to 60"
 
-Overrides the default for this session. Reverts to the env var value when the session ends (~8 seconds of silence or "Alexa, stop").
+Overrides the default for this session. Reverts to the env var value when the session ends (~8 seconds of silence or "Alexa, stop"). If you lower the speed limit mid-session and the current speed exceeds it, the speed is reduced immediately.
 
 ### Direct stroke control
 

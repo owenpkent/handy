@@ -193,6 +193,26 @@
           ]
         },
         {
+          "name": "SetMaxSpeedIntent",
+          "slots": [
+            {
+              "name": "value",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "set speed limit to {value}",
+            "set speed limit {value}",
+            "set max speed to {value}",
+            "set max speed {value}",
+            "set maximum speed to {value}",
+            "set maximum speed {value}",
+            "speed limit {value}",
+            "limit speed to {value}",
+            "cap speed at {value}"
+          ]
+        },
+        {
           "name": "AMAZON.HelpIntent",
           "samples": []
         },
