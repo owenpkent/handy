@@ -39,6 +39,7 @@ class ControlActivity : AppCompatActivity() {
     private var speedMultiplier = 100
     private var globalMin = 0
     private var globalMax = 100
+    private var speedLimit = 100
     private var currentBaseSpeed = 50
     
     private var feedbackJob: Job? = null
@@ -93,13 +94,16 @@ class ControlActivity : AppCompatActivity() {
         speedMultiplier = prefs.getInt("speed_multiplier", 100)
         globalMin = prefs.getInt("global_min", 0)
         globalMax = prefs.getInt("global_max", 100)
-        
+        speedLimit = prefs.getInt("speed_limit", 100)
+
         binding.speedSlider.progress = speedMultiplier
         binding.speedInput.setText(speedMultiplier.toString())
         binding.globalMinSlider.progress = globalMin
         binding.globalMinInput.setText(globalMin.toString())
         binding.globalMaxSlider.progress = globalMax
         binding.globalMaxInput.setText(globalMax.toString())
+        binding.speedLimitSlider.progress = speedLimit
+        binding.speedLimitInput.setText(speedLimit.toString())
     }
     
     private fun saveSettings() {
@@ -107,6 +111,7 @@ class ControlActivity : AppCompatActivity() {
             .putInt("speed_multiplier", speedMultiplier)
             .putInt("global_min", globalMin)
             .putInt("global_max", globalMax)
+            .putInt("speed_limit", speedLimit)
             .apply()
     }
     
@@ -211,7 +216,18 @@ class ControlActivity : AppCompatActivity() {
                 showFeedback("G.Max: $globalMax%", true)
             }
         }
-        
+
+        // Speed Limit slider
+        setupSlider(binding.speedLimitSlider, binding.speedLimitInput) { value ->
+            speedLimit = value.coerceIn(1, 100)
+            saveSettings()
+            val scaledSpeed = applySpeedMultiplier(currentBaseSpeed)
+            lifecycleScope.launch {
+                api.setSpeed(scaledSpeed)
+                showFeedback("Spd.Lim: $speedLimit% → Speed: $scaledSpeed%", true)
+            }
+        }
+
         // Preset buttons
         setupPresetButton(binding.presetSlowTop, "slow", "top")
         setupPresetButton(binding.presetMedTop, "medium", "top")
@@ -308,7 +324,7 @@ class ControlActivity : AppCompatActivity() {
     }
     
     private fun applySpeedMultiplier(speed: Int): Int {
-        return (speed * speedMultiplier / 100).coerceIn(0, 100)
+        return (speed * speedMultiplier / 100).coerceIn(0, speedLimit)
     }
     
     private fun observeState() {
@@ -556,6 +572,7 @@ class ControlActivity : AppCompatActivity() {
             is VoiceCommand.Preset -> "${command.speed} ${command.position}"
             is VoiceCommand.SetGlobalMin -> "G.Min ${command.percent}%"
             is VoiceCommand.SetGlobalMax -> "G.Max ${command.percent}%"
+            is VoiceCommand.SetSpeedLimit -> "Spd.Lim ${command.percent}%"
             is VoiceCommand.Unknown -> "\"$transcript\""
         }
         binding.lastCommandText.text = label
@@ -580,12 +597,14 @@ class ControlActivity : AppCompatActivity() {
                     if (api.stop()) showFeedback("Stopped", true)
                 }
                 is VoiceCommand.Faster -> {
-                    if (api.adjustSpeed(10)) {
+                    val target = (api.currentSpeed.value + 10).coerceIn(0, speedLimit)
+                    if (api.setSpeed(target)) {
                         showFeedback("Speed: ${api.currentSpeed.value}%", true)
                     }
                 }
                 is VoiceCommand.Slower -> {
-                    if (api.adjustSpeed(-10)) {
+                    val target = (api.currentSpeed.value - 10).coerceAtLeast(0)
+                    if (api.setSpeed(target)) {
                         showFeedback("Speed: ${api.currentSpeed.value}%", true)
                     }
                 }
@@ -639,6 +658,17 @@ class ControlActivity : AppCompatActivity() {
                     api.setStrokeRange(curMin, newMax)
                     debugLog("Global", "max=$globalMax, stroke=$curMin-$newMax")
                     showFeedback("G.Max: $globalMax%", true)
+                }
+                is VoiceCommand.SetSpeedLimit -> {
+                    speedLimit = command.percent.coerceIn(1, 100)
+                    saveSettings()
+                    binding.speedLimitSlider.progress = speedLimit
+                    binding.speedLimitInput.setText(speedLimit.toString())
+                    // If current speed exceeds new limit, reduce it
+                    val scaledSpeed = applySpeedMultiplier(currentBaseSpeed)
+                    api.setSpeed(scaledSpeed)
+                    debugLog("SpeedLimit", "limit=$speedLimit, speed=$scaledSpeed")
+                    showFeedback("Spd.Lim: $speedLimit%", true)
                 }
                 is VoiceCommand.Unknown -> { /* handled above */ }
             }

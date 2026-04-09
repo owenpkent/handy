@@ -64,6 +64,9 @@ class VoskVoiceEngine(
             "max sixty", "max seventy", "max eighty", "max ninety", "max hundred",
             "min ten", "min twenty", "min thirty", "min forty", "min fifty",
             "min sixty", "min seventy", "min eighty", "min ninety", "min hundred",
+            // Speed limit
+            "limit ten", "limit twenty", "limit thirty", "limit forty", "limit fifty",
+            "limit sixty", "limit seventy", "limit eighty", "limit ninety", "limit hundred",
             // Unknown catch-all
             "[unk]"
         )
