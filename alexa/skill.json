@@ -1,0 +1,42 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "summary": "Voice control for The Handy device",
+          "examplePhrases": [
+            "Alexa, open handy",
+            "Alexa, tell handy to start",
+            "Alexa, tell handy to go fast full"
+          ],
+          "name": "Handy Control",
+          "description": "Control your Handy device with voice commands. Start, stop, adjust speed, set presets, and control stroke range hands-free."
+        }
+      },
+      "isAvailableWorldwide": false,
+      "testingInstructions": "Private skill for personal use. Requires a Handy device connection key set as a Lambda environment variable.",
+      "category": "SMART_HOME"
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "YOUR_LAMBDA_ARN_HERE"
+        }
+      }
+    },
+    "manifestVersion": "1.0",
+    "privacyAndCompliance": {
+      "locales": {
+        "en-US": {
+          "privacyPolicyUrl": "",
+          "termsOfUseUrl": ""
+        }
+      },
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false
+    }
+  }
+}
