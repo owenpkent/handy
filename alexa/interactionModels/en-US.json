@@ -1,0 +1,261 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "handy",
+      "intents": [
+        {
+          "name": "StartIntent",
+          "samples": [
+            "start",
+            "go",
+            "begin",
+            "play",
+            "turn on",
+            "start it",
+            "start up",
+            "get going",
+            "resume"
+          ]
+        },
+        {
+          "name": "StopIntent",
+          "samples": [
+            "stop",
+            "halt",
+            "pause",
+            "stop it",
+            "turn off",
+            "shut off",
+            "emergency stop",
+            "kill it",
+            "freeze"
+          ]
+        },
+        {
+          "name": "SetSpeedIntent",
+          "slots": [
+            {
+              "name": "speed",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "set speed to {speed}",
+            "speed {speed}",
+            "set speed {speed}",
+            "set speed to {speed} percent",
+            "go at {speed}",
+            "go at {speed} percent",
+            "{speed} percent",
+            "{speed} speed"
+          ]
+        },
+        {
+          "name": "FasterIntent",
+          "samples": [
+            "faster",
+            "speed up",
+            "quicker",
+            "go faster",
+            "more speed",
+            "increase speed",
+            "turn it up"
+          ]
+        },
+        {
+          "name": "SlowerIntent",
+          "samples": [
+            "slower",
+            "slow down",
+            "less speed",
+            "decrease speed",
+            "go slower",
+            "turn it down",
+            "ease up"
+          ]
+        },
+        {
+          "name": "PresetIntent",
+          "slots": [
+            {
+              "name": "speed_name",
+              "type": "SpeedName"
+            },
+            {
+              "name": "position_name",
+              "type": "PositionName"
+            }
+          ],
+          "samples": [
+            "{speed_name} {position_name}",
+            "go {speed_name} {position_name}",
+            "set {speed_name} {position_name}",
+            "preset {speed_name} {position_name}"
+          ]
+        },
+        {
+          "name": "SensationIntent",
+          "slots": [
+            {
+              "name": "sensation_name",
+              "type": "SensationName"
+            }
+          ],
+          "samples": [
+            "{sensation_name}",
+            "go {sensation_name}",
+            "do {sensation_name}",
+            "set {sensation_name}",
+            "sensation {sensation_name}",
+            "mode {sensation_name}",
+            "switch to {sensation_name}",
+            "try {sensation_name}"
+          ]
+        },
+        {
+          "name": "PatternIntent",
+          "slots": [
+            {
+              "name": "pattern_name",
+              "type": "PatternName"
+            }
+          ],
+          "samples": [
+            "pattern {pattern_name}",
+            "play {pattern_name}",
+            "play {pattern_name} pattern",
+            "play the {pattern_name} pattern",
+            "start {pattern_name} pattern",
+            "{pattern_name} pattern",
+            "waveform {pattern_name}"
+          ]
+        },
+        {
+          "name": "SetStrokeIntent",
+          "slots": [
+            {
+              "name": "stroke_min",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "stroke_max",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "set stroke {stroke_min} to {stroke_max}",
+            "set stroke from {stroke_min} to {stroke_max}",
+            "set range {stroke_min} to {stroke_max}",
+            "stroke range {stroke_min} to {stroke_max}",
+            "stroke {stroke_min} to {stroke_max}"
+          ]
+        },
+        {
+          "name": "SetMinimumIntent",
+          "slots": [
+            {
+              "name": "value",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "set global minimum to {value}",
+            "set global minimum {value}",
+            "set global min to {value}",
+            "set global min {value}",
+            "global minimum {value}",
+            "set minimum to {value}",
+            "set minimum {value}",
+            "set min to {value}",
+            "set min {value}",
+            "minimum {value}"
+          ]
+        },
+        {
+          "name": "SetMaximumIntent",
+          "slots": [
+            {
+              "name": "value",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "set global maximum to {value}",
+            "set global maximum {value}",
+            "set global max to {value}",
+            "set global max {value}",
+            "global maximum {value}",
+            "set maximum to {value}",
+            "set maximum {value}",
+            "set max to {value}",
+            "set max {value}",
+            "maximum {value}"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "SpeedName",
+          "values": [
+            { "name": { "value": "slow" } },
+            { "name": { "value": "medium", "synonyms": ["med", "moderate", "normal"] } },
+            { "name": { "value": "fast", "synonyms": ["quick", "high"] } }
+          ]
+        },
+        {
+          "name": "PositionName",
+          "values": [
+            { "name": { "value": "top", "synonyms": ["upper"] } },
+            { "name": { "value": "middle", "synonyms": ["mid", "center"] } },
+            { "name": { "value": "bottom", "synonyms": ["bot", "low", "lower"] } },
+            { "name": { "value": "full", "synonyms": ["all", "max range", "full range"] } },
+            { "name": { "value": "natural" } }
+          ]
+        },
+        {
+          "name": "SensationName",
+          "values": [
+            { "name": { "value": "vibrate", "synonyms": ["vibration", "vibe", "buzz"] } },
+            { "name": { "value": "pulse", "synonyms": ["pulsing", "throb"] } },
+            { "name": { "value": "tease", "synonyms": ["teasing"] } },
+            { "name": { "value": "deep", "synonyms": ["deep stroke", "long stroke"] } },
+            { "name": { "value": "intense", "synonyms": ["hard", "aggressive"] } },
+            { "name": { "value": "edge", "synonyms": ["edging"] } },
+            { "name": { "value": "gentle", "synonyms": ["soft", "light", "easy"] } },
+            { "name": { "value": "jackhammer", "synonyms": ["max", "full power", "beast mode"] } }
+          ]
+        },
+        {
+          "name": "PatternName",
+          "values": [
+            { "name": { "value": "wave", "synonyms": ["waves", "ocean"] } },
+            { "name": { "value": "surge", "synonyms": ["ramp", "build", "buildup"] } },
+            { "name": { "value": "heartbeat", "synonyms": ["heart", "heart beat", "pulse pattern"] } },
+            { "name": { "value": "storm", "synonyms": ["chaos", "random", "wild"] } },
+            { "name": { "value": "breathe", "synonyms": ["breathing", "breath", "inhale"] } }
+          ]
+        }
+      ]
+    },
+    "dialog": {
+      "intents": [],
+      "delegationStrategy": "ALWAYS"
+    }
+  }
+}

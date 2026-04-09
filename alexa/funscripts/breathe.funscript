@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {"at": 0,     "pos": 50},
+    {"at": 2000,  "pos": 85},
+    {"at": 4000,  "pos": 15},
+    {"at": 6000,  "pos": 85},
+    {"at": 8000,  "pos": 15},
+    {"at": 10000, "pos": 85},
+    {"at": 12000, "pos": 15},
+    {"at": 14000, "pos": 50},
+    {"at": 16000, "pos": 50},
+    {"at": 17500, "pos": 80},
+    {"at": 19000, "pos": 20},
+    {"at": 20500, "pos": 80},
+    {"at": 22000, "pos": 20},
+    {"at": 23500, "pos": 80},
+    {"at": 25000, "pos": 20},
+    {"at": 26500, "pos": 80},
+    {"at": 28000, "pos": 20},
+    {"at": 29000, "pos": 50},
+    {"at": 30000, "pos": 50},
+    {"at": 31000, "pos": 75},
+    {"at": 32000, "pos": 25},
+    {"at": 33000, "pos": 75},
+    {"at": 34000, "pos": 25},
+    {"at": 35000, "pos": 75},
+    {"at": 36000, "pos": 25},
+    {"at": 37000, "pos": 75},
+    {"at": 38000, "pos": 25},
+    {"at": 39000, "pos": 75},
+    {"at": 40000, "pos": 25},
+    {"at": 41000, "pos": 50},
+    {"at": 44000, "pos": 50}
+  ],
+  "metadata": {
+    "description": "Breathe — slow, rhythmic like deep breathing. Starts with long 2-second strokes, gradually quickens to 1-second cycles, then rests. 44-second cycle.",
+    "duration": 44000,
+    "type": "pattern"
+  }
+}
