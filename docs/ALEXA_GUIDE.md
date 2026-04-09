@@ -76,7 +76,8 @@ The skill is automatically available on any Echo device registered to the same A
 | "set speed to 50" | Set speed to exactly 50% |
 | "faster" / "speed up" | Speed +10% |
 | "slower" / "slow down" | Speed -10% |
-| "help" | List commands and current limits |
+| "what can I say" / "what are my options" | Full walkthrough of all available commands |
+| "help" | Quick summary of commands and current limits |
 
 ### Grid Presets
 
@@ -122,6 +123,15 @@ Time-based waveforms using HSSP mode. Requires `FUNSCRIPT_BASE_URL` env var. May
 Global limits are applied before playback — the device's slide range is set to your min/max.
 
 To host the funscripts, upload the files from `alexa/funscripts/` to any public HTTPS URL (S3 bucket, GitHub raw, Netlify, etc.) and set `FUNSCRIPT_BASE_URL` in Lambda.
+
+### Range & Limit Controls
+
+| Say this | What it does |
+|---|---|
+| "set stroke 20 to 80" | Set stroke range (clamped to global limits) |
+| "set global minimum to 10" | Set global min — all presets scale within this |
+| "set global maximum to 30" | Set global max — nothing exceeds this position |
+| "set speed limit to 60" | Cap speed — no command will exceed this speed |
 
 ---
 
@@ -174,6 +184,10 @@ Clamped to global limits. "Set stroke 0 to 100" with max=30 becomes 0–30.
 
 **Quick one-shot:**
 > "Alexa, tell Handy to go vibrate"
+
+**Finding out what you can do:**
+> "Alexa, open Handy" → *"Handy connected. Range 0 to 30, max speed 60."*
+> "what can I say?" → *"Here's what you can tell me. To control: say start, stop, faster, slower..."*
 
 **Exploring presets:**
 > "Alexa, open Handy" → *"Limits 0 to 30."*
