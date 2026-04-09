@@ -10,6 +10,7 @@ sealed class VoiceCommand {
     data class Preset(val speed: String, val position: String) : VoiceCommand()
     data class SetGlobalMin(val percent: Int) : VoiceCommand()
     data class SetGlobalMax(val percent: Int) : VoiceCommand()
+    data class SetSpeedLimit(val percent: Int) : VoiceCommand()
     object Unknown : VoiceCommand()
 }
 
@@ -153,6 +154,21 @@ object VoiceCommandParser {
                     if (ratio < bestScore) {
                         bestScore = ratio
                         bestCommand = if (isMax) VoiceCommand.SetGlobalMax(num) else VoiceCommand.SetGlobalMin(num)
+                    }
+                }
+            }
+        }
+
+        // 6. Check "limit <number>" patterns (speed limit)
+        for (i in 0 until words.size - 1) {
+            if (wordRatio(words[i], "limit") <= WORD_THRESHOLD) {
+                val numWord = words[i + 1]
+                val num = numWord.toIntOrNull() ?: numberWords[numWord]
+                if (num != null && num in 1..100) {
+                    val ratio = wordRatio(words[i], "limit")
+                    if (ratio < bestScore) {
+                        bestScore = ratio
+                        bestCommand = VoiceCommand.SetSpeedLimit(num)
                     }
                 }
             }

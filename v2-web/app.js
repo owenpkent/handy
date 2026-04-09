@@ -70,8 +70,11 @@ const globalMinSlider = document.getElementById('globalMin');
 const globalMinInput = document.getElementById('globalMinInput');
 const globalMaxSlider = document.getElementById('globalMax');
 const globalMaxInput = document.getElementById('globalMaxInput');
+const speedLimitSlider = document.getElementById('speedLimit');
+const speedLimitInput = document.getElementById('speedLimitInput');
 let GLOBAL_MIN = 0;
 let GLOBAL_MAX = 100;
+let SPEED_LIMIT = 100;
 
 // DOM Elements
 const setupPanel = document.getElementById('setupPanel');
@@ -238,8 +241,8 @@ function applyGlobalLimits(min, max) {
 }
 
 function applySpeedMultiplier(speed) {
-    // Scale speed by multiplier (10-100%)
-    return Math.round(speed * (SPEED_MULTIPLIER / 100));
+    // Scale speed by multiplier (10-100%), then cap to speed limit
+    return Math.min(Math.round(speed * (SPEED_MULTIPLIER / 100)), SPEED_LIMIT);
 }
 
 async function applyPreset(speed, position, btn) {
@@ -567,6 +570,41 @@ globalMaxInput.addEventListener('change', async (e) => {
     }
 });
 
+// Speed limit slider
+speedLimitSlider.addEventListener('input', (e) => {
+    speedLimitInput.value = e.target.value;
+    SPEED_LIMIT = parseInt(e.target.value);
+});
+
+speedLimitSlider.addEventListener('change', async (e) => {
+    SPEED_LIMIT = parseInt(e.target.value);
+    localStorage.setItem('handy_speed_limit', SPEED_LIMIT);
+    try {
+        // If current speed exceeds new limit, reduce it
+        const scaledSpeed = applySpeedMultiplier(currentBaseSpeed);
+        await api.setSpeed(scaledSpeed);
+        showFeedback(`Spd.Lim: ${SPEED_LIMIT}% → Speed: ${scaledSpeed}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
+    }
+});
+
+speedLimitInput.addEventListener('change', async (e) => {
+    let val = parseInt(e.target.value) || 1;
+    val = Math.max(1, Math.min(100, val));
+    e.target.value = val;
+    speedLimitSlider.value = val;
+    SPEED_LIMIT = val;
+    localStorage.setItem('handy_speed_limit', SPEED_LIMIT);
+    try {
+        const scaledSpeed = applySpeedMultiplier(currentBaseSpeed);
+        await api.setSpeed(scaledSpeed);
+        showFeedback(`Spd.Lim: ${SPEED_LIMIT}% → Speed: ${scaledSpeed}%`, 'success');
+    } catch (err) {
+        showFeedback(err.message, 'error');
+    }
+});
+
 // Enter key to connect
 connectionKeyInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') connect();
@@ -601,6 +639,14 @@ function init() {
         GLOBAL_MAX = parseInt(savedGlobalMax);
         globalMaxSlider.value = GLOBAL_MAX;
         globalMaxInput.value = GLOBAL_MAX;
+    }
+
+    // Load speed limit setting
+    const savedSpeedLimit = localStorage.getItem('handy_speed_limit');
+    if (savedSpeedLimit) {
+        SPEED_LIMIT = parseInt(savedSpeedLimit);
+        speedLimitSlider.value = SPEED_LIMIT;
+        speedLimitInput.value = SPEED_LIMIT;
     }
     
     // Apply global limits to stroke sliders
