@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Handy",
+        "description": "Enter your Handy connection key from handyfeeling.com.",
+        "data": {
+          "connection_key": "Connection Key"
+        }
+      }
+    },
+    "error": {
+      "device_offline": "Handy device is not online. Make sure it is powered on and connected to Wi-Fi.",
+      "api_error": "API error during connection. Verify the connection key is correct.",
+      "unknown": "Unexpected error. Check the Home Assistant logs."
+    },
+    "abort": {
+      "already_configured": "This Handy is already configured."
+    }
+  },
+  "services": {
+    "set_range": {
+      "name": "Set stroke range",
+      "description": "Set the minimum and maximum stroke positions."
+    },
+    "preset": {
+      "name": "Apply preset",
+      "description": "Apply a speed + position preset and start motion."
+    },
+    "faster": {
+      "name": "Faster",
+      "description": "Increase current speed by a delta."
+    },
+    "slower": {
+      "name": "Slower",
+      "description": "Decrease current speed by a delta."
+    }
+  }
+}

@@ -1,0 +1,87 @@
+set_range:
+  name: Set stroke range
+  description: Set the minimum and maximum stroke positions.
+  fields:
+    min:
+      name: Min
+      description: Minimum stroke position (0-100).
+      required: true
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+          unit_of_measurement: "%"
+    max:
+      name: Max
+      description: Maximum stroke position (0-100).
+      required: true
+      example: 90
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+          unit_of_measurement: "%"
+
+preset:
+  name: Apply preset
+  description: Apply a speed + position preset and start motion.
+  fields:
+    speed:
+      name: Speed
+      description: Speed preset (slow=25, medium=50, fast=80).
+      required: true
+      example: medium
+      selector:
+        select:
+          options:
+            - slow
+            - medium
+            - fast
+    position:
+      name: Position
+      description: Stroke position preset.
+      required: true
+      example: full
+      selector:
+        select:
+          options:
+            - top
+            - middle
+            - bottom
+            - full
+            - natural
+
+faster:
+  name: Faster
+  description: Increase current speed by a delta (default 10).
+  fields:
+    delta:
+      name: Delta
+      description: Amount to increase speed by.
+      required: false
+      default: 10
+      example: 10
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+
+slower:
+  name: Slower
+  description: Decrease current speed by a delta (default 10).
+  fields:
+    delta:
+      name: Delta
+      description: Amount to decrease speed by.
+      required: false
+      default: 10
+      example: 10
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider

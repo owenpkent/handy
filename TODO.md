@@ -27,11 +27,22 @@
 
 ## Next Up
 
-- [ ] **Alexa skill — finish testing** — Lambda + Handy verified working via Manual JSON LaunchRequest (returned *"Handy connected. Range 0 to 30, max speed 50."*). Simulator voice invocation returns *"X is not supported on this device"* — likely stale simulator cache. Pending: test on a real Echo. Skill ID `amzn1.ask.skill.08af7a77-4701-4292-b027-3840509fcabd`. Current invocation name in JSON: `my stroke control` (changed from `handy machine` during debugging — pick a final name and rebuild).
+- [ ] **Home Assistant integration** — primary path forward for hands-free voice control. See [docs/HOME_ASSISTANT_GUIDE.md](docs/HOME_ASSISTANT_GUIDE.md). Stages:
+  - [ ] Stand up HA + Whisper + Piper + openWakeWord + satellite stack via Docker Compose on the Beelink GTR5 (Ubuntu 24)
+  - [x] Build `custom_components/handy/` v0.1 — fan entity (start/stop + speed%), services `set_range`/`preset`/`faster`/`slower`, UI config flow with connection-key validation
+  - [ ] Deploy integration to HA host (`~/handy-ha/config/custom_components/handy/`) and validate via Developer Tools → Services
+  - [ ] Pair USB mic + satellite container; configure ALSA device passthrough
+  - [ ] Author custom intents YAML (`config/custom_sentences/en/handy.yaml`) for natural commands
+  - [ ] v0.2: add global min/max + speed-limit safety caps as services or as part of config options
+  - [ ] v0.3: sensation presets (vibrate, pulse, tease, deep, intense, edge, gentle, jackhammer)
 - [ ] **HSSP Integration** — Play funscripts from URLs
 - [ ] **Custom Patterns** — Host looping funscripts for HRPP-like behavior
-- [ ] **Voice Commands (V2 Web)** — Port Deepgram voice to V2 web app
 - [ ] **Android UX Polish** — Better connection flow, error recovery, onboarding
+
+## Shelved / Abandoned
+
+- [~] **Alexa custom skill** — Lambda + Handy API verified working end-to-end (Manual JSON LaunchRequest succeeds). Voice invocation fails identically on simulator AND real Echo with *"X is not supported on this device"* despite all settings verified correct (Test stage = Development, locale match, account match, Distribution fields filled, multiple invocation names tried). Strongly suspect Amazon content-filter is silently blocking voice routing for adult-themed skills. Pivoting to Home Assistant which has no such filter. Skill ID kept for reference: `amzn1.ask.skill.08af7a77-4701-4292-b027-3840509fcabd`. Lambda kept deployed in case revisiting.
+- [~] **Voice Commands (V2 Web)** — Web Speech API requires button press to start and tab focus, which fails the accessibility use case. Subsumed by Home Assistant voice pipeline above.
 
 ## Future Enhancements
 
