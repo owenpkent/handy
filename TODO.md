@@ -27,6 +27,7 @@
 
 ## Next Up
 
+- [ ] **Alexa skill — finish testing** — Lambda + Handy verified working via Manual JSON LaunchRequest (returned *"Handy connected. Range 0 to 30, max speed 50."*). Simulator voice invocation returns *"X is not supported on this device"* — likely stale simulator cache. Pending: test on a real Echo. Skill ID `amzn1.ask.skill.08af7a77-4701-4292-b027-3840509fcabd`. Current invocation name in JSON: `my stroke control` (changed from `handy machine` during debugging — pick a final name and rebuild).
 - [ ] **HSSP Integration** — Play funscripts from URLs
 - [ ] **Custom Patterns** — Host looping funscripts for HRPP-like behavior
 - [ ] **Voice Commands (V2 Web)** — Port Deepgram voice to V2 web app

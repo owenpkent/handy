@@ -18,7 +18,7 @@ Echo Device ──► Alexa Cloud (voice → intent) ──► AWS Lambda ──
 1. Sign into [AWS Lambda Console](https://console.aws.amazon.com/lambda/) (same Amazon login as Alexa). Use region **us-east-1** (N. Virginia).
 2. **Create function** → Author from scratch:
    - Name: `handy-alexa-control`
-   - Runtime: `Node.js 22.x`
+   - Runtime: `Node.js 22.x` or later
    - Architecture: `x86_64`
 3. In the **Code** tab, replace the default `index.mjs` with the contents of `alexa/lambda/index.mjs` from this project. Click **Deploy**.
 4. **Configuration → Environment variables → Edit**. Add:
@@ -42,16 +42,19 @@ Echo Device ──► Alexa Cloud (voice → intent) ──► AWS Lambda ──
    - Name: `Handy Control`
    - Locale: `English (US)`
    - Type: Other → Custom → Provision your own → Start from Scratch
-3. **Interaction Model → JSON Editor**: paste the contents of `alexa/interactionModels/en-US.json`. Click **Save**, then **Build Skill**.
+3. **Interaction Model → JSON Editor**: paste the contents of `alexa/interactionModels/en-US.json`. Click **Save**, then **Build Skill**. Pick an invocation name that's at least two words and unique — single common words like "handy" can collide with reserved words or public skills and produce *"X is not supported on this device"* errors.
 4. **Endpoint** → AWS Lambda ARN → paste the ARN from step 1.7. Click **Save Endpoints**.
-5. (Optional) Copy the Skill ID from the endpoint page back to your Lambda trigger for tighter security.
+5. **Distribution tab** → fill in the required fields (One Sentence Description, Detailed Description, Example Phrases, Category, Keywords). Even for a private skill these must be filled before testing works. Anything reasonable is fine — this never gets published.
+6. (Optional) Copy the Skill ID from the endpoint page back to your Lambda trigger for tighter security.
 
 ### 3. Test
 
-In the Alexa Developer Console **Test** tab, set to **Development**, then type:
-- `open handy` → *"Handy connected. Limits 0 to 30."*
+In the Alexa Developer Console **Test** tab, set to **Development**, then type (replacing `<invocation>` with your chosen invocation name):
+- `open <invocation>` → *"Handy connected. Range 0 to 30, max speed 50."*
 - `vibrate` → *"vibrate. Speed 100, range 14 to 17."*
 - `stop` → *"Stopped."*
+
+If the simulator returns *"X is not supported on this device"* even after a successful build, use the **Manual JSON** tab with a `LaunchRequest` to test the Lambda directly. If that succeeds, the simulator is just stale — try a real Echo, or hard-refresh the dev console / toggle Test mode Off→Development.
 
 The skill is automatically available on any Echo device registered to the same Amazon account.
 
@@ -210,6 +213,8 @@ Clamped to global limits. "Set stroke 0 to 100" with max=30 becomes 0–30.
 |---|---|
 | "Handy is not connected" | Device not powered on / not on WiFi / wrong connection key |
 | "There was a problem with the requested skill's response" | Check CloudWatch Logs (Lambda → Monitor → View Logs). Usually wrong key or timeout too short. |
+| "X is not supported on this device" (simulator) | Distribution tab fields not filled; or invocation name collides with a reserved/public skill name (try a unique multi-word name); or simulator cache is stale (toggle Test off→Development, hard-refresh). Confirm Lambda works via Manual JSON `LaunchRequest`. |
+| "Dialog intents must not be empty" (build) | Remove the `dialog` block from the interaction model JSON. |
 | Skill not on Echo | Alexa Console Test tab must be set to "Development". Must use same Amazon account as Echo. |
 | Commands not recognized | Rebuild the interaction model. Try exact phrases from the tables above. |
 | Session too short | Use one-shot commands ("Alexa, tell Handy to...") or speak within 8 seconds. |

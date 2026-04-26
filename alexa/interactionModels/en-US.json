@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "handy",
+      "invocationName": "my stroke control",
       "intents": [
         {
           "name": "StartIntent",
@@ -286,10 +286,6 @@
           ]
         }
       ]
-    },
-    "dialog": {
-      "intents": [],
-      "delegationStrategy": "ALWAYS"
     }
   }
 }
