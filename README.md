@@ -13,6 +13,8 @@ Accessible control apps for The Handy device, designed for users with disabiliti
 | **v2-web** | Handy V2 | Working | Web app with preset grid, safety limits, debug panel |
 | **v1-web** | Handy V1 | Legacy | Original web app with voice control (Deepgram) |
 | **android** | Handy V1 | In Progress | Android app with voice commands |
+| **alexa** | Handy V2 | Shelved | Custom skill blocked by Amazon content filter; see [ALEXA_GUIDE.md](docs/ALEXA_GUIDE.md) |
+| **homeassistant** | Handy V2 | Planned | Always-on hands-free voice via local HA voice pipeline; see [HOME_ASSISTANT_GUIDE.md](docs/HOME_ASSISTANT_GUIDE.md) |
 
 ## Quick Start (V2 Web App)
 
@@ -60,6 +62,8 @@ handy-v1/
 │   ├── HANDY_API_NOTES.md  # API findings (HAMP, HSSP, HBSP)
 │   ├── SETUP_GUIDE.md
 │   ├── DEEPGRAM_GUIDE.md
+│   ├── ALEXA_GUIDE.md
+│   ├── HOME_ASSISTANT_GUIDE.md
 │   └── CONSTELLATION_INTEGRATION_GUIDE.md
 ├── README.md               # This file
 ├── TODO.md                 # Task tracking
