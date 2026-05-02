@@ -26,7 +26,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Handy fan entity from a config entry."""
-    api: HandyV2API = hass.data[DOMAIN][entry.entry_id]
+    api: HandyV2API = hass.data[DOMAIN][entry.entry_id]["api"]
     async_add_entities([HandyFan(api, entry)])
 
 

@@ -36,6 +36,8 @@ SERVICE_SET_RANGE = "set_range"
 SERVICE_PRESET = "preset"
 SERVICE_FASTER = "faster"
 SERVICE_SLOWER = "slower"
+SERVICE_START_PATTERN = "start_pattern"
+SERVICE_STOP_PATTERN = "stop_pattern"
 
 # Service field names.
 ATTR_MIN = "min"
@@ -43,3 +45,11 @@ ATTR_MAX = "max"
 ATTR_SPEED = "speed"
 ATTR_POSITION = "position"
 ATTR_DELTA = "delta"
+ATTR_PATTERN = "pattern"
+ATTR_INTENSITY = "intensity"
+
+# Hard ceiling enforced by the pattern engine on every emitted velocity.
+# Lower this in your fork/install for accessibility or safety reasons; the
+# engine will refuse to send any velocity above this value, regardless of
+# what intensity a caller passes.
+GLOBAL_MAX_SPEED = 100

@@ -85,3 +85,40 @@ slower:
           min: 1
           max: 100
           mode: slider
+
+start_pattern:
+  name: Start pattern
+  description: >-
+    Start a time-based motion pattern. Cancels any pattern already running.
+    The pattern's velocity envelope is multiplied by `intensity` and clamped
+    to GLOBAL_MAX_SPEED before being sent to the device.
+  fields:
+    pattern:
+      name: Pattern
+      description: Pattern name (heartbeat, wave, surge, breathe, storm).
+      required: true
+      example: heartbeat
+      selector:
+        select:
+          options:
+            - heartbeat
+            - wave
+            - surge
+            - breathe
+            - storm
+    intensity:
+      name: Intensity
+      description: Peak velocity for the pattern (0-100).
+      required: false
+      default: 50
+      example: 30
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+          unit_of_measurement: "%"
+
+stop_pattern:
+  name: Stop pattern
+  description: Cancel the running pattern (if any) and stop the device.
