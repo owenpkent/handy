@@ -59,6 +59,20 @@ The Handy API is stateful and order-sensitive. From `docs/HANDY_API_NOTES.md`:
 The integration enforces this: `handy.preset` does range → start → speed.
 The fan entity's `turn_on` follows the same rule.
 
+## Connection failures
+
+If the device is offline at HA startup (or the cloud is unreachable), the
+integration:
+
+- Raises `ConfigEntryNotReady`, so HA auto-retries with exponential backoff
+  (~1m, 2m, 4m, …) until the device comes back. No manual reload needed.
+- Creates a persistent notification ("Handy offline" with the reason) — visible
+  on the bell icon in the HA UI. Auto-dismissed on the next successful setup.
+- Fires a `handy_connection_failed` event with `{reason: "..."}`. Use this to
+  trigger your own notify/TTS automations. See
+  `deploy/ha-host/sample-config/automations.yaml` for a sample that announces
+  the failure on a Wyoming satellite via Piper TTS.
+
 ## What's not here yet
 
 - Global limits / speed limit (safety caps that scale all commands).

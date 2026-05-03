@@ -6,10 +6,11 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import HandyApiError, HandyV2API
@@ -37,6 +38,9 @@ from .patterns import PATTERNS, PatternEngine
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.FAN]
+
+EVENT_CONNECTION_FAILED = "handy_connection_failed"
+_NOTIFICATION_ID = "handy_connection_failed"
 
 _SET_RANGE_SCHEMA = vol.Schema(
     {
@@ -76,7 +80,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await api.connect()
     except HandyApiError as err:
-        raise HomeAssistantError(f"Failed to connect to Handy: {err}") from err
+        reason = str(err)
+        hass.bus.async_fire(EVENT_CONNECTION_FAILED, {"reason": reason})
+        persistent_notification.async_create(
+            hass,
+            f"Failed to connect to Handy: {reason}",
+            title="Handy offline",
+            notification_id=_NOTIFICATION_ID,
+        )
+        raise ConfigEntryNotReady(f"Failed to connect to Handy: {reason}") from err
+
+    persistent_notification.async_dismiss(hass, _NOTIFICATION_ID)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "api": api,
