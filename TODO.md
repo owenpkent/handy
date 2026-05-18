@@ -24,6 +24,15 @@
 - [x] Fix global slider ranges (0-100, matching web app)
 - [x] Android settings: Vosk/Android STT/Deepgram voice engine selection
 - [x] Update LLM onboarding documentation
+- [x] **Android v2 scaffold** — new app using prerecorded voice samples (MFCC + DTW); see `android-v2/`
+- [x] Android v2: hand-rolled MFCC (radix-2 FFT, mel filterbank, DCT) with 14 JVM unit tests
+- [x] Android v2: Sakoe-Chiba banded DTW with path-length normalization
+- [x] Android v2: TemplateEngine interface + MfccDtwEngine + TemplateStore (JSON, format-versioned)
+- [x] Android v2: Euphonia-style TrainingActivity (9 commands × 3 takes, save-as-you-go)
+- [x] Android v2: ControlActivity with mic-button and always-on (VAD-gated) modes
+- [x] Android v2: SettingsActivity (connection key, listening mode, global max speed, threshold, retrain)
+- [x] Android v2: Dispatch table mirroring `vega/commands.py` (9 labels: start/stop/faster/slower + 5 pattern stand-ins)
+- [x] Android v2: thorough documentation (README, ARCHITECTURE, VOICE_ENGINE, COMMANDS, TRAINING, TROUBLESHOOTING)
 
 ## Next Up
 
@@ -38,6 +47,14 @@
 - [ ] **HSSP Integration** — Play funscripts from URLs
 - [ ] **Custom Patterns** — Host looping funscripts for HRPP-like behavior
 - [ ] **Android UX Polish** — Better connection flow, error recovery, onboarding
+- [ ] **Android v2: on-device validation** — record real templates on Owen's phone, walk every command twice, tune `match_threshold` and `Vad.energyThreshold` defaults from observed score distributions
+- [ ] **Android v2: pattern engine port** from `vega/devices/handy.py` (looping heartbeat / wave / surge / breathe / storm envelopes). Add `VoiceAction.Pattern(name, intensity)`, replace the 5 Preset stand-ins. Recording vocabulary unchanged.
+- [ ] **Android v2: preset grid UI parity with v1** — 4×3 slow/med/fast × top/mid/bot/full + sliders. Voice-first stays primary; grid is touch fallback.
+- [ ] **Android v2: TFLite embedding engine** — extract EfficientWord-Net's Resnet50 model, port preprocessing to Kotlin, store one average embedding per label. Cosine similarity threshold. Same training UX.
+- [ ] **Android v2: wake-word label** — record one template called `wake`; always-on uses the matcher itself as the wake stage instead of VAD. Closer to vega's design.
+- [ ] **Android v2: stroke-range cap** — wire `GLOBAL_MAX_STROKE_PERCENT` (default 30 per vega) into Settings and `Dispatch.dispatch()`.
+- [ ] **Android v2: per-command retrain** — Settings → "Re-record a single command" without wiping everything.
+- [ ] **Android v2: foreground service for true background listening** — `MediaProjection`-style with persistent notification. Optional, behind a setting; useful for hands-free across screen-off.
 
 ## Shelved / Abandoned
 
@@ -50,3 +67,5 @@
 - [ ] Voice-activated timers
 - [ ] HSSP funscript support
 - [ ] Android settings persistence for global limits and speed multiplier
+- [ ] Share Android v2's template-matching engine as a standalone library (used by `android-v2/` here and any future Pi-without-Python rewrites)
+- [ ] Cross-device template sync between two devices used by the same speaker (e.g. phone + tablet) — currently template files are per-install
