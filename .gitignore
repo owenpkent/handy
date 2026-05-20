@@ -4,6 +4,7 @@ _draft_*
 *.tmp
 .cascade/
 .cursor/
+.claude/
 
 # Dependencies
 node_modules/
