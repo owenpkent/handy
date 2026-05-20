@@ -98,6 +98,23 @@ Matches `vega/commands.py`'s DISPATCH so the two share one mental model.
 
 The five "pattern" labels currently each map to a distinct fixed `(range, speed)` combo. Vega's full pattern engine (looping envelopes for heartbeat / wave / surge / breathe / storm) is a Phase 2 port from `vega/devices/handy.py`. The training vocabulary does not change when patterns land. See [docs/COMMANDS.md](docs/COMMANDS.md).
 
+## Manual controls
+
+Voice is the primary surface, but the app also ships a full tap-driven remote at parity with `../android/` (v1). Reach it from the gear icon in the header → **Manual controls**.
+
+The manual screen exposes six sliders and a 4×3 preset grid:
+
+| Slider | Effect |
+| --- | --- |
+| Min / Max | Stroke range. Each move pushes a `PUT /slide` to the device. |
+| Speed | Design-space velocity. Scaled by `Global max speed` and clamped by `Spd.Lim` before being sent. |
+| G.Min / G.Max | Persisted stroke-position band. Manual preset taps squash the preset's 0–100 position into `[G.Min, G.Max]`. Persists to prefs. |
+| Spd.Lim | Persisted hard ceiling on the device velocity (applied after the `Global max speed` design-space scaling). Persists to prefs. |
+
+Preset grid: 3 speeds × 4 positions. `slow=25, medium=50, fast=80` design speed; `top=50-90, mid=30-70, bot=10-50, full=0-100` position band (then squashed into G.Min..G.Max). Tapping a preset sends `setSlide → start → setSpeed` in that order (per `HANDY_API_NOTES`).
+
+All three caps (`G.Min`, `G.Max`, `Spd.Lim`) are honoured by the voice path too: `Dispatch.dispatch()` takes them as parameters and applies the same squashing for `Preset` actions and the same `coerceIn(0, speedLimit)` clamp for `SetSpeed` / `AdjustSpeed`. ControlActivity reads the persisted values on each resume.
+
 ## Listening modes
 
 Pick in **Settings → Listening mode**.
@@ -130,11 +147,13 @@ Recommended path: start in button mode. After a session or two, if every match f
 | `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | Label → action table + the suspending `dispatch(label, api)` that performs the API call sequence. |
 | `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, match threshold, onboarded flag. |
 | `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding. Card-per-command carousel. Save MFCCs after every take so a crash doesn't lose progress. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Main screen. Connection panel ↔ control panel, mic button or always-on indicator, manual fallback buttons, debug log. Routes to Training if no templates. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Main screen. Connection panel ↔ control panel, mic button or always-on indicator, manual fallback buttons, debug log. Routes to Training if no templates. Gear icon opens a popup menu (Manual controls / Settings). |
+| `app/src/main/java/com/handyvoice/v2/ui/ManualActivity.kt` | Tap-driven remote with v1 parity: 6 sliders (Min/Max/Speed + G.Min/G.Max/Spd.Lim) and 4×3 preset grid. Uses its own `HandyV2ApiClient` instance against the saved connection key. |
 | `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings: connection key, listening mode, global max speed, threshold, retrain. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests. 14 tests covering MFCC, DTW, and engine behavior. |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots, record button, play/prev/next/skip, finish button. |
 | `app/src/main/res/layout/activity_control.xml` | Control UI: header + status, setup panel (connection key), control panel (mic, manual buttons, debug). |
+| `app/src/main/res/layout/activity_manual.xml` | Manual remote: 6 sliders + 4×3 preset grid + START/STOP. |
 | `app/src/main/res/layout/activity_settings.xml` | Settings form. |
 
 ## Differences from `../android/`
@@ -146,6 +165,7 @@ Recommended path: start in button mode. After a session or two, if every match f
 | Vocabulary | Defined by JSGF grammar + parsing rules | Fixed `Dispatch.LABELS` list, one template-trained per label |
 | False fires | "surrounded the top" → parses as "slow top" | Below-threshold match → silently ignored |
 | Adding a command | Grammar phrase + parser + dispatch + 3 exhaustive `when` updates | One `DISPATCH` row + record + retrain |
+| Manual remote | Inline on main screen | Separate `ManualActivity` from gear menu (same 6 sliders + 4×3 preset grid) |
 | Storage | None beyond Vosk model cache | `filesDir/templates/<label>/take_N.json` |
 | Battery in always-on | Vosk runs continuously, ~XX% drain | MFCC+DTW gated by VAD; cheap when silent |
 | Speaker-locked | No | Yes (by construction; lookalike voices may still match) |
@@ -154,9 +174,7 @@ Recommended path: start in button mode. After a session or two, if every match f
 
 - **Pattern engine port** from `vega/devices/handy.py`. The five pattern labels currently dispatch as static preset combos. Vega has looping envelope functions (heartbeat / wave / surge / breathe / storm) that modulate speed over time. Port the `_pattern_thread` loop and the per-pattern generators into a Kotlin coroutine; the `VoiceAction.Pattern(name)` shape is already ready.
 - **TFLite embedding engine** behind `TfliteEmbeddingEngine`. Extract EfficientWord-Net's Resnet50_Arc_loss TFLite model from the vega install, write the Kotlin audio-preprocessing path, persist average embeddings per label. Drop-in replacement; training UX is unchanged.
-- **Preset grid UI parity** with v1. Phase 1 ships a four-button manual fallback row (start / stop / faster / slower) plus voice. Adding the 4×3 slow/med/fast × top/mid/bot/full grid is mechanical.
 - **Wake-word label**. Recording one extra template called `wake` lets always-on mode use the matcher itself as the wake stage, replacing VAD. Closer to vega's design once the matcher proves reliable.
-- **Stroke-range cap** (`GLOBAL_MAX_STROKE_PERCENT` from vega). Wire into Settings + `Dispatch.dispatch()`.
 
 ## License
 

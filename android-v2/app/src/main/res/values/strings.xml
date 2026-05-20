@@ -26,4 +26,9 @@
     <string name="btn_disconnect">Disconnect</string>
     <string name="btn_mic">Mic</string>
     <string name="content_desc_settings">Settings</string>
+
+    <!-- Manual screen -->
+    <string name="manual_title">Manual controls</string>
+    <string name="menu_manual">Manual controls</string>
+    <string name="menu_settings">Settings</string>
 </resources>

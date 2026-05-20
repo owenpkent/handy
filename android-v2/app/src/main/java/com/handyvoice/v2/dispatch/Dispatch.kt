@@ -51,25 +51,49 @@ object Dispatch {
     fun actionFor(label: String): VoiceAction? = TABLE[label]
 
     /**
-     * Run a label's action. Returns null if no action is bound. Caller is
-     * responsible for the coroutine context — the Handy client suspends.
+     * Run a label's action. Returns false if no action is bound or the call
+     * sequence failed. Caller owns the coroutine context — the Handy client
+     * suspends.
      *
-     * @param globalMaxSpeed scale factor applied to speed in design space.
-     *   Mirrors vega's GLOBAL_MAX_SPEED_PERCENT. Owen's default is 30.
+     * All three caps mirror what the manual screen exposes, so voice and tap
+     * paths produce the same device state under the same prefs:
+     *
+     * @param globalMaxSpeed design-space velocity scale (vega's
+     *   GLOBAL_MAX_SPEED_PERCENT). Owen's default is 30.
+     * @param speedLimit hard ceiling on the device velocity, applied after
+     *   the design-space scaling. Default 100 means no extra clamp.
+     * @param globalMinStroke / globalMaxStroke stroke-position band. Preset
+     *   ranges are squashed into this band, mirroring v1's `applyPreset`.
+     *   Default 0..100 means no squashing.
      */
     suspend fun dispatch(
         label: String,
         api: HandyV2ApiClient,
         globalMaxSpeed: Int = 30,
+        speedLimit: Int = 100,
+        globalMinStroke: Int = 0,
+        globalMaxStroke: Int = 100,
     ): Boolean {
         val action = TABLE[label] ?: return false
-        val scale = globalMaxSpeed.coerceIn(1, 100) / 100.0
+
+        fun scaleSpeed(design: Int): Int {
+            val scaled = design * globalMaxSpeed.coerceIn(1, 100) / 100
+            return scaled.coerceIn(0, speedLimit.coerceIn(1, 100))
+        }
+
+        fun squashRange(lo: Int, hi: Int): Pair<Int, Int> {
+            val gMin = globalMinStroke.coerceIn(0, 100)
+            val gMax = globalMaxStroke.coerceIn(0, 100)
+            if (gMin >= gMax) return gMin to gMin
+            val band = gMax - gMin
+            return (gMin + lo * band / 100) to (gMin + hi * band / 100)
+        }
 
         return when (action) {
             is VoiceAction.Stop -> api.stop()
 
             is VoiceAction.SetSpeed -> {
-                val device = (action.percent * scale).toInt().coerceIn(0, 100)
+                val device = scaleSpeed(action.percent)
                 if (device == 0) {
                     api.stop()
                 } else {
@@ -80,20 +104,26 @@ object Dispatch {
             }
 
             is VoiceAction.AdjustSpeed -> {
-                val scaledDelta = (action.delta * scale).toInt()
-                api.adjustSpeed(scaledDelta)
+                // Same shape as v1's applySpeedMultiplier: scale the delta in
+                // design space, then clamp the resulting velocity by speedLimit.
+                val scaledDelta = action.delta * globalMaxSpeed.coerceIn(1, 100) / 100
+                val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, speedLimit.coerceIn(1, 100))
+                api.setSpeed(target)
             }
 
-            is VoiceAction.SetRange -> api.setStrokeRange(action.min, action.max)
+            is VoiceAction.SetRange -> {
+                val (min, max) = squashRange(action.min, action.max)
+                api.setStrokeRange(min, max)
+            }
 
             is VoiceAction.Preset -> {
                 // Operation order: slide -> start -> velocity. See HANDY_API_NOTES.
-                val rangeOk = api.setStrokeRange(action.rangeMin, action.rangeMax)
+                val (min, max) = squashRange(action.rangeMin, action.rangeMax)
+                val rangeOk = api.setStrokeRange(min, max)
                 if (!rangeOk) return false
                 val started = if (!api.isRunning.value) api.start() else true
                 if (!started) return false
-                val device = (action.speed * scale).toInt().coerceIn(0, 100)
-                api.setSpeed(device)
+                api.setSpeed(scaleSpeed(action.speed))
             }
         }
     }

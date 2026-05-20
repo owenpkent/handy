@@ -41,6 +41,13 @@
             android:label="@string/settings_title"
             android:parentActivityName=".ui.ControlActivity" />
 
+        <activity
+            android:name=".ui.ManualActivity"
+            android:exported="false"
+            android:label="@string/manual_title"
+            android:parentActivityName=".ui.ControlActivity"
+            android:screenOrientation="portrait" />
+
     </application>
 
 </manifest>
