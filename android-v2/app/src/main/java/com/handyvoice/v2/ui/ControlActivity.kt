@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,6 +56,8 @@ class ControlActivity : AppCompatActivity() {
         private const val VAD_BLOCK_MS = 30
         private const val VAD_SPEECH_FRAMES_TO_TRIGGER = 4   // ~120 ms of voiced audio
         private const val COOLDOWN_MS = 1500L
+        private const val MENU_MANUAL = 1
+        private const val MENU_SETTINGS = 2
     }
 
     private lateinit var prefs: PreferencesManager
@@ -91,6 +94,9 @@ class ControlActivity : AppCompatActivity() {
     private var alwaysOnJob: Job? = null
     private var isCapturing = false
     private var globalMaxSpeed: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_SPEED
+    private var speedLimit: Int = PreferencesManager.DEFAULT_SPEED_LIMIT
+    private var globalMinStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MIN_STROKE
+    private var globalMaxStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_STROKE
     private var threshold: Float = PreferencesManager.DEFAULT_THRESHOLD
     private var listeningMode: String = PreferencesManager.MODE_BUTTON
 
@@ -139,17 +145,15 @@ class ControlActivity : AppCompatActivity() {
         debugClearButton = findViewById(R.id.debugClearButton)
 
         connectButton.setOnClickListener { onConnectTapped() }
-        settingsButton.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
+        settingsButton.setOnClickListener { v -> showOverflowMenu(v) }
         micButton.setOnClickListener { onMicTapped() }
         startButton.setOnClickListener { lifecycleScope.launch { api.start() } }
         stopButton.setOnClickListener { lifecycleScope.launch { api.stop() } }
         slowerButton.setOnClickListener {
-            lifecycleScope.launch { api.adjustSpeed(-(Dispatch.DEFAULT_STEP * globalMaxSpeed / 100)) }
+            lifecycleScope.launch { adjustSpeedRespectingLimits(-Dispatch.DEFAULT_STEP) }
         }
         fasterButton.setOnClickListener {
-            lifecycleScope.launch { api.adjustSpeed(Dispatch.DEFAULT_STEP * globalMaxSpeed / 100) }
+            lifecycleScope.launch { adjustSpeedRespectingLimits(Dispatch.DEFAULT_STEP) }
         }
 
         debugToggleButton.setOnClickListener {
@@ -200,10 +204,19 @@ class ControlActivity : AppCompatActivity() {
         }
     }
 
+    private suspend fun adjustSpeedRespectingLimits(designDelta: Int) {
+        val scaledDelta = designDelta * globalMaxSpeed.coerceIn(1, 100) / 100
+        val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, speedLimit.coerceIn(1, 100))
+        api.setSpeed(target)
+    }
+
     private fun bootstrap() {
         lifecycleScope.launch {
             val snap = prefs.snapshot()
             globalMaxSpeed = snap.globalMaxSpeed
+            speedLimit = snap.speedLimit
+            globalMinStroke = snap.globalMinStroke
+            globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
             listeningMode = snap.listeningMode
 
@@ -236,6 +249,9 @@ class ControlActivity : AppCompatActivity() {
             val snap = prefs.snapshot()
             val modeChanged = listeningMode != snap.listeningMode
             globalMaxSpeed = snap.globalMaxSpeed
+            speedLimit = snap.speedLimit
+            globalMinStroke = snap.globalMinStroke
+            globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
             listeningMode = snap.listeningMode
             if (modeChanged && api.connectionState.value == ConnectionState.CONNECTED) {
@@ -247,6 +263,26 @@ class ControlActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         stopAlwaysOn()
+    }
+
+    private fun showOverflowMenu(anchor: View) {
+        val menu = PopupMenu(this, anchor)
+        menu.menu.add(0, MENU_MANUAL, 0, R.string.menu_manual)
+        menu.menu.add(0, MENU_SETTINGS, 1, R.string.menu_settings)
+        menu.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_MANUAL -> {
+                    startActivity(Intent(this, ManualActivity::class.java))
+                    true
+                }
+                MENU_SETTINGS -> {
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                    true
+                }
+                else -> false
+            }
+        }
+        menu.show()
     }
 
     private fun onConnectTapped() {
@@ -319,8 +355,16 @@ class ControlActivity : AppCompatActivity() {
         appLog(if (passes) line else "$line  (below threshold)")
         lastMatchText.text = if (passes) "✓ ${match.label}" else "? ${match.label} (score ${"%.1f".format(match.score)})"
         if (passes) {
-            runCatching { Dispatch.dispatch(match.label, api, globalMaxSpeed) }
-                .onFailure { appLog("Dispatch error: ${it.message}") }
+            runCatching {
+                Dispatch.dispatch(
+                    label = match.label,
+                    api = api,
+                    globalMaxSpeed = globalMaxSpeed,
+                    speedLimit = speedLimit,
+                    globalMinStroke = globalMinStroke,
+                    globalMaxStroke = globalMaxStroke,
+                )
+            }.onFailure { appLog("Dispatch error: ${it.message}") }
         }
     }
 

@@ -164,12 +164,12 @@ engine.match(audio)
 match: TemplateEngine.Match
   │
   ▼  if match.score <= prefs.match_threshold
-Dispatch.dispatch(label, api, globalMaxSpeed)
+Dispatch.dispatch(label, api, globalMaxSpeed, speedLimit, globalMinStroke, globalMaxStroke)
   │   ┌─ Stop      → api.stop()
-  │   ├─ SetSpeed  → ensure running, then api.setSpeed(scaled)
-  │   ├─ AdjustSpeed → api.adjustSpeed(scaled)
-  │   ├─ SetRange  → api.setStrokeRange(min, max)
-  │   └─ Preset    → api.setStrokeRange → ensure running → api.setSpeed(scaled)
+  │   ├─ SetSpeed  → ensure running, then api.setSpeed(scaled & clamped by speedLimit)
+  │   ├─ AdjustSpeed → api.setSpeed((current + scaled-delta) clamped by speedLimit)
+  │   ├─ SetRange  → api.setStrokeRange(squashed-into-[globalMinStroke, globalMaxStroke])
+  │   └─ Preset    → api.setStrokeRange(squashed) → ensure running → api.setSpeed(scaled & clamped)
   ▼
 HandyV2ApiClient
   │
