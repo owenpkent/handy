@@ -13,7 +13,7 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 .\gradlew.bat :app:assembleDebug
 ```
 
-Android Studio bundles a JDK (JBR) at `<install>\jbr`. If you have a system JDK (Temurin, Oracle, Zulu), point `JAVA_HOME` there instead. Any JDK 17+ works.
+Android Studio bundles a JDK (JBR) at `<install>\jbr`. If you have a system JDK (Temurin, Oracle, Zulu), point `JAVA_HOME` there instead. Any JDK 17+ works for launching Gradle; the build itself runs on a JDK 21 toolchain that Gradle auto-provisions from Foojay (see `gradle/gradle-daemon-jvm.properties`).
 
 ### `SDK location not found`
 
@@ -40,8 +40,8 @@ The `gradle/wrapper/gradle-wrapper.jar` is corrupt or missing. Regenerate it:
 ```powershell
 # Use any installed gradle to run the `wrapper` task in this project:
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-& "C:\Users\<you>\.gradle\wrapper\dists\gradle-9.2.1-bin\<hash>\gradle-9.2.1\bin\gradle.bat" `
-    -p . wrapper --gradle-version=9.2.1
+& "C:\Users\<you>\.gradle\wrapper\dists\gradle-9.4.1-bin\<hash>\gradle-9.4.1\bin\gradle.bat" `
+    -p . wrapper --gradle-version=9.4.1
 ```
 
 Or just open the project in Android Studio and let it sync — it regenerates the wrapper as part of normal sync.
@@ -50,7 +50,8 @@ Or just open the project in Android Studio and let it sync — it regenerates th
 
 Expected. First-run downloads:
 
-- Gradle 9.2.1 distribution (~150 MB).
+- Gradle 9.4.1 distribution (~150 MB).
+- JDK 21 toolchain from Foojay (~190 MB), provisioned per `gradle/gradle-daemon-jvm.properties`.
 - Android SDK platform 36 (~70 MB).
 - Build tools 36 (~70 MB).
 - Maven/Google deps (Retrofit, OkHttp, kotlinx-coroutines, datastore, ~30 MB).
@@ -59,7 +60,7 @@ Subsequent builds use the local Gradle cache and are 10–20 s.
 
 ### Deprecation warnings about `android.builtInKotlin`, `android.newDsl`, `android.r8.optimizedResourceShrinking`
 
-Cosmetic. These flags in `gradle.properties` are pinned to AGP-9.0 defaults (which became the AGP-10 defaults). The warnings will disappear when we move to AGP 10. No action required.
+Cosmetic. These flags in `gradle.properties` are pinned to AGP-9.x defaults (which become the AGP-10 defaults). The warnings will disappear when we move to AGP 10. No action required.
 
 ## Runtime: app launch
 

@@ -49,7 +49,7 @@ Each piece is documented in detail in [docs/](docs/):
 
 ### Build
 
-JDK 17+ required (Android Studio's bundled JBR is fine). The wrapper downloads Gradle 9.2.1 on first run.
+JDK 17+ required to launch the Gradle daemon (Android Studio's bundled JBR is fine). The wrapper downloads Gradle 9.4.1 on first run, and Gradle then auto-provisions a JDK 21 toolchain via Foojay (pinned in `gradle/gradle-daemon-jvm.properties`) for the build itself.
 
 ```powershell
 # From this directory:
