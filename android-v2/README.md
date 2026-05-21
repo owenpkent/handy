@@ -61,12 +61,14 @@ Or open `android-v2/` in Android Studio and let it sync.
 ### First run on device
 
 1. Install the debug APK.
-2. Launch **Handy Voice V2**. Because no templates exist yet, the app routes you straight to **Training**.
-3. Training is a 9-card carousel (one per command). On each card: tap **Record** → speak the displayed word during the 1.5 s capture → it auto-stops → tap **Play** to verify → repeat for take 2 and 3. **Skip** advances if you want to come back later; **Prev / Next** move freely.
+2. Launch **Handy Voice V2**. On first run (the `onboarded` flag is false), the app routes you straight to **Training**.
+3. Training is a 9-card carousel (one per command). On each card: tap **Record** → speak the displayed word during the 1.5 s capture → it auto-stops → tap **Play** to verify → repeat for take 2 and 3. **Skip** advances if you want to come back later; **Prev / Next** move freely. If voice doesn't work for you, the gear-icon menu in the top right lets you bail out to Manual or Settings — that marks you onboarded so the app doesn't drag you back here.
 4. After at least one take per command, the **Build templates** button at the bottom lights up. Tap it. You're returned to the main screen.
 5. Enter your Handy connection key, tap **Connect**.
 6. The mic button is now live: tap it, speak a command, the device responds. The matched label and score are shown next to the button.
 7. *Optional*: **Settings → Always listening**. Once you trust your templates, this gives true hands-free.
+
+The gear icon in the top-right is available on **every** screen (Voice, Manual, Settings, Training) and opens the same Voice / Manual / Settings menu — the entry for the screen you're already on is hidden, and the back stack stays one hop deep.
 
 Full training guide with screenshots-of-words in [docs/TRAINING.md](docs/TRAINING.md).
 
@@ -100,20 +102,29 @@ The five "pattern" labels currently each map to a distinct fixed `(range, speed)
 
 ## Manual controls
 
-Voice is the primary surface, but the app also ships a full tap-driven remote at parity with `../android/` (v1). Reach it from the gear icon in the header → **Manual controls**.
+Voice is the primary surface, but the app also ships a tap-driven remote. Reach it from the gear icon in the header → **Manual controls** (or from the gear on any other screen — it's accessible everywhere).
 
-The manual screen exposes six sliders and a 4×3 preset grid:
+The manual screen exposes three sliders and a 3×4 pattern grid:
 
 | Slider | Effect |
 | --- | --- |
 | Min / Max | Stroke range. Each move pushes a `PUT /slide` to the device. |
-| Speed | Design-space velocity. Scaled by `Global max speed` and clamped by `Spd.Lim` before being sent. |
-| G.Min / G.Max | Persisted stroke-position band. Manual preset taps squash the preset's 0–100 position into `[G.Min, G.Max]`. Persists to prefs. |
-| Spd.Lim | Persisted hard ceiling on the device velocity (applied after the `Global max speed` design-space scaling). Persists to prefs. |
+| Speed | Design-space velocity. Scaled by `Global max speed` (in Settings) before being sent. |
 
-Preset grid: 3 speeds × 4 positions. `slow=25, medium=50, fast=80` design speed; `top=50-90, mid=30-70, bot=10-50, full=0-100` position band (then squashed into G.Min..G.Max). Tapping a preset sends `setSlide → start → setSpeed` in that order (per `HANDY_API_NOTES`).
+Global caps live in **Settings**: `Global max speed`, `Global stroke band (min/max)`. Pattern taps squash the pattern's 0–100 position into the configured band.
 
-All three caps (`G.Min`, `G.Max`, `Spd.Lim`) are honoured by the voice path too: `Dispatch.dispatch()` takes them as parameters and applies the same squashing for `Preset` actions and the same `coerceIn(0, speedLimit)` clamp for `SetSpeed` / `AdjustSpeed`. ControlActivity reads the persisted values on each resume.
+Pattern grid (12 buttons, 3 columns × 4 rows):
+
+| Row | Buttons |
+| --- | --- |
+| 1 | Heartbeat, Wave, Surge |
+| 2 | Breathe, Storm, Pulse |
+| 3 | Tease, Edge, Rush |
+| 4 | Throb, Bounce, Climax |
+
+Each button is a fixed `(rangeMin, rangeMax, designSpeed)` triple. The first five also exist as voice commands and route through `Dispatch.dispatch(label, ...)` so tap and voice match. The remaining seven are tap-only and live in `ManualActivity.tapOnlyPatterns`; they use the same scale + squash logic. Every pattern sends `setSlide → start → setSpeed` in that order (per `HANDY_API_NOTES`).
+
+The caps are honoured by the voice path too: `Dispatch.dispatch()` takes them as parameters and applies the same scaling and band-squashing. ControlActivity reads the persisted values on each resume.
 
 ## Listening modes
 
@@ -127,7 +138,7 @@ Recommended path: start in button mode. After a session or two, if every match f
 ## Safety caps
 
 - **Global max speed** *(default 30%)*. Every speed value sent to the device is scaled by this percentage. A voice command of `faster` (`+15` design points) becomes `+4.5` device points. The cap is enforced in `Dispatch.dispatch()`, not in prompts or UI; even a misheard command cannot exceed it. Configurable in Settings.
-- **No stroke-range cap yet.** Phase 2 work to port vega's `GLOBAL_MAX_STROKE_PERCENT`. The Phase 1 preset stand-ins (`heartbeat` etc.) all use safe fixed ranges.
+- **Global stroke band** *(default 0–100)*. Hard floor and ceiling on stroke position. Every Preset / pattern range is squashed into this band before being sent; e.g. with band 20–80 the `wave` pattern's nominal 0–100 becomes 20–80. Configurable in Settings.
 
 ## Layout (file inventory)
 
@@ -145,15 +156,16 @@ Recommended path: start in button mode. After a session or two, if every match f
 | `app/src/main/java/com/handyvoice/v2/voice/TfliteEmbeddingEngine.kt` | Phase 3 stub. Same interface, will use Resnet50 embedding + cosine similarity à la EfficientWord-Net. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / SetRange / Preset`. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | Label → action table + the suspending `dispatch(label, api)` that performs the API call sequence. |
-| `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, match threshold, onboarded flag. |
-| `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding. Card-per-command carousel. Save MFCCs after every take so a crash doesn't lose progress. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Main screen. Connection panel ↔ control panel, mic button or always-on indicator, manual fallback buttons, debug log. Routes to Training if no templates. Gear icon opens a popup menu (Manual controls / Settings). |
-| `app/src/main/java/com/handyvoice/v2/ui/ManualActivity.kt` | Tap-driven remote with v1 parity: 6 sliders (Min/Max/Speed + G.Min/G.Max/Spd.Lim) and 4×3 preset grid. Uses its own `HandyV2ApiClient` instance against the saved connection key. |
-| `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings: connection key, listening mode, global max speed, threshold, retrain. |
+| `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, global stroke band (min/max), match threshold, onboarded flag. |
+| `app/src/main/java/com/handyvoice/v2/ui/MainMenu.kt` | `Activity.showMainMenu(anchor)` extension. Shared overflow menu (Voice / Manual / Settings) used by every top-level screen. Hides the current screen's own entry and finishes non-Control screens when navigating, so the back stack stays one hop deep. |
+| `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding. Card-per-command carousel. Saves MFCCs after every take so a crash doesn't lose progress. Has its own menu wiring that flips `onboarded=true` before bailing, so the bootstrap gate doesn't re-route the user back. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Main screen. Connection panel ↔ control panel, mic button or always-on indicator, manual fallback buttons, debug log. Routes to Training only on first run (`!onboarded`). Gear icon opens the shared main menu. |
+| `app/src/main/java/com/handyvoice/v2/ui/ManualActivity.kt` | Tap-driven remote: 3 sliders (Min/Max/Speed) plus a 3×4 pattern grid (12 buttons). First 5 patterns share labels with the voice dispatch table; the other 7 are tap-only triples in `tapOnlyPatterns`. Global caps come from Settings. |
+| `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings: connection key, listening mode, global max speed, global stroke band (min/max), match threshold, retrain. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests. 14 tests covering MFCC, DTW, and engine behavior. |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots, record button, play/prev/next/skip, finish button. |
 | `app/src/main/res/layout/activity_control.xml` | Control UI: header + status, setup panel (connection key), control panel (mic, manual buttons, debug). |
-| `app/src/main/res/layout/activity_manual.xml` | Manual remote: 6 sliders + 4×3 preset grid + START/STOP. |
+| `app/src/main/res/layout/activity_manual.xml` | Manual remote: header (status + gear), 3 sliders, 3×4 pattern grid, START/STOP. |
 | `app/src/main/res/layout/activity_settings.xml` | Settings form. |
 
 ## Differences from `../android/`

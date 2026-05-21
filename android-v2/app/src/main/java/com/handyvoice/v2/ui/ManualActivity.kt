@@ -15,25 +15,20 @@ import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.api.HandyV2ApiClient
 import com.handyvoice.v2.data.PreferencesManager
+import com.handyvoice.v2.dispatch.Dispatch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
  * Manual remote-control screen. Tap-driven counterpart to ControlActivity's
- * voice-first surface. Ports v1 (`../android/`) parity: 6 sliders + 4x3
- * preset grid + start/stop, with the same v1 semantics:
+ * voice-first surface.
  *
  *   - Min / Max:  immediate stroke-range slider, written via setSlide.
- *   - Speed:      immediate velocity, written via setVelocity. Clamped by
- *                 (globalMaxSpeed * speedLimit / 100).
- *   - G.Min/Max:  stroke-position floor and ceiling. Presets scale into
- *                 this band; e.g. with G.Min=20 G.Max=80, a "top" preset
- *                 (50-90) maps to (50,82).
- *   - Spd.Lim:    hard velocity cap (applied after the globalMaxSpeed
- *                 design-space scaling). Mirrors v1's speedLimit.
+ *   - Speed:      immediate velocity, scaled by globalMaxSpeed and written
+ *                 via setVelocity. Presets scale into the configured
+ *                 globalMinStroke..globalMaxStroke band.
  *
- * The three "global" sliders persist to PreferencesManager so they affect
- * the voice path too (voice presets respect the same caps via Dispatch).
+ * Global caps (max speed, stroke band) come from Settings.
  *
  * Connection state is per-activity. We build a fresh HandyV2ApiClient and
  * reconnect on entry using the saved connectionKey, same as ControlActivity.
@@ -52,27 +47,12 @@ class ManualActivity : AppCompatActivity() {
     private lateinit var strokeMaxInput: EditText
     private lateinit var speedSlider: SeekBar
     private lateinit var speedInput: EditText
-    private lateinit var globalMinSlider: SeekBar
-    private lateinit var globalMinInput: EditText
-    private lateinit var globalMaxSlider: SeekBar
-    private lateinit var globalMaxInput: EditText
-    private lateinit var speedLimitSlider: SeekBar
-    private lateinit var speedLimitInput: EditText
 
     // Current "design space" speed (before global scaling). Preset taps update this.
     private var baseSpeed: Int = 50
     private var globalMaxSpeed: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_SPEED
-    private var speedLimit: Int = PreferencesManager.DEFAULT_SPEED_LIMIT
     private var globalMinStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MIN_STROKE
     private var globalMaxStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_STROKE
-
-    private val speedValues = mapOf("slow" to 25, "medium" to 50, "fast" to 80)
-    private val positionValues = mapOf(
-        "top"  to (50 to 90),
-        "mid"  to (30 to 70),
-        "bot"  to (10 to 50),
-        "full" to (0 to 100),
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,21 +63,17 @@ class ManualActivity : AppCompatActivity() {
         statusText = findViewById(R.id.statusText)
         feedbackText = findViewById(R.id.feedbackText)
 
+        findViewById<MaterialButton>(R.id.menuButton).setOnClickListener { v -> showMainMenu(v) }
+
         strokeMinSlider = findViewById(R.id.strokeMinSlider)
         strokeMinInput = findViewById(R.id.strokeMinInput)
         strokeMaxSlider = findViewById(R.id.strokeMaxSlider)
         strokeMaxInput = findViewById(R.id.strokeMaxInput)
         speedSlider = findViewById(R.id.speedSlider)
         speedInput = findViewById(R.id.speedInput)
-        globalMinSlider = findViewById(R.id.globalMinSlider)
-        globalMinInput = findViewById(R.id.globalMinInput)
-        globalMaxSlider = findViewById(R.id.globalMaxSlider)
-        globalMaxInput = findViewById(R.id.globalMaxInput)
-        speedLimitSlider = findViewById(R.id.speedLimitSlider)
-        speedLimitInput = findViewById(R.id.speedLimitInput)
 
         wireSliders()
-        wirePresets()
+        wirePatterns()
         wireStartStop()
         observeApi()
         bootstrap()
@@ -107,15 +83,11 @@ class ManualActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val snap = prefs.snapshot()
             globalMaxSpeed = snap.globalMaxSpeed
-            speedLimit = snap.speedLimit
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
 
-            // Seed slider positions from persisted caps; stroke-range and speed
-            // start from sensible defaults each visit (they don't persist).
-            setSliderValue(globalMinSlider, globalMinInput, globalMinStroke)
-            setSliderValue(globalMaxSlider, globalMaxInput, globalMaxStroke)
-            setSliderValue(speedLimitSlider, speedLimitInput, speedLimit)
+            // Stroke-range and speed start from sensible defaults each visit
+            // (they don't persist); global caps come from prefs, edited in Settings.
             setSliderValue(strokeMinSlider, strokeMinInput, 10)
             setSliderValue(strokeMaxSlider, strokeMaxInput, 90)
             setSliderValue(speedSlider, speedInput, baseSpeed)
@@ -171,40 +143,13 @@ class ManualActivity : AppCompatActivity() {
                 if (ok) feedbackText.text = "Stroke: $min-$max%"
             }
         }
-        // Speed: design-space value; scaled by globalMaxSpeed and clamped by speedLimit
+        // Speed: design-space value; scaled by globalMaxSpeed.
         wireSlider(speedSlider, speedInput) { value ->
             baseSpeed = value.coerceIn(0, 100)
             val device = scaleSpeed(baseSpeed)
             lifecycleScope.launch {
                 val ok = api.setSpeed(device)
                 if (ok) feedbackText.text = "Speed: $device% (design $baseSpeed)"
-            }
-        }
-        // Global caps: persist + recompute (don't push to device until next action)
-        wireSlider(globalMinSlider, globalMinInput) { value ->
-            globalMinStroke = value.coerceIn(0, 100)
-            if (globalMinStroke > globalMaxStroke) {
-                setSliderValue(globalMaxSlider, globalMaxInput, globalMinStroke)
-            }
-            lifecycleScope.launch { prefs.setGlobalMinStroke(globalMinStroke) }
-            feedbackText.text = "Global stroke band: $globalMinStroke-$globalMaxStroke"
-        }
-        wireSlider(globalMaxSlider, globalMaxInput) { value ->
-            globalMaxStroke = value.coerceIn(0, 100)
-            if (globalMaxStroke < globalMinStroke) {
-                setSliderValue(globalMinSlider, globalMinInput, globalMaxStroke)
-            }
-            lifecycleScope.launch { prefs.setGlobalMaxStroke(globalMaxStroke) }
-            feedbackText.text = "Global stroke band: $globalMinStroke-$globalMaxStroke"
-        }
-        wireSlider(speedLimitSlider, speedLimitInput) { value ->
-            speedLimit = value.coerceIn(1, 100)
-            lifecycleScope.launch {
-                prefs.setSpeedLimit(speedLimit)
-                // Re-apply current speed under the new cap.
-                val device = scaleSpeed(baseSpeed)
-                val ok = api.setSpeed(device)
-                if (ok) feedbackText.text = "Spd.Lim: $speedLimit% -> Speed: $device%"
             }
         }
     }
@@ -237,51 +182,79 @@ class ManualActivity : AppCompatActivity() {
         input.setText(value.toString())
     }
 
-    // --- Presets ---------------------------------------------------------
+    // --- Patterns --------------------------------------------------------
 
-    private fun wirePresets() {
-        bindPreset(R.id.presetSlowTop,  "slow",   "top")
-        bindPreset(R.id.presetMedTop,   "medium", "top")
-        bindPreset(R.id.presetFastTop,  "fast",   "top")
-        bindPreset(R.id.presetSlowMid,  "slow",   "mid")
-        bindPreset(R.id.presetMedMid,   "medium", "mid")
-        bindPreset(R.id.presetFastMid,  "fast",   "mid")
-        bindPreset(R.id.presetSlowBot,  "slow",   "bot")
-        bindPreset(R.id.presetMedBot,   "medium", "bot")
-        bindPreset(R.id.presetFastBot,  "fast",   "bot")
-        bindPreset(R.id.presetSlowFull, "slow",   "full")
-        bindPreset(R.id.presetMedFull,  "medium", "full")
-        bindPreset(R.id.presetFastFull, "fast",   "full")
+    /**
+     * The first 5 patterns share labels with the voice dispatch table, so
+     * tapping them and saying the word produce identical device state. The
+     * remaining 7 are tap-only patterns defined inline below.
+     */
+    private val tapOnlyPatterns: Map<Int, Triple<Int, Int, Int>> = mapOf(
+        // id to (rangeMin, rangeMax, designSpeed)
+        R.id.patternPulse  to Triple(40, 60, 70),
+        R.id.patternTease  to Triple(0,  50, 20),
+        R.id.patternEdge   to Triple(70, 90, 15),
+        R.id.patternRush   to Triple(0, 100, 100),
+        R.id.patternThrob  to Triple(40, 70, 60),
+        R.id.patternBounce to Triple(20, 80, 60),
+        R.id.patternClimax to Triple(30, 90, 90),
+    )
+
+    private val voicePatternIds: Map<Int, String> = mapOf(
+        R.id.patternHeartbeat to "heartbeat",
+        R.id.patternWave      to "wave",
+        R.id.patternSurge     to "surge",
+        R.id.patternBreathe   to "breathe",
+        R.id.patternStorm     to "storm",
+    )
+
+    private fun wirePatterns() {
+        voicePatternIds.forEach { (id, label) ->
+            findViewById<MaterialButton>(id).setOnClickListener { runVoicePattern(label) }
+        }
+        tapOnlyPatterns.forEach { (id, spec) ->
+            val name = findViewById<MaterialButton>(id).text.toString()
+            findViewById<MaterialButton>(id).setOnClickListener {
+                runTapPattern(name, spec.first, spec.second, spec.third)
+            }
+        }
     }
 
-    private fun bindPreset(id: Int, speed: String, position: String) {
-        findViewById<MaterialButton>(id).setOnClickListener { applyPreset(speed, position) }
-    }
-
-    private fun applyPreset(speed: String, position: String) {
-        val speedVal = speedValues[speed] ?: return
-        val (posLo, posHi) = positionValues[position] ?: return
-
-        // Squash the preset's [0..100] position band into the configured global band.
-        val band = (globalMaxStroke - globalMinStroke).coerceAtLeast(0)
-        val scaledMin = globalMinStroke + posLo * band / 100
-        val scaledMax = globalMinStroke + posHi * band / 100
-
-        setSliderValue(strokeMinSlider, strokeMinInput, scaledMin)
-        setSliderValue(strokeMaxSlider, strokeMaxInput, scaledMax)
-        setSliderValue(speedSlider, speedInput, speedVal)
-        baseSpeed = speedVal
-
-        val device = scaleSpeed(speedVal)
+    private fun runVoicePattern(label: String) {
         lifecycleScope.launch {
-            // Order: slide -> start -> velocity. See HANDY_API_NOTES.
-            val strokeOk = api.setStrokeRange(scaledMin, scaledMax)
+            val ok = runCatching {
+                Dispatch.dispatch(
+                    label = label,
+                    api = api,
+                    globalMaxSpeed = globalMaxSpeed,
+                    globalMinStroke = globalMinStroke,
+                    globalMaxStroke = globalMaxStroke,
+                )
+            }.getOrDefault(false)
+            feedbackText.text = if (ok) "Pattern: ${label.replaceFirstChar { it.uppercase() }}"
+                                else "Pattern $label failed"
+        }
+    }
+
+    /**
+     * Same shape as Dispatch's Preset action: squash the position band into
+     * the configured global stroke band, scale the design speed by
+     * globalMaxSpeed, then slide -> start -> velocity. Tap-only so it
+     * doesn't need a voice label.
+     */
+    private fun runTapPattern(name: String, rangeMin: Int, rangeMax: Int, designSpeed: Int) {
+        val band = (globalMaxStroke - globalMinStroke).coerceAtLeast(0)
+        val sMin = globalMinStroke + rangeMin * band / 100
+        val sMax = globalMinStroke + rangeMax * band / 100
+        val device = scaleSpeed(designSpeed)
+        lifecycleScope.launch {
+            val strokeOk = api.setStrokeRange(sMin, sMax)
             val startOk = if (!api.isRunning.value) api.start() else true
             val speedOk = api.setSpeed(device)
             feedbackText.text = if (strokeOk && startOk && speedOk) {
-                "$speed $position - Speed: $device%"
+                "Pattern: $name (speed $device%)"
             } else {
-                "Preset failed (stroke=$strokeOk start=$startOk speed=$speedOk)"
+                "Pattern $name failed"
             }
         }
     }
@@ -306,7 +279,6 @@ class ManualActivity : AppCompatActivity() {
     // --- Scaling --------------------------------------------------------
 
     private fun scaleSpeed(designSpeed: Int): Int {
-        val scaled = designSpeed * globalMaxSpeed / 100
-        return scaled.coerceIn(0, speedLimit)
+        return (designSpeed * globalMaxSpeed / 100).coerceIn(0, 100)
     }
 }

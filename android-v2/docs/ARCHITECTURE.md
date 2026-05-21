@@ -28,7 +28,7 @@ launcher ──────────►│  - mic button / always-on     │
                     └───────────────────────────────┘
 ```
 
-`ControlActivity` is the launcher. On `onCreate` it reads a snapshot of `PreferencesManager` and asks `TemplateStore.hasAnyTemplates()`. If no templates or `onboarded == false`, it launches `TrainingActivity` and returns. If templates exist, it loads them into `MfccDtwEngine`, restores the connection key, and (in the future) wires up the listening loop.
+`ControlActivity` is the launcher. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine` (possibly empty if the user deliberately bailed onboarding), restores the connection key, and wires up the listening loop. The shared gear-icon menu (`MainMenu.showMainMenu`) is also wired here.
 
 `TrainingActivity` is unidirectional. The user records, the takes hit disk, and the activity finishes back to `ControlActivity`. It does not need a network connection or a Handy device to operate.
 
@@ -81,9 +81,11 @@ The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunnin
 | --- | --- | --- | --- |
 | `connection_key` | String | `""` | Handy connection key. |
 | `listening_mode` | String | `button` | One of `button`, `always_on`. |
-| `global_max_speed` | Int | 30 | Hard speed cap (% of device max). |
+| `global_max_speed` | Int | 30 | Hard speed cap (% of device max). Single knob; applied as a multiplier in `Dispatch`. |
+| `global_min_stroke` | Int | 0 | Stroke-position floor. Preset / pattern ranges are squashed into `[min, max]`. |
+| `global_max_stroke` | Int | 100 | Stroke-position ceiling. |
 | `match_threshold` | Float | 30.0 | Path-normalized DTW distance below which a match counts. |
-| `onboarded` | Boolean | false | Set true after the user finishes Training. |
+| `onboarded` | Boolean | false | Set true when the user finishes Training **or** bails out via the gear menu — either way ControlActivity stops force-routing them back. |
 
 `PreferencesManager.snapshot()` returns a single `Snapshot` so a coroutine can read everything in one suspend without juggling individual Flows.
 
@@ -127,7 +129,7 @@ File names use `take_N.json` where N is the next integer after the existing coun
 3. Bind views and observers.
 4. Launch the `bootstrap()` coroutine, which:
    1. Reads the prefs snapshot.
-   2. If no templates / not onboarded → launches `TrainingActivity` and returns. No further work happens until the user comes back.
+   2. If `!onboarded` (first run) → launches `TrainingActivity` and returns. Subsequent visits trust the flag, even if the template store is empty (user can deliberately bail onboarding via the gear menu).
    3. Otherwise loads MFCCs from disk into the engine.
    4. Restores the connection key into the input field and (if non-blank) immediately calls `api.connect()`.
 
@@ -164,12 +166,12 @@ engine.match(audio)
 match: TemplateEngine.Match
   │
   ▼  if match.score <= prefs.match_threshold
-Dispatch.dispatch(label, api, globalMaxSpeed, speedLimit, globalMinStroke, globalMaxStroke)
+Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke)
   │   ┌─ Stop      → api.stop()
-  │   ├─ SetSpeed  → ensure running, then api.setSpeed(scaled & clamped by speedLimit)
-  │   ├─ AdjustSpeed → api.setSpeed((current + scaled-delta) clamped by speedLimit)
+  │   ├─ SetSpeed  → ensure running, then api.setSpeed(scaled by globalMaxSpeed)
+  │   ├─ AdjustSpeed → api.setSpeed(current + scaled-delta)
   │   ├─ SetRange  → api.setStrokeRange(squashed-into-[globalMinStroke, globalMaxStroke])
-  │   └─ Preset    → api.setStrokeRange(squashed) → ensure running → api.setSpeed(scaled & clamped)
+  │   └─ Preset    → api.setStrokeRange(squashed) → ensure running → api.setSpeed(scaled)
   ▼
 HandyV2ApiClient
   │

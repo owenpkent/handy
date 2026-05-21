@@ -55,13 +55,11 @@ object Dispatch {
      * sequence failed. Caller owns the coroutine context — the Handy client
      * suspends.
      *
-     * All three caps mirror what the manual screen exposes, so voice and tap
-     * paths produce the same device state under the same prefs:
+     * The caps mirror what Settings exposes, so voice and tap paths produce
+     * the same device state under the same prefs:
      *
      * @param globalMaxSpeed design-space velocity scale (vega's
      *   GLOBAL_MAX_SPEED_PERCENT). Owen's default is 30.
-     * @param speedLimit hard ceiling on the device velocity, applied after
-     *   the design-space scaling. Default 100 means no extra clamp.
      * @param globalMinStroke / globalMaxStroke stroke-position band. Preset
      *   ranges are squashed into this band, mirroring v1's `applyPreset`.
      *   Default 0..100 means no squashing.
@@ -70,15 +68,13 @@ object Dispatch {
         label: String,
         api: HandyV2ApiClient,
         globalMaxSpeed: Int = 30,
-        speedLimit: Int = 100,
         globalMinStroke: Int = 0,
         globalMaxStroke: Int = 100,
     ): Boolean {
         val action = TABLE[label] ?: return false
 
         fun scaleSpeed(design: Int): Int {
-            val scaled = design * globalMaxSpeed.coerceIn(1, 100) / 100
-            return scaled.coerceIn(0, speedLimit.coerceIn(1, 100))
+            return (design * globalMaxSpeed.coerceIn(1, 100) / 100).coerceIn(0, 100)
         }
 
         fun squashRange(lo: Int, hi: Int): Pair<Int, Int> {
@@ -105,9 +101,9 @@ object Dispatch {
 
             is VoiceAction.AdjustSpeed -> {
                 // Same shape as v1's applySpeedMultiplier: scale the delta in
-                // design space, then clamp the resulting velocity by speedLimit.
+                // design space, then clamp the resulting velocity to [0, 100].
                 val scaledDelta = action.delta * globalMaxSpeed.coerceIn(1, 100) / 100
-                val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, speedLimit.coerceIn(1, 100))
+                val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, 100)
                 api.setSpeed(target)
             }
 
