@@ -29,6 +29,7 @@
 
     <!-- Manual screen -->
     <string name="manual_title">Manual controls</string>
+    <string name="menu_voice">Voice control</string>
     <string name="menu_manual">Manual controls</string>
     <string name="menu_settings">Settings</string>
 </resources>

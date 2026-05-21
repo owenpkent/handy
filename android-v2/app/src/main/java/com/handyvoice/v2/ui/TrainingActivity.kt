@@ -1,12 +1,14 @@
 package com.handyvoice.v2.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Bundle
 import android.view.View
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -111,6 +113,38 @@ class TrainingActivity : AppCompatActivity() {
         nextButton.setOnClickListener { advanceTo(labelIndex + 1) }
         skipButton.setOnClickListener { advanceTo(labelIndex + 1) }
         finishButton.setOnClickListener { finishOnboarding() }
+        findViewById<MaterialButton>(R.id.menuButton).setOnClickListener { v -> showTrainingMenu(v) }
+    }
+
+    /**
+     * Training has its own menu because bailing out needs to flip onboarded=true
+     * so ControlActivity's bootstrap gate doesn't immediately route the user
+     * right back here. Without the flip, the user is trapped on this screen.
+     */
+    private fun showTrainingMenu(anchor: View) {
+        val menu = PopupMenu(this, anchor)
+        menu.menu.add(0, 1, 0, R.string.menu_voice)
+        menu.menu.add(0, 2, 1, R.string.menu_manual)
+        menu.menu.add(0, 3, 2, R.string.menu_settings)
+        menu.setOnMenuItemClickListener { item ->
+            val target: Class<*> = when (item.itemId) {
+                1 -> ControlActivity::class.java
+                2 -> ManualActivity::class.java
+                3 -> SettingsActivity::class.java
+                else -> return@setOnMenuItemClickListener false
+            }
+            lifecycleScope.launch {
+                prefs.setOnboarded(true)
+                val intent = Intent(this@TrainingActivity, target)
+                if (target == ControlActivity::class.java) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(intent)
+                finish()
+            }
+            true
+        }
+        menu.show()
     }
 
     private fun loadProgress() {

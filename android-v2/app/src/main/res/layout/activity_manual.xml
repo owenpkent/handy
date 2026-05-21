@@ -44,6 +44,17 @@
                 android:text="@string/status_disconnected"
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menuButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/content_desc_settings"
+                android:text="⚙"
+                android:textColor="@color/text_primary"
+                android:textSize="22sp" />
         </LinearLayout>
 
         <!-- Sliders -->
@@ -160,121 +171,11 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp">
-
-            <TextView
-                android:layout_width="60dp"
-                android:layout_height="wrap_content"
-                android:text="G.Min"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
-
-            <SeekBar
-                android:id="@+id/globalMinSlider"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:max="100"
-                android:progress="0"
-                android:progressTint="@color/slider_red"
-                android:thumbTint="@color/slider_red" />
-
-            <EditText
-                android:id="@+id/globalMinInput"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:autofillHints="off"
-                android:background="@drawable/input_bg"
-                android:gravity="center"
-                android:inputType="number"
-                android:text="0"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp">
-
-            <TextView
-                android:layout_width="60dp"
-                android:layout_height="wrap_content"
-                android:text="G.Max"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
-
-            <SeekBar
-                android:id="@+id/globalMaxSlider"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:max="100"
-                android:progress="100"
-                android:progressTint="@color/slider_red"
-                android:thumbTint="@color/slider_red" />
-
-            <EditText
-                android:id="@+id/globalMaxInput"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:autofillHints="off"
-                android:background="@drawable/input_bg"
-                android:gravity="center"
-                android:inputType="number"
-                android:text="100"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp">
-
-            <TextView
-                android:layout_width="60dp"
-                android:layout_height="wrap_content"
-                android:text="Spd.Lim"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
-
-            <SeekBar
-                android:id="@+id/speedLimitSlider"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:max="100"
-                android:min="1"
-                android:progress="100"
-                android:progressTint="@color/slider_red"
-                android:thumbTint="@color/slider_red" />
-
-            <EditText
-                android:id="@+id/speedLimitInput"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:autofillHints="off"
-                android:background="@drawable/input_bg"
-                android:gravity="center"
-                android:inputType="number"
-                android:text="100"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- Preset grid (3 columns x 4 rows): slow/med/fast x top/mid/bot/full -->
+        <!-- Pattern grid (3 columns x 4 rows). First 5 share labels with the
+             voice dispatch table so tap + voice match; the remaining 7 are
+             tap-only patterns defined in ManualActivity. -->
         <GridLayout
-            android:id="@+id/presetGrid"
+            android:id="@+id/patternGrid"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -283,135 +184,135 @@
             android:useDefaultMargins="true">
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetSlowTop"
+                android:id="@+id/patternHeartbeat"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Slow Top"
+                android:text="Heartbeat"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetMedTop"
+                android:id="@+id/patternWave"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Med Top"
+                android:text="Wave"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetFastTop"
+                android:id="@+id/patternSurge"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Fast Top"
+                android:text="Surge"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetSlowMid"
+                android:id="@+id/patternBreathe"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Slow Mid"
+                android:text="Breathe"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetMedMid"
+                android:id="@+id/patternStorm"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Med Mid"
+                android:text="Storm"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetFastMid"
+                android:id="@+id/patternPulse"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Fast Mid"
+                android:text="Pulse"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetSlowBot"
+                android:id="@+id/patternTease"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Slow Bot"
+                android:text="Tease"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetMedBot"
+                android:id="@+id/patternEdge"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Med Bot"
+                android:text="Edge"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetFastBot"
+                android:id="@+id/patternRush"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Fast Bot"
+                android:text="Rush"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetSlowFull"
+                android:id="@+id/patternThrob"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Slow Full"
+                android:text="Throb"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetMedFull"
+                android:id="@+id/patternBounce"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Med Full"
+                android:text="Bounce"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/presetFastFull"
+                android:id="@+id/patternClimax"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="56dp"
                 android:layout_columnWeight="1"
-                android:text="Fast Full"
+                android:text="Climax"
                 android:textColor="@color/slider_orange"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 app:strokeColor="@color/slider_orange" />
         </GridLayout>
 

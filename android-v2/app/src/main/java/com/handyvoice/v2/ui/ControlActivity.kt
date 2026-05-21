@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,8 +55,6 @@ class ControlActivity : AppCompatActivity() {
         private const val VAD_BLOCK_MS = 30
         private const val VAD_SPEECH_FRAMES_TO_TRIGGER = 4   // ~120 ms of voiced audio
         private const val COOLDOWN_MS = 1500L
-        private const val MENU_MANUAL = 1
-        private const val MENU_SETTINGS = 2
     }
 
     private lateinit var prefs: PreferencesManager
@@ -94,7 +91,6 @@ class ControlActivity : AppCompatActivity() {
     private var alwaysOnJob: Job? = null
     private var isCapturing = false
     private var globalMaxSpeed: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_SPEED
-    private var speedLimit: Int = PreferencesManager.DEFAULT_SPEED_LIMIT
     private var globalMinStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MIN_STROKE
     private var globalMaxStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_STROKE
     private var threshold: Float = PreferencesManager.DEFAULT_THRESHOLD
@@ -145,7 +141,7 @@ class ControlActivity : AppCompatActivity() {
         debugClearButton = findViewById(R.id.debugClearButton)
 
         connectButton.setOnClickListener { onConnectTapped() }
-        settingsButton.setOnClickListener { v -> showOverflowMenu(v) }
+        settingsButton.setOnClickListener { v -> showMainMenu(v) }
         micButton.setOnClickListener { onMicTapped() }
         startButton.setOnClickListener { lifecycleScope.launch { api.start() } }
         stopButton.setOnClickListener { lifecycleScope.launch { api.stop() } }
@@ -206,7 +202,7 @@ class ControlActivity : AppCompatActivity() {
 
     private suspend fun adjustSpeedRespectingLimits(designDelta: Int) {
         val scaledDelta = designDelta * globalMaxSpeed.coerceIn(1, 100) / 100
-        val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, speedLimit.coerceIn(1, 100))
+        val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, 100)
         api.setSpeed(target)
     }
 
@@ -214,21 +210,21 @@ class ControlActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val snap = prefs.snapshot()
             globalMaxSpeed = snap.globalMaxSpeed
-            speedLimit = snap.speedLimit
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
             listeningMode = snap.listeningMode
 
-            // Onboarding gate: no templates means we have to record first.
-            val hasTemplates = withContext(Dispatchers.IO) { store.hasAnyTemplates() }
-            if (!hasTemplates || !snap.onboarded) {
-                appLog("No templates found; launching onboarding.")
+            // Onboarding gate: only force training on first run. After the user
+            // has been through (or deliberately bailed out of) onboarding, trust
+            // the flag — they can re-record from Settings whenever they want.
+            if (!snap.onboarded) {
+                appLog("First run; launching onboarding.")
                 startActivity(Intent(this@ControlActivity, TrainingActivity::class.java))
                 return@launch
             }
 
-            // Load templates into the matcher.
+            // Load templates into the matcher (may be empty if user bailed onboarding).
             val loaded = withContext(Dispatchers.IO) { store.loadAll() }
             engine.loadInto(loaded)
             appLog("Engine ready (${loaded.size} labels: ${loaded.keys.joinToString(",")})")
@@ -249,7 +245,6 @@ class ControlActivity : AppCompatActivity() {
             val snap = prefs.snapshot()
             val modeChanged = listeningMode != snap.listeningMode
             globalMaxSpeed = snap.globalMaxSpeed
-            speedLimit = snap.speedLimit
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
@@ -263,26 +258,6 @@ class ControlActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         stopAlwaysOn()
-    }
-
-    private fun showOverflowMenu(anchor: View) {
-        val menu = PopupMenu(this, anchor)
-        menu.menu.add(0, MENU_MANUAL, 0, R.string.menu_manual)
-        menu.menu.add(0, MENU_SETTINGS, 1, R.string.menu_settings)
-        menu.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                MENU_MANUAL -> {
-                    startActivity(Intent(this, ManualActivity::class.java))
-                    true
-                }
-                MENU_SETTINGS -> {
-                    startActivity(Intent(this, SettingsActivity::class.java))
-                    true
-                }
-                else -> false
-            }
-        }
-        menu.show()
     }
 
     private fun onConnectTapped() {
@@ -360,7 +335,6 @@ class ControlActivity : AppCompatActivity() {
                     label = match.label,
                     api = api,
                     globalMaxSpeed = globalMaxSpeed,
-                    speedLimit = speedLimit,
                     globalMinStroke = globalMinStroke,
                     globalMaxStroke = globalMaxStroke,
                 )

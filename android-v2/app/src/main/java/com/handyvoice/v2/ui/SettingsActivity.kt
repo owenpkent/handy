@@ -29,6 +29,10 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var modeAlwaysOn: RadioButton
     private lateinit var globalMaxSlider: SeekBar
     private lateinit var globalMaxValue: TextView
+    private lateinit var globalMinStrokeSlider: SeekBar
+    private lateinit var globalMinStrokeValue: TextView
+    private lateinit var globalMaxStrokeSlider: SeekBar
+    private lateinit var globalMaxStrokeValue: TextView
     private lateinit var thresholdSlider: SeekBar
     private lateinit var thresholdValue: TextView
     private lateinit var retrainButton: MaterialButton
@@ -40,12 +44,18 @@ class SettingsActivity : AppCompatActivity() {
         prefs = PreferencesManager(applicationContext)
         store = TemplateStore(applicationContext.filesDir)
 
+        findViewById<MaterialButton>(R.id.menuButton).setOnClickListener { v -> showMainMenu(v) }
+
         keyInput = findViewById(R.id.connectionKeyInput)
         modeGroup = findViewById(R.id.modeGroup)
         modeButton = findViewById(R.id.modeButton)
         modeAlwaysOn = findViewById(R.id.modeAlwaysOn)
         globalMaxSlider = findViewById(R.id.globalMaxSlider)
         globalMaxValue = findViewById(R.id.globalMaxValue)
+        globalMinStrokeSlider = findViewById(R.id.globalMinStrokeSlider)
+        globalMinStrokeValue = findViewById(R.id.globalMinStrokeValue)
+        globalMaxStrokeSlider = findViewById(R.id.globalMaxStrokeSlider)
+        globalMaxStrokeValue = findViewById(R.id.globalMaxStrokeValue)
         thresholdSlider = findViewById(R.id.thresholdSlider)
         thresholdValue = findViewById(R.id.thresholdValue)
         retrainButton = findViewById(R.id.retrainButton)
@@ -53,6 +63,21 @@ class SettingsActivity : AppCompatActivity() {
 
         globalMaxSlider.setOnSeekBarChangeListener(simpleListener { p ->
             globalMaxValue.text = p.coerceAtLeast(1).toString()
+        })
+        // Stroke band: keep min <= max as the user drags either thumb.
+        globalMinStrokeSlider.setOnSeekBarChangeListener(simpleListener { p ->
+            globalMinStrokeValue.text = p.toString()
+            if (p > globalMaxStrokeSlider.progress) {
+                globalMaxStrokeSlider.progress = p
+                globalMaxStrokeValue.text = p.toString()
+            }
+        })
+        globalMaxStrokeSlider.setOnSeekBarChangeListener(simpleListener { p ->
+            globalMaxStrokeValue.text = p.toString()
+            if (p < globalMinStrokeSlider.progress) {
+                globalMinStrokeSlider.progress = p
+                globalMinStrokeValue.text = p.toString()
+            }
         })
         thresholdSlider.setOnSeekBarChangeListener(simpleListener { p ->
             thresholdValue.text = p.toString()
@@ -71,6 +96,10 @@ class SettingsActivity : AppCompatActivity() {
         else modeButton.isChecked = true
         globalMaxSlider.progress = snap.globalMaxSpeed
         globalMaxValue.text = snap.globalMaxSpeed.toString()
+        globalMinStrokeSlider.progress = snap.globalMinStroke
+        globalMinStrokeValue.text = snap.globalMinStroke.toString()
+        globalMaxStrokeSlider.progress = snap.globalMaxStroke
+        globalMaxStrokeValue.text = snap.globalMaxStroke.toString()
         thresholdSlider.progress = snap.matchThreshold.toInt()
         thresholdValue.text = snap.matchThreshold.toInt().toString()
     }
@@ -85,6 +114,8 @@ class SettingsActivity : AppCompatActivity() {
                     PreferencesManager.MODE_BUTTON
             )
             prefs.setGlobalMaxSpeed(globalMaxSlider.progress.coerceAtLeast(1))
+            prefs.setGlobalMinStroke(globalMinStrokeSlider.progress.coerceIn(0, 100))
+            prefs.setGlobalMaxStroke(globalMaxStrokeSlider.progress.coerceIn(0, 100))
             prefs.setMatchThreshold(thresholdSlider.progress.toFloat())
             Toast.makeText(this@SettingsActivity, "Saved", Toast.LENGTH_SHORT).show()
             finish()

@@ -8,16 +8,37 @@
     android:background="@color/background_dark"
     android:padding="24dp">
 
-    <TextView
-        android:id="@+id/titleText"
+    <LinearLayout
+        android:id="@+id/titleRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="@string/training_title"
-        android:textColor="@color/text_primary"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:paddingStart="48dp"
+            android:paddingEnd="0dp"
+            android:text="@string/training_title"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menuButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/content_desc_settings"
+            android:text="⚙"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/commandProgressText"
@@ -27,7 +48,7 @@
         android:gravity="center"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
-        app:layout_constraintTop_toBottomOf="@id/titleText"
+        app:layout_constraintTop_toBottomOf="@id/titleRow"
         tools:text="Command 1 of 9" />
 
     <!-- Card area -->

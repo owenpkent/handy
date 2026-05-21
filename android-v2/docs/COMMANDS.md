@@ -35,34 +35,33 @@ sealed class VoiceAction {
 | Action | Semantics |
 | --- | --- |
 | `Stop` | `api.stop()` — sends `PUT /hamp/stop`. Sets `isRunning = false`. |
-| `SetSpeed(percent)` | If `percent == 0`, calls `api.stop()`. Otherwise: ensure the device is started (one-time `api.start()` if not running) then `api.setSpeed(scaled)`. `scaled = (percent * globalMaxSpeed / 100).coerceIn(0, speedLimit)`. |
-| `AdjustSpeed(delta)` | Compute the target as `api.currentSpeed + (delta * globalMaxSpeed / 100)`, clamp to `[0, speedLimit]`, then `api.setSpeed(target)`. |
+| `SetSpeed(percent)` | If `percent == 0`, calls `api.stop()`. Otherwise: ensure the device is started (one-time `api.start()` if not running) then `api.setSpeed(scaled)`. `scaled = (percent * globalMaxSpeed / 100).coerceIn(0, 100)`. |
+| `AdjustSpeed(delta)` | Compute the target as `api.currentSpeed + (delta * globalMaxSpeed / 100)`, clamp to `[0, 100]`, then `api.setSpeed(target)`. |
 | `SetRange(min, max)` | Range is squashed into `[globalMinStroke, globalMaxStroke]`, then `api.setStrokeRange(squashedMin, squashedMax)`. |
 | `Preset(rangeMin, rangeMax, speed)` | Squash the range into the global band, then slide → start → velocity in that order. The Handy API resets velocity if it's written before `start`. |
 
-`Dispatch.dispatch(label, api, globalMaxSpeed, speedLimit, globalMinStroke, globalMaxStroke)` is a suspending function that runs the action's API calls and returns `true` on success. All four cap parameters have safe defaults (`30, 100, 0, 100`) so call sites can omit any they don't care about.
+`Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke)` is a suspending function that runs the action's API calls and returns `true` on success. All three cap parameters have safe defaults (`30, 0, 100`) so call sites can omit any they don't care about.
 
 ## Caps and clamps
 
-Four prefs shape every dispatched action. They mirror the v1 (`../android/`) controls and are exposed on the **Manual controls** screen so both surfaces honour them.
+Three prefs shape every dispatched action. They live in **Settings** so both voice and manual surfaces honour them.
 
 | Pref | Default | What it does |
 | --- | --- | --- |
 | `globalMaxSpeed` | 30 | Design-space velocity multiplier. `device = design * globalMaxSpeed / 100`. Owen's ceiling. |
-| `speedLimit` | 100 | Hard ceiling on the device velocity, applied **after** the design-space scaling. Mirrors v1's `Spd.Lim`. |
 | `globalMinStroke` | 0 | Stroke-position floor. Preset ranges are squashed into `[globalMinStroke, globalMaxStroke]`. |
 | `globalMaxStroke` | 100 | Stroke-position ceiling. With defaults `0..100` no squashing happens. |
 
-Worked examples with `globalMaxSpeed=30, speedLimit=100, globalMinStroke=0, globalMaxStroke=100`:
+Worked examples with `globalMaxSpeed=30, globalMinStroke=0, globalMaxStroke=100`:
 
-- `SetSpeed(25)` sends velocity 7 (`25 × 0.30 = 7.5`, rounded down, ≤ 100).
-- `AdjustSpeed(+15)` from current 7 sends velocity 11 (`7 + (15 × 0.30) = 11.5`, rounded down, ≤ 100).
+- `SetSpeed(25)` sends velocity 7 (`25 × 0.30 = 7.5`, rounded down).
+- `AdjustSpeed(+15)` from current 7 sends velocity 11 (`7 + (15 × 0.30) = 11.5`, rounded down).
 - `Preset(rangeMin=0, rangeMax=100, speed=80)` sends slide `0..100` and velocity 24.
 
-Same prefs but with `speedLimit=20, globalMinStroke=20, globalMaxStroke=80`:
+Same prefs but with `globalMinStroke=20, globalMaxStroke=80`:
 
-- `SetSpeed(25)` still computes 7, ≤ 20, so sends 7.
-- `Preset(rangeMin=0, rangeMax=100, speed=80)` computes 24, **clamped to 20** by `speedLimit`. Slide becomes `20..80` (squashed into the band).
+- `SetSpeed(25)` still sends 7.
+- `Preset(rangeMin=0, rangeMax=100, speed=80)` sends velocity 24 and slide `20..80` (squashed into the band).
 
 The caps are enforced in `Dispatch.dispatch()`, not in the API client. The client itself accepts and forwards 0–100.
 
@@ -149,6 +148,8 @@ Phase 2 work, in order:
 4. Replace the `Preset(...)` rows in `TABLE` with `Pattern(...)` rows.
 
 The recording vocabulary does not change — the same five labels are already trained. This is the whole reason the Phase 1 stand-ins use the same label names.
+
+The Manual screen also surfaces an additional 7 **tap-only** patterns (Pulse, Tease, Edge, Rush, Throb, Bounce, Climax) declared in `ManualActivity.tapOnlyPatterns`. They reuse the same `(rangeMin, rangeMax, designSpeed)` shape and squash + scale logic as voice patterns but deliberately have no voice label, so they don't require retraining. Edit that map to retune any of them. If you decide to promote one to voice, copy its triple into `Dispatch.TABLE` as a new `Preset(...)` row and follow the "Adding a new command" steps above.
 
 ## Why mirror vega's vocabulary
 
