@@ -7,44 +7,50 @@ How the pieces fit, what runs on which thread, what state lives where, and what 
 Single process, three activities, no foreground service. The mic is owned by exactly one component at any moment.
 
 ```
-                    ┌───────────────────────────────┐
-                    │  ControlActivity              │
-launcher ──────────►│  - mic button / always-on     │
-                    │  - dispatch into HandyApi     │
-                    │  - debug log                  │
-                    └──────────┬────────────────────┘
-                               │  (first launch or "Re-train" tapped)
+                    ┌──────────────────────────────────────┐
+                    │  ControlActivity                     │
+launcher ──────────►│  - Voice / Manual tabs               │
+                    │  - mic toggle, live peak meter       │
+                    │  - 12-button pattern grid            │
+                    │  - PatternEngine (envelope runner)   │
+                    │  - dispatch into HandyV2ApiClient    │
+                    │  - debug log                         │
+                    └──────────┬───────────────────────────┘
+                               │  (first launch, "Re-record", or "Clear all")
                                ▼
-                    ┌───────────────────────────────┐
-                    │  TrainingActivity             │
-                    │  - 9 cards × 3 takes          │
-                    │  - saves MFCCs after each take│
-                    └───────────────────────────────┘
+                    ┌──────────────────────────────────────┐
+                    │  TrainingActivity                    │
+                    │  - 9 cards × 3 takes (auto-advance)  │
+                    │  - cross-validation gate per label   │
+                    │  - verification pass before finish   │
+                    │  - ack tone on every saved take      │
+                    └──────────────────────────────────────┘
 
-                    ┌───────────────────────────────┐
-                    │  SettingsActivity             │
-                    │  - prefs editor               │
-                    │  - re-train entry             │
-                    └───────────────────────────────┘
+                    ┌──────────────────────────────────────┐
+                    │  SettingsActivity                    │
+                    │  - prefs editor                      │
+                    │  - re-record entry                   │
+                    │  - ← Home button back to Control     │
+                    └──────────────────────────────────────┘
 ```
 
-`ControlActivity` is the launcher. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine` (possibly empty if the user deliberately bailed onboarding), restores the connection key, and wires up the listening loop. The shared gear-icon menu (`MainMenu.showMainMenu`) is also wired here.
+`ControlActivity` is the launcher. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine`, instantiates a `PatternEngine` bound to its `lifecycleScope`, restores the connection key, and wires up the tab listener + listening loop. The shared gear-icon menu (`MainMenu.showMainMenu`) is wired here for the Voice / Settings overflow. The Voice **and** Manual surfaces live in this single activity as tab panels — there is no separate `ManualActivity` anymore.
 
-`TrainingActivity` is unidirectional. The user records, the takes hit disk, and the activity finishes back to `ControlActivity`. It does not need a network connection or a Handy device to operate.
+`TrainingActivity` is unidirectional. The user records, the takes hit disk, cross-validation flags outliers, the verification pass confirms recognition, and the activity finishes back to `ControlActivity`. It does not need a network connection or a Handy device to operate.
 
-`SettingsActivity` writes prefs and can invoke the "wipe templates and re-train" path. It finishes back to `ControlActivity`, which re-reads prefs on `onResume`.
+`SettingsActivity` writes prefs and can invoke the "wipe templates and re-train" path. The header's **← Home** button finishes Settings and returns to `ControlActivity` directly; `onResume` over there re-reads prefs and reloads templates.
 
-## Mic ownership and the two listening modes
+## Mic ownership and the listening loop
 
 The Android `AudioRecord` API allows only one active recorder at a time. We respect that with a single owner per moment:
 
 | Mode | Who owns mic | When |
 | --- | --- | --- |
-| Training | `TrainingActivity` | Only while the user holds the record card and a capture is in flight. Released after each 1.5 s window. |
-| Button | `ControlActivity` | Only between the user tapping the mic button and the 1.5 s window ending. |
-| Always-on | `ControlActivity` | Continuously while the activity is in `RESUMED`; released in `onPause`. |
+| Training capture | `TrainingActivity.captureOneTake` | Per-take 2.5 s window via `AudioCapture.readWindow`. Released after each. The streaming peak callback drives the live meter during capture. |
+| Training verify | `TrainingActivity.captureForVerify` | One 2.5 s window per label during the post-Build verification pass. Same path. |
+| Voice tab (tap-mic or always-on) | `ControlActivity.startAlwaysOn` | `AudioCapture.stream(...)` runs continuously while the loop is active; cancelled on STOP-listening, listening-mode change, or `onPause`. Same loop services both tap-mic toggle and the always-on setting. |
 
-`AudioCapture` does no caching of its own. Each call constructs an `AudioRecord`, records, and releases. This is wasteful in raw throughput, but the v1 Android codebase already documented "Don't destroy/recreate `AudioRecord` on each mic toggle" as a Vosk-specific warmup issue. We have not seen the same issue with `MediaRecorder.AudioSource.VOICE_RECOGNITION` on modern Android. If it appears, the mitigation is to keep `AudioCapture.stream(...)` running for both modes and switch its consumer via a flag.
+`AudioCapture` doesn't pool `AudioRecord`s — each entry point constructs, records, releases. Source is `MediaRecorder.AudioSource.MIC` everywhere (not `VOICE_RECOGNITION`). The Android emulator's virtual mic delivers silence to `VOICE_RECOGNITION` while routing audio fine to `MIC`; we don't know what Google's path does differently but bare `MIC` works in every environment we've tested. We lose any AGC / noise suppression that a device's `VOICE_RECOGNITION` audio source might apply, which has not been a problem in practice.
 
 ## Threading
 
@@ -65,13 +71,14 @@ Three kinds of state, three different homes.
 
 ### Per-launch in-memory state (`ControlActivity` fields)
 
-- `engine: MfccDtwEngine` — the loaded templates. Rebuilt from disk on every launch.
-- `isCapturing: Boolean` — guards re-entry of the mic button.
-- `alwaysOnJob: Job?` — the coroutine running the always-on listening loop.
-- `globalMaxSpeed`, `threshold`, `listeningMode` — cached pref values, re-read on `onResume`.
-- `log: MutableList<String>` — ring buffer of debug lines for the on-screen panel.
+- `engine: MfccDtwEngine` — the loaded templates. Rebuilt from disk on every launch and again in `onResume` so newly-recorded takes appear without restart.
+- `patternEngine: PatternEngine` — lazy-init runner for the 12 envelope patterns. Cancelled on STOP, on any new pattern, and (implicitly via `lifecycleScope`) on activity destruction.
+- `alwaysOnJob: Job?` — the coroutine running the listening loop (used by both tap-mic and always-on modes).
+- `ackTone: ToneGenerator?` — short-lived `STREAM_MUSIC` tone generator that beeps on every voice match. Released in `onDestroy`. TrainingActivity owns a parallel instance for take saves + verify passes.
+- `globalMaxSpeed`, `globalMinStroke`, `globalMaxStroke`, `threshold`, `listeningMode` — cached pref values, re-read on every `onResume`.
+- `log: MutableList<String>` — ring buffer of debug lines for the on-screen panel; auto-scrolls to newest on update.
 
-The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunning`, `currentSpeed`, `strokeMin`, `strokeMax`, `lastError`, `debugLog`). Those flows survive activity recreation as long as the client instance does (the activity recreates it on every `onCreate`, which is acceptable because the only persisted piece is the connection key).
+The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunning`, `currentSpeed`, `strokeMin`, `strokeMax`, `lastError`, `debugLog`), plus three injected configuration knobs that activities push in: `connectionKey`, `invertStroke`, `(globalStrokeMin, globalStrokeMax)`. The flows survive activity recreation as long as the client instance does (the activity recreates it on every `onCreate`, which is acceptable because the only persisted piece is the connection key).
 
 ### Persistent state (DataStore prefs)
 
@@ -80,12 +87,13 @@ The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunnin
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
 | `connection_key` | String | `""` | Handy connection key. |
-| `listening_mode` | String | `button` | One of `button`, `always_on`. |
-| `global_max_speed` | Int | 30 | Hard speed cap (% of device max). Single knob; applied as a multiplier in `Dispatch`. |
-| `global_min_stroke` | Int | 0 | Stroke-position floor. Preset / pattern ranges are squashed into `[min, max]`. |
+| `listening_mode` | String | `button` | One of `button`, `always_on`. Both share the same VAD-driven loop; `button` requires an explicit mic-tap to start it. |
+| `global_max_speed` | Int | 30 | Hard speed cap (% of device max). Applied as a multiplier in `Dispatch` and as a peak for `PatternEngine`. |
+| `global_min_stroke` | Int | 0 | Stroke-position floor. Preset / pattern ranges are squashed into `[min, max]`. The connect-time park targets this edge. |
 | `global_max_stroke` | Int | 100 | Stroke-position ceiling. |
-| `match_threshold` | Float | 30.0 | Path-normalized DTW distance below which a match counts. |
-| `onboarded` | Boolean | false | Set true when the user finishes Training **or** bails out via the gear menu — either way ControlActivity stops force-routing them back. |
+| `invert_stroke` | Boolean | false | Flip user-coord 0 to device-coord 100 at the API client boundary. Applied once in `setStrokeRange` and `parkAtRetracted`. |
+| `match_threshold` | Float | 30.0 | Path-normalised DTW distance below which a match counts. Cross-validation also uses `threshold × 1.4` as its outlier cutoff. |
+| `onboarded` | Boolean | false | Set true when the user finishes Training (and passes the verification step) **or** bails out via the gear menu — either way ControlActivity stops force-routing them back. |
 
 `PreferencesManager.snapshot()` returns a single `Snapshot` so a coroutine can read everything in one suspend without juggling individual Flows.
 
@@ -96,8 +104,8 @@ The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunnin
 ```
 filesDir/
 └── templates/
-    ├── start/
-    │   ├── take_1.json    # SerializedTake{format=1, label="start", mfcc=Array<DoubleArray>}
+    ├── begin/
+    │   ├── take_1.json    # SerializedTake{format=3, label="begin", mfcc=Array<DoubleArray>}
     │   ├── take_2.json
     │   └── take_3.json
     ├── stop/
@@ -110,13 +118,19 @@ Each file holds one `SerializedTake`:
 
 ```json
 {
-  "format": 1,
-  "label": "start",
+  "format": 3,
+  "label": "begin",
   "mfcc": [[...13 numbers...], [...13 numbers...], ...]
 }
 ```
 
-The `format` field exists so a future TFLite path (Phase 3) can store embeddings instead of MFCCs without breaking forward-compat. Reads check `format == 1` implicitly; mismatches silently skip the take.
+The `format` field is the schema version. History:
+
+- **1** — original 1.5 s capture window, MFCCs without normalisation.
+- **2** — 2.5 s capture window (longer MFCC sequences, ~250 frames).
+- **3** — cepstral mean normalisation applied per utterance (mean-centred features).
+
+`TemplateStore.loadAll` and `TemplateStore.loadTakes` filter takes whose `format` doesn't match `CURRENT_FORMAT`. On launch, old-format takes are silently dropped and the user is prompted to re-record via the "No voice samples yet" hint on the Voice tab. Phase-3 TFLite embeddings will bump the version again so MFCC takes aren't silently mixed with embeddings.
 
 File names use `take_N.json` where N is the next integer after the existing count. `TemplateStore.sanitize()` lowercases the label and replaces non-alphanumerics with underscores so labels never break the filesystem. Labels in `Dispatch.LABELS` are already clean, so sanitisation is a defence-in-depth measure.
 
@@ -158,23 +172,30 @@ audio: ShortArray
   │
   ▼  Dispatchers.Default
 engine.match(audio)
-  │   ┌─ extract MFCCs from audio
+  │   ┌─ extract MFCCs from audio (with CMN)
   │   ├─ for each (label, [take₁ ... takeₙ]):
   │   │     best = min over takes of DTW(query, takeᵢ)
   │   └─ return (label_with_lowest_best, lowest_best, second_lowest_best)
   ▼
 match: TemplateEngine.Match
   │
-  ▼  if match.score <= prefs.match_threshold
-Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke)
-  │   ┌─ Stop      → api.stop()
-  │   ├─ SetSpeed  → ensure running, then api.setSpeed(scaled by globalMaxSpeed)
-  │   ├─ AdjustSpeed → api.setSpeed(current + scaled-delta)
-  │   ├─ SetRange  → api.setStrokeRange(squashed-into-[globalMinStroke, globalMaxStroke])
-  │   └─ Preset    → api.setStrokeRange(squashed) → ensure running → api.setSpeed(scaled)
-  ▼
-HandyV2ApiClient
+  ▼  passes = match.score ≤ threshold  AND  margin ≥ score × 0.05
+ackTone.beep()
   │
+  ▼
+Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine)
+  │   ┌─ Stop          → patternEngine.cancel() ; api.stop()
+  │   ├─ SetSpeed      → ensure running, then api.setSpeed(scaled by globalMaxSpeed)
+  │   ├─ AdjustSpeed   → api.setSpeed(current + scaled-delta), clamped to [0, globalMaxSpeed]
+  │   ├─ SetRange      → api.setStrokeRange(squashed-into-band)
+  │   ├─ Preset        → patternEngine.cancel() ; setStrokeRange(squashed) → start → setSpeed(scaled)
+  │   └─ Pattern       → setStrokeRange(squashed full band) → patternEngine.start(name, scaleSpeed(intensity))
+  ▼
+HandyV2ApiClient            PatternEngine (background coroutine, looped)
+  │                              │
+  │                              ▼  every (envelope, durationMs):
+  │                              api.setSpeed((env × intensity).toInt())
+  │                              delay(durationMs)
   ▼  Retrofit + OkHttp on background thread
 PUT https://www.handyfeeling.com/api/handy/v2/...
 ```

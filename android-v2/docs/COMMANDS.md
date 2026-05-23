@@ -2,21 +2,21 @@
 
 The fixed vocabulary, what each command does, and how to add a new one.
 
-## Vocabulary (Phase 1)
+## Vocabulary
 
-Mirrors `vega/commands.py`'s `DISPATCH` exactly. See `dispatch/Dispatch.kt`.
+Mirrors `vega/commands.py`'s `DISPATCH` closely (one rename: `start` → `begin` — see "Naming conventions" below). See `dispatch/Dispatch.kt`.
 
 | Label | Action | Notes |
 | --- | --- | --- |
-| `start` | `SetSpeed(25)` | Slow preset. Starts the device if it isn't running. |
-| `stop` | `Stop` | Immediate stop. Clears running state. |
-| `faster` | `AdjustSpeed(+15)` | Add 15 design points to the current speed. Scaled by global max. |
-| `slower` | `AdjustSpeed(-15)` | Subtract 15. Scaled by global max. |
-| `heartbeat` | `Preset(rangeMin=50, rangeMax=90, speed=25)` | Pattern stand-in. Slow, top range. |
-| `wave` | `Preset(0, 100, 50)` | Pattern stand-in. Medium, full range. |
-| `surge` | `Preset(0, 100, 80)` | Pattern stand-in. Fast, full range. |
-| `breathe` | `Preset(0, 100, 25)` | Pattern stand-in. Slow, full range. |
-| `storm` | `Preset(50, 90, 80)` | Pattern stand-in. Fast, top range. |
+| `begin` | `SetSpeed(25)` | Slow preset. Starts the device if it isn't running. |
+| `stop` | `Stop` | Immediate stop. Cancels any running pattern envelope as well. |
+| `faster` | `AdjustSpeed(+15)` | Add 15 design points to current speed. Scaled by global max; clamped to `[0, globalMaxSpeed]`. |
+| `slower` | `AdjustSpeed(-15)` | Subtract 15. Same scaling + clamp. |
+| `heartbeat` | `Pattern("heartbeat")` | Lub-dub envelope. See [PatternEngine](#pattern-engine). |
+| `wave` | `Pattern("wave")` | Sine swell envelope. |
+| `surge` | `Pattern("surge")` | Ramp-hold-rest envelope. |
+| `breathe` | `Pattern("breathe")` | Gentle 0.10..0.60 sine. |
+| `storm` | `Pattern("storm")` | Random walk envelope. |
 
 ## VoiceAction sealed class
 
@@ -29,18 +29,20 @@ sealed class VoiceAction {
     data class AdjustSpeed(val delta: Int) : VoiceAction()
     data class SetRange(val min: Int, val max: Int) : VoiceAction()
     data class Preset(val rangeMin: Int, val rangeMax: Int, val speed: Int) : VoiceAction()
+    data class Pattern(val name: String, val intensity: Int = 100) : VoiceAction()
 }
 ```
 
 | Action | Semantics |
 | --- | --- |
-| `Stop` | `api.stop()` — sends `PUT /hamp/stop`. Sets `isRunning = false`. |
-| `SetSpeed(percent)` | If `percent == 0`, calls `api.stop()`. Otherwise: ensure the device is started (one-time `api.start()` if not running) then `api.setSpeed(scaled)`. `scaled = (percent * globalMaxSpeed / 100).coerceIn(0, 100)`. |
-| `AdjustSpeed(delta)` | Compute the target as `api.currentSpeed + (delta * globalMaxSpeed / 100)`, clamp to `[0, 100]`, then `api.setSpeed(target)`. |
-| `SetRange(min, max)` | Range is squashed into `[globalMinStroke, globalMaxStroke]`, then `api.setStrokeRange(squashedMin, squashedMax)`. |
-| `Preset(rangeMin, rangeMax, speed)` | Squash the range into the global band, then slide → start → velocity in that order. The Handy API resets velocity if it's written before `start`. |
+| `Stop` | Cancel any running `PatternEngine` job, then `api.stop()` (`PUT /hamp/stop`). Clears `isRunning`. |
+| `SetSpeed(percent)` | If `percent == 0`, calls `api.stop()`. Otherwise: ensure the device is started, then `api.setSpeed(scaled)`. `scaled = percent × globalMaxSpeed / 100`. |
+| `AdjustSpeed(delta)` | Compute the target as `api.currentSpeed + (delta × globalMaxSpeed / 100)`, clamp to `[0, globalMaxSpeed]`, then `api.setSpeed(target)`. The clamp ensures repeated "faster" can't sneak past the cap. |
+| `SetRange(min, max)` | Range is squashed into `[globalMinStroke, globalMaxStroke]`, then `api.setStrokeRange(squashedMin, squashedMax)`. The client also applies the invert flip if enabled. |
+| `Preset(rangeMin, rangeMax, speed)` | One-shot static preset for the tap-only Manual buttons. Cancels any running pattern, squashes the range into the global band, then slide → start → velocity in that order. The Handy API resets velocity if it's written before `start`. |
+| `Pattern(name, intensity)` | Opens the stroke range to the full global band, then calls `patternEngine.start(name, scaleSpeed(intensity))`. The engine launches a looping coroutine that emits `(envelope, durationMs)` pairs into `api.setSpeed`. |
 
-`Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke)` is a suspending function that runs the action's API calls and returns `true` on success. All three cap parameters have safe defaults (`30, 0, 100`) so call sites can omit any they don't care about.
+`Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine)` is a suspending function that runs the action's API calls and returns `true` on success. All parameters except `label` and `api` have safe defaults (`30, 0, 100, null`) so call sites can omit any they don't care about, **except** that `Pattern` actions require a non-null `patternEngine` — passing `null` returns `false` from dispatch. `ControlActivity` always passes its engine instance.
 
 ## Caps and clamps
 
@@ -85,7 +87,7 @@ Edit `dispatch/Dispatch.kt`:
 
 ```kotlin
 val LABELS: List<String> = listOf(
-    "start", "stop", "faster", "slower",
+    "begin", "stop", "faster", "slower",
     "heartbeat", "wave", "surge", "breathe", "storm",
     "deeper",                           // <-- new
 )
@@ -105,12 +107,12 @@ Order in `LABELS` is the order the user sees during training.
 
 ### 3. Record templates
 
-Re-train. In the running app: **Settings → Re-record voice samples**. This wipes the templates directory and routes back to `TrainingActivity`. Or, if you only want to add the new label without re-recording the others, use `adb` to push a new take into the right folder, but for everyday workflow the wipe-and-rerecord path is simpler.
+Re-record. From the Voice tab tap **Re-record** (opens Training without wiping existing takes) or **Clear all** (wipes everything, with confirmation, then opens Training). After Build templates the verification pass runs to confirm recognition; if your new label collides phonetically with an existing one, that's where you'll find out.
 
 ### Naming conventions
 
 - One word, ideally one syllable. "deeper" works; "go deeper" is two captures and the matcher gets confused by the silence between words.
-- Avoid pairs that sound alike. "slow" and "stop" share the same starting phoneme and can score close to each other; choose one or use distinct alternates ("halt" vs "go").
+- **Avoid pairs that sound alike.** This is what bit us with `start` / `stop` — both begin with the `st-` cluster and end with `-p`/`-t`, and even with CMN the MFCCs scored close enough that `start` audio routinely matched `stop` templates better than its own. We renamed to `begin` / `stop`; you'll hit similar problems with any pair sharing first-syllable phonetics. The post-Build verification pass is the safety net but it's better to pick distinct words up-front.
 - Prefer words with distinctive consonants. Fricatives (`s`, `sh`, `f`, `v`) survive noise well; vowel-only words like "oh" don't.
 - Lowercase only. `TemplateStore.sanitize()` will lowercase anyway; using lowercase in source keeps debug output legible.
 
@@ -123,33 +125,43 @@ The whole point of v2 is to skip the speech-to-text step that fails for non-stan
 
 Phase 1 chooses the constraint: nine labels, fixed actions, perfect determinism. New utterances become new labels in the dispatch table, not new parsing rules.
 
-## Patterns and the Phase 2 port
+## Pattern engine
 
-The five pattern labels (`heartbeat`, `wave`, `surge`, `breathe`, `storm`) are currently mapped to static `Preset(range, speed)` combinations. That's deliberately a stand-in.
+`dispatch/PatternEngine.kt` is a Kotlin port of `homeassistant/custom_components/handy/patterns.py`. Each named pattern is a `suspend fun(api, intensity)` that loops forever, calling `api.setSpeed(envelope × intensity)` then `delay(durationMs)`. The engine owns a single `Job` — starting a new pattern cancels the running one, and `STOP` cancels everything.
 
-Vega's `devices/handy.py` implements real patterns as background threads that modulate speed over time:
+The 12 envelopes:
 
-```python
-def _heartbeat(intensity: int) -> Iterator[tuple[float, float]]:
-    while True:
-        yield (intensity, 0.10)   # thump
-        yield (0,         0.06)
-        yield (intensity, 0.08)   # echo
-        yield (0,         0.42)   # rest
-```
+| Name | Envelope | Cycle |
+| --- | --- | --- |
+| `heartbeat` | lub (0.85, 150 ms) → gap (0, 180 ms) → dub (0.7, 150 ms) → rest (0, 1500 ms) | ~2 s |
+| `wave` | smooth sine 0..1..0 over 8 s, 32 steps | 8 s |
+| `surge` | 24-step linear ramp to peak (12 s), hold (4 s), rest (3 s) | ~19 s |
+| `breathe` | sine confined to 0.10..0.60 over 6 s, never silent, never peak | 6 s |
+| `storm` | random envelope 0..1 for 0.4..1.6 s, repeat | unpredictable |
+| `pulse` | steady metronome 0.75 / 200 ms ↔ 0 / 200 ms | 400 ms |
+| `tease` | 0.40 / 0.5 s → silent 2 s → 0.30 / 0.3 s → silent 3 s | ~5.8 s |
+| `edge` | 5 s ramp to 0.95, hold 6 s, drop 4 s | ~15 s |
+| `rush` | constant 0.95, sliced into 500 ms chunks for cancellability | n/a |
+| `throb` | heavy 0.90 / 400 ms ↔ 0.10 / 700 ms | ~1.1 s |
+| `bounce` | sine 0.40..0.90 over 2 s, 16 steps | 2 s |
+| `climax` | 0.30 → 0.50 → 0.70 → 0.85 (3 s each) → 1.0 hold (8 s) → reset (2 s) | ~22 s |
 
-Each generator yields `(speed_design_percent, duration_seconds)` pairs; a controller loop calls `_apply_speed` and `time.sleep` per pair. The same pattern in Kotlin is a `Flow<Pair<Int, Long>>` consumed by a `launch(Dispatchers.Default)` block that suspends on `delay()` between writes.
+The first five share labels with the voice dispatch table. The remaining seven are tap-only on the Manual tab; each has its own stroke range that's set just before the envelope starts (see `ControlActivity.TapPattern` for the data class).
 
-Phase 2 work, in order:
+### Lifecycle and interaction
 
-1. Add a `VoiceAction.Pattern(name: String, intensity: Int = 100)` case.
-2. Port `vega/devices/handy.py`'s pattern generators to Kotlin.
-3. Add a `PatternEngine` singleton in `dispatch/` that owns the running coroutine, cancels it on any explicit speed command (just like vega does).
-4. Replace the `Preset(...)` rows in `TABLE` with `Pattern(...)` rows.
+- `PatternEngine.start(name, intensity)` cancels any prior pattern, calls `api.start()` if `isRunning` is false, and launches the envelope on the activity's `lifecycleScope`. Returns `false` on unknown name or `api.start()` failure.
+- `PatternEngine.cancel()` cancels the job without stopping the device.
+- `PatternEngine.stop()` cancels and calls `api.stop()`.
+- The STOP button on `ControlActivity` calls `patternEngine.cancel()` then `api.stop()`. Voice `Stop` action does the same through dispatch.
+- Activity destruction implicitly cancels everything via `lifecycleScope`.
 
-The recording vocabulary does not change — the same five labels are already trained. This is the whole reason the Phase 1 stand-ins use the same label names.
+### Adding a new pattern
 
-The Manual screen also surfaces an additional 7 **tap-only** patterns (Pulse, Tease, Edge, Rush, Throb, Bounce, Climax) declared in `ManualActivity.tapOnlyPatterns`. They reuse the same `(rangeMin, rangeMax, designSpeed)` shape and squash + scale logic as voice patterns but deliberately have no voice label, so they don't require retraining. Edit that map to retune any of them. If you decide to promote one to voice, copy its triple into `Dispatch.TABLE` as a new `Preset(...)` row and follow the "Adding a new command" steps above.
+1. Add a `suspend fun newpattern(api: HandyV2ApiClient, intensity: Int)` to `PatternEngine.companion` that loops forever emitting `(envelope, durationMs)` via the shared `emit()` helper.
+2. Add the entry to the `PATTERNS` map: `"newpattern" to ::newpattern`.
+3. To bind it to a voice label, add a row to `Dispatch.TABLE`: `"newword" to VoiceAction.Pattern("newpattern")`. Then add `"newword"` to `LABELS` + `PROMPTS` and re-record.
+4. To bind it to a Manual tap button, add a grid button to `activity_control.xml`, an entry to `ControlActivity.tapOnlyPatterns` with its stroke range, and click-wire it in `wireManualPatterns`.
 
 ## Why mirror vega's vocabulary
 

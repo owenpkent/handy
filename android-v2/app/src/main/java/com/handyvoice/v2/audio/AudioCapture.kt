@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import androidx.annotation.RequiresPermission
+import kotlin.math.abs
 import kotlin.math.max
 
 /**
@@ -33,21 +34,34 @@ class AudioCapture(
 
     @SuppressLint("MissingPermission")
     @RequiresPermission(Manifest.permission.RECORD_AUDIO)
-    fun readWindow(seconds: Double): ShortArray {
+    fun readWindow(
+        seconds: Double,
+        onPeak: ((Int) -> Unit)? = null,
+    ): ShortArray {
         val target = (sampleRate * seconds).toInt()
         val minBuf = AudioRecord.getMinBufferSize(sampleRate, CHANNEL, ENCODING)
         val bufSize = max(minBuf, target * 2)
+        // MIC, not VOICE_RECOGNITION: the latter has tighter routing
+        // requirements and on the Android emulator's virtual mic it often
+        // returns silence even when the host mic is enabled. MIC is the
+        // basic uncoloured input that every audio source on Android maps
+        // to, so it works in the emulator and on every real device.
         val record = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC,
             sampleRate, CHANNEL, ENCODING, bufSize,
         )
         return try {
             record.startRecording()
             val out = ShortArray(target)
+            // ~50 ms reads so the peak callback updates ~20×/sec while
+            // capture is running, without sacrificing too much throughput.
+            val chunk = sampleRate / 20
             var off = 0
             while (off < target) {
-                val n = record.read(out, off, target - off)
+                val want = minOf(chunk, target - off)
+                val n = record.read(out, off, want)
                 if (n <= 0) break
+                if (onPeak != null) onPeak(peakInRange(out, off, off + n))
                 off += n
             }
             out
@@ -55,6 +69,15 @@ class AudioCapture(
             try { record.stop() } catch (_: IllegalStateException) {}
             record.release()
         }
+    }
+
+    private fun peakInRange(arr: ShortArray, from: Int, to: Int): Int {
+        var p = 0
+        for (i in from until to) {
+            val a = abs(arr[i].toInt())
+            if (a > p) p = a
+        }
+        return p
     }
 
     /**
@@ -67,7 +90,7 @@ class AudioCapture(
         val minBuf = AudioRecord.getMinBufferSize(sampleRate, CHANNEL, ENCODING)
         val bufSize = max(minBuf, blockSamples * 4)
         val record = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC,
             sampleRate, CHANNEL, ENCODING, bufSize,
         )
         try {

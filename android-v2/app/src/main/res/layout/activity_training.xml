@@ -91,7 +91,7 @@
             android:textSize="16sp"
             tools:text="Take 1 of 3" />
 
-        <!-- Take dots: three filled/unfilled circles -->
+        <!-- Take dots: three filled/unfilled circles (TAKES_PER_LABEL = 3). -->
         <LinearLayout
             android:id="@+id/takeDots"
             android:layout_width="wrap_content"
@@ -104,13 +104,17 @@
             <View android:id="@+id/dot3" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="4dp" android:background="@drawable/dot_empty" />
         </LinearLayout>
 
-        <!-- Peak meter -->
+        <!-- Peak meter: scaleX is driven from code so the bar shrinks/grows
+             with audio level. Anchored on the left so it grows out to the
+             right like a typical VU meter. -->
         <View
             android:id="@+id/peakBar"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="6dp"
             android:layout_marginTop="20dp"
             android:background="@drawable/level_bar"
+            android:transformPivotX="0dp"
+            android:scaleX="0"
             android:visibility="invisible" />
 
         <com.google.android.material.button.MaterialButton

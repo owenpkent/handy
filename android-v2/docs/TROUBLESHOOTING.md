@@ -62,6 +62,28 @@ Subsequent builds use the local Gradle cache and are 10–20 s.
 
 Cosmetic. These flags in `gradle.properties` are pinned to AGP-9.x defaults (which become the AGP-10 defaults). The warnings will disappear when we move to AGP 10. No action required.
 
+## Mic not picking anything up
+
+The single best diagnostic is the **live peak meter** on the Voice tab (under "Heard:") and on the Training screen (above the record button). When the mic is open, the bar should grow/shrink with your voice. If it stays flat-zero, the mic isn't reaching the app.
+
+### On the Android emulator
+
+The emulator's virtual microphone is fiddly. We use `MediaRecorder.AudioSource.MIC` (not `VOICE_RECOGNITION`) because the emulator routes audio to `MIC` reliably and to `VOICE_RECOGNITION` not at all in many configurations. If you're still getting silence:
+
+1. **Emulator → Extended Controls (⋯) → Microphone:** toggle **"Enable Host Microphone Access"** ON. Some AVD images also need **"Virtual microphone attached"** ON in the bottom Virtual Headset section — counterintuitively, that's the one that tells Android "yes, there's a real mic device" (without it, `AudioRecord` reads silence indefinitely).
+2. **Windows-side:** Settings → Privacy & Security → Microphone → "Let desktop apps access your microphone" ON. Also confirm your real mic isn't muted and the input level isn't at 0.
+3. **Cold-boot the AVD after toggling.** Device Manager → ⋮ next to the device → "Cold Boot Now". Hot reboots don't re-enumerate audio devices.
+4. **Verify with Google Assistant in the emulator.** Long-press the home button and try a voice command. If the assistant can hear you and our app can't, the emulator isn't routing host audio to `MIC` at all. Either fix the emulator (sometimes wiping the AVD and re-creating helps) or move to a real device.
+
+If you can hear yourself when you tap **Play** after a take, the mic *is* working — your problem is elsewhere (threshold, templates, etc.). If Play is silent, the take was silent.
+
+### On a real Android device
+
+1. Mic permission must be granted: Settings → Apps → Handy Voice V2 → Permissions → Microphone → Allow.
+2. Don't cover the mic with the phone case or your hand.
+3. Mute switch is not on (some devices have a hardware switch that gates `MIC`).
+4. The peak meter should respond to voice or finger-tap on the mic position. If it doesn't, something below the app layer is wrong.
+
 ## Runtime: app launch
 
 ### App launches into a blank "scaffold" screen, no Training screen
@@ -122,20 +144,29 @@ Network is hung. The Retrofit client has a 15-second timeout on each request; af
 
 ## Runtime: matching
 
-### `No templates loaded`
+### `No voice samples yet — tap Re-record below.`
 
-The matcher couldn't find any templates on disk. Either:
+The engine loaded zero templates. Either:
 
-- You haven't completed Training yet. Open Settings → Re-record voice samples.
-- The templates directory was wiped externally (e.g. you cleared app data). Same fix: re-record.
+- You haven't completed Training yet. Voice tab → **Re-record**.
+- The templates directory was wiped externally (e.g. you cleared app data). Same fix: Re-record.
+- The on-disk takes were saved by an older app version with an incompatible MFCC pipeline (format version is below the current 3). They're auto-filtered out on load and you'll see this message; re-record to repopulate.
 
-### Every command shows `? <label> (score X)` below threshold
+### Every command shows `? <label> (score X)` (below threshold)
 
 Your match scores are too high to count. Common causes:
 
 - **You're recording in posture A and using in posture B.** See [TRAINING.md § Speak naturally](TRAINING.md#1-speak-naturally-not-into-the-mic). Re-record from your actual using posture.
-- **Threshold is too strict.** Default is 30. Bump it to 40 in Settings and see if matches start to count. If 50+ is needed, your templates are inconsistent — re-record.
-- **You used different words at training vs use.** Trained `start` but saying `begin`? It won't match. Train every word you want recognised.
+- **Threshold is too strict.** Default is 30. Bump it to 40 in Settings and see if matches start to count. With CMN applied, healthy scores are usually 5–15; if you're seeing 30+ consistently your templates and live audio are too different.
+- **You used different words at training vs use.** Trained `start` but saying `begin`? It won't match. Train every word you want recognised. (And note: the canonical label is `begin`, not `start` — we renamed it because `start`/`stop` collide phonetically.)
+
+### Match shows `? close call — try again` even though I said the right word
+
+The match passed the threshold but failed the **margin gate**: the runner-up label scored within 5% of the winner, so the engine refused to commit. Causes:
+
+- Two of your labels sound too similar to each other in MFCC space. Either re-record one more crisply, or pick more phonetically distinct labels (the `start`/`stop` lesson applies broadly).
+- Only one or two labels are trained — with so few choices, the margin is inherently small. Adding more labels usually helps because each one gives the matcher more vocabulary "shape" to discriminate against.
+- The post-Build verification pass is your safety net for this. If you skipped it, run Voice tab → **Re-record** → Build templates → say each label once when prompted.
 
 ### Wrong command fires every time
 

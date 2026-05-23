@@ -10,6 +10,7 @@
     <string name="training_take_progress">Take %1$d of %2$d</string>
     <string name="training_record">Record</string>
     <string name="training_stop">Stop</string>
+    <string name="training_cancel">Cancel</string>
     <string name="training_rerecord">Re-record</string>
     <string name="training_play">Play</string>
     <string name="training_prev">Previous</string>

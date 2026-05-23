@@ -22,7 +22,14 @@ class TemplateStore(private val rootDir: File) {
 
     companion object {
         private const val TEMPLATES_SUBDIR = "templates"
-        private const val CURRENT_FORMAT = 1
+        // 1: original 1.5s capture window.
+        // 2: 2.5s capture window (longer MFCC sequences).
+        // 3: cepstral mean normalization applied to each utterance, so the
+        //    feature values are mean-centered; old format-2 templates are
+        //    on a different statistical scale and can't be compared.
+        // Old-format takes are filtered out on load — user sees "no
+        // samples" and is prompted to re-record.
+        private const val CURRENT_FORMAT = 3
     }
 
     private val gson = Gson()
@@ -68,6 +75,53 @@ class TemplateStore(private val rootDir: File) {
         return file
     }
 
+    /** Load every take stored for [label], in take-number order. */
+    fun loadTakes(label: String): List<Array<DoubleArray>> {
+        val dir = File(rootDir, "$TEMPLATES_SUBDIR/${sanitize(label)}")
+        if (!dir.isDirectory) return emptyList()
+        return dir.listFiles { f -> f.isFile && f.name.endsWith(".json") }
+            ?.sortedBy { it.name }
+            ?.mapNotNull { f ->
+                try {
+                    val parsed: SerializedTake = gson.fromJson(f.readText(), type)
+                    // Skip takes from an older capture-window era; their MFCC
+                    // length doesn't line up with the current pipeline.
+                    if (parsed.format != CURRENT_FORMAT) null else parsed.mfcc
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            ?: emptyList()
+    }
+
+    /**
+     * Delete one take by 0-based position (matching the sort order of
+     * [loadTakes]) and renumber the survivors so files stay contiguous as
+     * `take_1.json`, `take_2.json`, ... [saveTake]'s naming logic assumes
+     * this invariant, so a gap would silently overwrite an existing take.
+     */
+    fun deleteTake(label: String, index: Int) {
+        val dir = File(rootDir, "$TEMPLATES_SUBDIR/${sanitize(label)}")
+        if (!dir.isDirectory) return
+        val ordered = dir.listFiles { f -> f.name.startsWith("take_") && f.name.endsWith(".json") }
+            ?.sortedBy { it.name }
+            ?: return
+        if (index !in ordered.indices) return
+        ordered[index].delete()
+        // Renumber the remaining files. Do a two-phase rename through a
+        // temp name to avoid colliding with the about-to-be-renamed file.
+        val remaining = dir.listFiles { f -> f.name.startsWith("take_") && f.name.endsWith(".json") }
+            ?.sortedBy { it.name }
+            ?: return
+        for ((newIdx, file) in remaining.withIndex()) {
+            val target = "take_${newIdx + 1}.json"
+            if (file.name == target) continue
+            val temp = File(dir, "${file.name}.tmp")
+            file.renameTo(temp)
+            temp.renameTo(File(dir, target))
+        }
+    }
+
     fun loadAll(): Map<String, List<Array<DoubleArray>>> {
         val out = mutableMapOf<String, MutableList<Array<DoubleArray>>>()
         for (label in labels()) {
@@ -78,7 +132,10 @@ class TemplateStore(private val rootDir: File) {
                 ?.forEach { f ->
                     try {
                         val parsed: SerializedTake = gson.fromJson(f.readText(), type)
-                        takes.add(parsed.mfcc)
+                        // Auto-migrate: ignore takes from an older capture
+                        // window. The user re-records when they next try to
+                        // use voice control.
+                        if (parsed.format == CURRENT_FORMAT) takes.add(parsed.mfcc)
                     } catch (_: Exception) {
                         // skip corrupt take
                     }

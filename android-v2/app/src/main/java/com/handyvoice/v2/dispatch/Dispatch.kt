@@ -14,15 +14,16 @@ object Dispatch {
 
     const val DEFAULT_STEP: Int = 15
 
-    /** Same nine labels as vega Phase 1. */
+    /** Phase-1 labels. "begin" stands in for "start" because the latter
+     *  collides phonetically with "stop" in MFCC space for slower speakers. */
     val LABELS: List<String> = listOf(
-        "start", "stop", "faster", "slower",
+        "begin", "stop", "faster", "slower",
         "heartbeat", "wave", "surge", "breathe", "storm",
     )
 
     /** Human-readable prompt shown on the training card for each label. */
     val PROMPTS: Map<String, String> = mapOf(
-        "start"     to "start",
+        "begin"     to "begin",
         "stop"      to "stop",
         "faster"    to "faster",
         "slower"    to "slower",
@@ -34,18 +35,18 @@ object Dispatch {
     )
 
     private val TABLE: Map<String, VoiceAction> = mapOf(
-        "start"     to VoiceAction.SetSpeed(25),
+        "begin"     to VoiceAction.SetSpeed(25),
         "stop"      to VoiceAction.Stop,
         "faster"    to VoiceAction.AdjustSpeed(DEFAULT_STEP),
         "slower"    to VoiceAction.AdjustSpeed(-DEFAULT_STEP),
-        // Pattern stand-ins until the pattern engine is ported. Each one
-        // picks a distinctive range + speed so they're at least useful.
-        // Speed is in design space and is scaled by the global max later.
-        "heartbeat" to VoiceAction.Preset(rangeMin = 50, rangeMax = 90, speed = 25),
-        "wave"      to VoiceAction.Preset(rangeMin = 0,  rangeMax = 100, speed = 50),
-        "surge"     to VoiceAction.Preset(rangeMin = 0,  rangeMax = 100, speed = 80),
-        "breathe"   to VoiceAction.Preset(rangeMin = 0,  rangeMax = 100, speed = 25),
-        "storm"     to VoiceAction.Preset(rangeMin = 50, rangeMax = 90, speed = 80),
+        // True looping envelopes — ported from HA `patterns.py`. The
+        // intensity 100 means "drive the pattern's peak at globalMaxSpeed";
+        // dispatch() scales that down before passing to the engine.
+        "heartbeat" to VoiceAction.Pattern("heartbeat"),
+        "wave"      to VoiceAction.Pattern("wave"),
+        "surge"     to VoiceAction.Pattern("surge"),
+        "breathe"   to VoiceAction.Pattern("breathe"),
+        "storm"     to VoiceAction.Pattern("storm"),
     )
 
     fun actionFor(label: String): VoiceAction? = TABLE[label]
@@ -70,6 +71,7 @@ object Dispatch {
         globalMaxSpeed: Int = 30,
         globalMinStroke: Int = 0,
         globalMaxStroke: Int = 100,
+        patternEngine: PatternEngine? = null,
     ): Boolean {
         val action = TABLE[label] ?: return false
 
@@ -86,7 +88,10 @@ object Dispatch {
         }
 
         return when (action) {
-            is VoiceAction.Stop -> api.stop()
+            is VoiceAction.Stop -> {
+                patternEngine?.cancel()
+                api.stop()
+            }
 
             is VoiceAction.SetSpeed -> {
                 val device = scaleSpeed(action.percent)
@@ -100,10 +105,11 @@ object Dispatch {
             }
 
             is VoiceAction.AdjustSpeed -> {
-                // Same shape as v1's applySpeedMultiplier: scale the delta in
-                // design space, then clamp the resulting velocity to [0, 100].
-                val scaledDelta = action.delta * globalMaxSpeed.coerceIn(1, 100) / 100
-                val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, 100)
+                // Scale the delta in design space, then clamp the result to
+                // the configured cap so "faster" can't push past globalMaxSpeed.
+                val cap = globalMaxSpeed.coerceIn(1, 100)
+                val scaledDelta = action.delta * cap / 100
+                val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
                 api.setSpeed(target)
             }
 
@@ -114,12 +120,25 @@ object Dispatch {
 
             is VoiceAction.Preset -> {
                 // Operation order: slide -> start -> velocity. See HANDY_API_NOTES.
+                patternEngine?.cancel()
                 val (min, max) = squashRange(action.rangeMin, action.rangeMax)
                 val rangeOk = api.setStrokeRange(min, max)
                 if (!rangeOk) return false
                 val started = if (!api.isRunning.value) api.start() else true
                 if (!started) return false
                 api.setSpeed(scaleSpeed(action.speed))
+            }
+
+            is VoiceAction.Pattern -> {
+                val engine = patternEngine ?: return false
+                // Open the stroke range to the configured band so the pattern
+                // can use its full envelope. Peak velocity = globalMaxSpeed
+                // (intensity is scaled the same way SetSpeed/AdjustSpeed are).
+                val (min, max) = squashRange(0, 100)
+                val rangeOk = api.setStrokeRange(min, max)
+                if (!rangeOk) return false
+                val peak = scaleSpeed(action.intensity)
+                engine.start(action.name, peak)
             }
         }
     }

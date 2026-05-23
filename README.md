@@ -77,15 +77,16 @@ handy-v1/
 ├── alexa/                   # Lambda for Alexa skill (shelved)
 ├── homeassistant/           # HA custom component
 ├── docs/                    # Documentation
-│   ├── HANDY_API_NOTES.md   # API findings (HAMP, HSSP, HBSP)
+│   ├── HANDY_API_NOTES.md   # API findings (HAMP, HSSP, HBSP, HDSP park)
 │   ├── SETUP_GUIDE.md
 │   ├── DEEPGRAM_GUIDE.md
 │   ├── ALEXA_GUIDE.md
 │   ├── HOME_ASSISTANT_GUIDE.md
-│   └── CONSTELLATION_INTEGRATION_GUIDE.md
+│   ├── CONSTELLATION_INTEGRATION_GUIDE.md
+│   └── screenshots/         # UI screenshots
+├── CLAUDE.md                # AI assistant reference (auto-loaded by Claude Code)
 ├── README.md                # This file
-├── TODO.md                  # Task tracking
-└── LLM_ONBOARDING.md        # AI assistant reference
+└── TODO.md                  # Task tracking
 ```
 
 ## Safety
