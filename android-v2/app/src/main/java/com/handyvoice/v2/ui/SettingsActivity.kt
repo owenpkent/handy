@@ -2,6 +2,7 @@ package com.handyvoice.v2.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.EditText
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -11,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.handyvoice.v2.R
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.voice.TemplateStore
@@ -33,6 +35,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var globalMinStrokeValue: TextView
     private lateinit var globalMaxStrokeSlider: SeekBar
     private lateinit var globalMaxStrokeValue: TextView
+    private lateinit var invertSwitch: MaterialSwitch
     private lateinit var thresholdSlider: SeekBar
     private lateinit var thresholdValue: TextView
     private lateinit var retrainButton: MaterialButton
@@ -44,7 +47,7 @@ class SettingsActivity : AppCompatActivity() {
         prefs = PreferencesManager(applicationContext)
         store = TemplateStore(applicationContext.filesDir)
 
-        findViewById<MaterialButton>(R.id.menuButton).setOnClickListener { v -> showMainMenu(v) }
+        findViewById<MaterialButton>(R.id.homeButton).setOnClickListener { goHome() }
 
         keyInput = findViewById(R.id.connectionKeyInput)
         modeGroup = findViewById(R.id.modeGroup)
@@ -56,6 +59,7 @@ class SettingsActivity : AppCompatActivity() {
         globalMinStrokeValue = findViewById(R.id.globalMinStrokeValue)
         globalMaxStrokeSlider = findViewById(R.id.globalMaxStrokeSlider)
         globalMaxStrokeValue = findViewById(R.id.globalMaxStrokeValue)
+        invertSwitch = findViewById(R.id.invertSwitch)
         thresholdSlider = findViewById(R.id.thresholdSlider)
         thresholdValue = findViewById(R.id.thresholdValue)
         retrainButton = findViewById(R.id.retrainButton)
@@ -100,6 +104,7 @@ class SettingsActivity : AppCompatActivity() {
         globalMinStrokeValue.text = snap.globalMinStroke.toString()
         globalMaxStrokeSlider.progress = snap.globalMaxStroke
         globalMaxStrokeValue.text = snap.globalMaxStroke.toString()
+        invertSwitch.isChecked = snap.invertStroke
         thresholdSlider.progress = snap.matchThreshold.toInt()
         thresholdValue.text = snap.matchThreshold.toInt().toString()
     }
@@ -116,6 +121,7 @@ class SettingsActivity : AppCompatActivity() {
             prefs.setGlobalMaxSpeed(globalMaxSlider.progress.coerceAtLeast(1))
             prefs.setGlobalMinStroke(globalMinStrokeSlider.progress.coerceIn(0, 100))
             prefs.setGlobalMaxStroke(globalMaxStrokeSlider.progress.coerceIn(0, 100))
+            prefs.setInvertStroke(invertSwitch.isChecked)
             prefs.setMatchThreshold(thresholdSlider.progress.toFloat())
             Toast.makeText(this@SettingsActivity, "Saved", Toast.LENGTH_SHORT).show()
             finish()
@@ -129,6 +135,14 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this@SettingsActivity, TrainingActivity::class.java))
             finish()
         }
+    }
+
+    private fun goHome() {
+        startActivity(
+            Intent(this, ControlActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
+        finish()
     }
 
     private fun simpleListener(onChange: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {

@@ -21,6 +21,17 @@
             android:orientation="horizontal"
             android:layout_marginBottom="16dp">
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/homeButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="Home"
+                android:text="←"
+                android:textColor="@color/text_primary"
+                android:textSize="22sp" />
+
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -29,17 +40,6 @@
                 android:textColor="@color/text_primary"
                 android:textSize="22sp"
                 android:textStyle="bold" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/menuButton"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:contentDescription="@string/content_desc_settings"
-                android:text="⚙"
-                android:textColor="@color/text_primary"
-                android:textSize="22sp" />
         </LinearLayout>
 
         <TextView
@@ -116,8 +116,8 @@
                 android:layout_weight="1"
                 android:max="100"
                 android:progress="30"
-                android:progressTint="@color/slider_red"
-                android:thumbTint="@color/slider_red" />
+                android:progressTint="@color/accent_primary"
+                android:thumbTint="@color/accent_primary" />
 
             <TextView
                 android:id="@+id/globalMaxValue"
@@ -150,8 +150,8 @@
                 android:layout_weight="1"
                 android:max="100"
                 android:progress="0"
-                android:progressTint="@color/slider_red"
-                android:thumbTint="@color/slider_red" />
+                android:progressTint="@color/accent_primary"
+                android:thumbTint="@color/accent_primary" />
 
             <TextView
                 android:id="@+id/globalMinStrokeValue"
@@ -184,8 +184,8 @@
                 android:layout_weight="1"
                 android:max="100"
                 android:progress="100"
-                android:progressTint="@color/slider_red"
-                android:thumbTint="@color/slider_red" />
+                android:progressTint="@color/accent_primary"
+                android:thumbTint="@color/accent_primary" />
 
             <TextView
                 android:id="@+id/globalMaxStrokeValue"
@@ -195,6 +195,40 @@
                 android:text="100"
                 android:textColor="@color/text_primary"
                 android:textSize="16sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Invert stroke direction"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Flip retracted / extended ends"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/invertSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
         <TextView
@@ -218,8 +252,8 @@
                 android:layout_weight="1"
                 android:max="80"
                 android:progress="30"
-                android:progressTint="@color/slider_orange"
-                android:thumbTint="@color/slider_orange" />
+                android:progressTint="@color/accent_secondary"
+                android:thumbTint="@color/accent_secondary" />
 
             <TextView
                 android:id="@+id/thresholdValue"
@@ -238,7 +272,7 @@
             android:layout_marginTop="32dp"
             android:text="Re-record voice samples"
             android:textSize="16sp"
-            app:backgroundTint="@color/slider_orange"
+            app:backgroundTint="@color/accent_secondary"
             app:cornerRadius="8dp" />
 
         <com.google.android.material.button.MaterialButton
@@ -247,6 +281,7 @@
             android:layout_height="56dp"
             android:layout_marginTop="16dp"
             android:text="Save"
+            android:textColor="@color/on_primary"
             android:textSize="18sp"
             android:textStyle="bold"
             app:backgroundTint="@color/primary"

@@ -5,13 +5,14 @@ Every parameter in the audio pipeline, what it does, why this value, how to retu
 ## Pipeline
 
 ```
-ShortArray (1.5 s × 16 kHz = 24 000 samples)
+ShortArray (2.5 s × 16 kHz = 40 000 samples)        captured via AudioRecord
+                                                    with AudioSource.MIC
     │
     ▼  Mfcc.preemphasize
 DoubleArray of the same length, with y[i] = x[i] − 0.97 · x[i−1]
     │
     ▼  framing: 25 ms windows, 10 ms hop
-≈ 98 overlapping frames of 400 samples each
+≈ 248 overlapping frames of 400 samples each
     │
     ▼  Hamming window (precomputed)
     ▼  zero-pad to 512
@@ -31,11 +32,33 @@ log-mel energies
     ▼  DCT-II (precomputed 13×26 matrix)
 13 cepstral coefficients per frame
     │
+    ▼  Cepstral Mean Normalization
+each coefficient mean-centred across all frames of this utterance
+    │
     ▼
-Array<DoubleArray>  ─── shape [≈ 98, 13]
+Array<DoubleArray>  ─── shape [≈ 248, 13], features mean-zero per column
 ```
 
-Every step is in `voice/Mfcc.kt`. The whole extractor for a 1.5 s utterance runs in ~3 ms on a Pixel-class CPU.
+Every step is in `voice/Mfcc.kt`. The whole extractor for a 2.5 s utterance runs in ~6 ms on a Pixel-class CPU.
+
+### Audio source: MIC, not VOICE_RECOGNITION
+
+`AudioCapture` uses `MediaRecorder.AudioSource.MIC`. We tried `VOICE_RECOGNITION` initially (and the Android docs recommend it for speech apps) but the Android emulator's virtual mic routes audio reliably to `MIC` and inconsistently to `VOICE_RECOGNITION`. Real devices route both, but to keep the emulator path usable for development we picked the lower-level source. We give up whatever device-specific AGC / noise suppression the `VOICE_RECOGNITION` source might apply; in practice the user's own templates already capture the local noise floor so CMN handles most of what AGC would.
+
+### Cepstral Mean Normalization (CMN)
+
+After the DCT, we subtract each coefficient's mean across the entire utterance:
+
+```kotlin
+for (c in 0 until numCoeffs) means[c] = avg of frame[c] over all frames
+for (frame in out) for (c in 0 until numCoeffs) frame[c] -= means[c]
+```
+
+Why: the c₀ (zeroth cepstral) coefficient is essentially log-energy. For two similarly-loud utterances of different words, c₀'s contribution to DTW distance is small but very consistent — and DTW distance is a sum across all 13 coefficients × all aligned frames, so a uniformly-small contribution still dominates if other coefficients are noisier. CMN centers each coefficient around zero per utterance, killing the static loudness offset and forcing the matcher to compare *spectral shape* rather than *spectral shape ± a constant*.
+
+Concretely, before CMN our `start` audio matched our `stop` templates better than its own (scores ~9 vs ~10) — phonetically distinct words ended up indistinguishable because the energy term swamped the actual phonetic content. CMN fixed that.
+
+The downside: templates and queries must both be CMN-normalised, so existing format-2 takes (saved before CMN) can't be compared against new ones. The template store filters by `format == 3` on load; older takes get dropped silently and the user is prompted to re-record.
 
 ## MFCC parameters
 
@@ -140,7 +163,18 @@ This is the *path-length-upper-bound* normalisation, not the *actual-path-length
 - `score` — its normalised DTW distance. Lower is better.
 - `runnerUp` — the second-lowest score across all other labels.
 
-`margin = runnerUp − score` is the confidence indicator. A large margin means the best label is clearly best; a small margin means two labels are competing. The Phase 1 dispatch path only compares `score` to the threshold, but a future "use margin too" check would reject ambiguous matches (e.g. `slow` vs `stop` if those phonemes get confused).
+`margin = runnerUp − score` is the confidence indicator. A large margin means the best label is clearly best; a small margin means two labels are competing.
+
+### Two-gate match decision
+
+`ControlActivity.handleAudio` requires **both** gates to pass before dispatching:
+
+1. **Absolute threshold:** `score ≤ matchThreshold` (default 30; user-configurable in Settings).
+2. **Relative margin:** `margin ≥ score × 0.05` (i.e. the runner-up must be at least 5% of the winner's score *worse*). When only one label is trained, `runnerUp` is `+∞` and this gate is a no-op.
+
+Why relative instead of absolute margin: DTW distance scales with the audio's noise floor and acoustic environment. With CMN applied, a quiet room can produce winning scores around 6–10; a noisier one 20+. An absolute "must beat by 4" margin makes the gate too strict in the quiet case (every match looks ambiguous) and too lenient in the noisy case. Scaling the required margin by the score itself adapts naturally.
+
+A match that passes the threshold but fails the margin gate is logged as `(low confidence (margin X.X))` and reported in `lastMatchText` as `? close call — try again`.
 
 ### Choosing a threshold
 
@@ -149,17 +183,23 @@ This is the *path-length-upper-bound* normalisation, not the *actual-path-length
 - The user's voice (consistency between takes; some speakers vary more than others).
 - The user's mic (consumer Android mics have wildly different responses).
 - The room (reverb adds variance to MFCC sequences).
-- Whether always-on mode is on (false-fires on background sound require a stricter threshold than button mode).
+- Whether always-on mode is on (false-fires on background sound require a stricter threshold).
+
+With CMN applied, expect *much lower* absolute scores than the literature suggests for raw-MFCC DTW. Typical post-CMN ranges:
+
+- 4–12 for clean correct matches.
+- 12–20 for correct matches in a slightly different environment than training.
+- 25+ for incorrect matches (untrained word, wrong speaker, noise).
+
+The default threshold of 30 deliberately overshoots so the margin gate does most of the rejection work. If you find untrained words are still firing, drop the threshold to 20 or 15.
 
 **Empirical tuning loop:**
 
-1. Record your templates normally. Open the app.
-2. Issue every command twice; watch the debug log line `Heard: <label> score=NN.NN margin=MM.MM`.
+1. Record your templates and run the verification pass.
+2. Issue every command twice in the Voice tab; watch the debug log line `Heard: <label> score=NN.NN margin=MM.MM`.
 3. Note the highest score you saw for a *correct* match. Call it `S_correct_max`.
 4. Issue commands you did *not* train (or speak nonsense at the mic). Note the lowest score you saw. Call it `S_wrong_min`.
-5. Set the threshold to `(S_correct_max + S_wrong_min) / 2` if there's a gap; if `S_correct_max > S_wrong_min` there's no clean threshold, and you should re-record the worst-performing label.
-
-Typical good values are 10–35 with Euclidean distance over 13 MFCCs on the default framing. If you find you need 60+, something is wrong with the recordings.
+5. Set the threshold to `(S_correct_max + S_wrong_min) / 2` if there's a gap; if `S_correct_max > S_wrong_min` there's no clean threshold and you should re-record the worst-performing label or pick a more phonetically-distinct word.
 
 ## Storage format
 
@@ -167,17 +207,25 @@ Typical good values are 10–35 with Euclidean distance over 13 MFCCs on the def
 
 ```json
 {
-  "format": 1,
-  "label": "start",
+  "format": 3,
+  "label": "begin",
   "mfcc": [
-    [-0.123, 0.456, ...],   // 13 doubles
+    [-0.123, 0.456, ...],   // 13 doubles, mean-centred
     [-0.118, 0.461, ...],
-    ...                     // ~98 frames
+    ...                     // ~248 frames for a 2.5 s capture
   ]
 }
 ```
 
-Reading: `gson.fromJson(...)` into `SerializedTake`. Future formats can be additive without breaking forward-compat.
+Reading: `gson.fromJson(...)` into `SerializedTake`. `TemplateStore.loadAll()` and `loadTakes()` filter on `format == CURRENT_FORMAT` (currently 3); takes saved by an older version are silently dropped so they don't get mixed with incompatible features.
+
+Format history:
+
+- **1** — 1.5 s window, no CMN.
+- **2** — 2.5 s window, no CMN.
+- **3** — 2.5 s window, with CMN.
+
+Bumps happen when either the capture window or the feature pipeline changes in a way that makes old templates incompatible with new ones at DTW time.
 
 Re-extraction: never required. The MFCCs are the stored artefact; the original PCM is discarded after extraction (we never write WAV files to disk). If the MFCC parameters in the constructor change, stored takes from the old parameters silently become non-comparable with new captures. Bump `format` and run a migration if you ever re-tune the framing.
 

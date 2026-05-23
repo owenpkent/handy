@@ -24,6 +24,10 @@ sealed class VoiceAction {
     /** Set stroke range (each 0-100). */
     data class SetRange(val min: Int, val max: Int) : VoiceAction()
 
-    /** Set range + speed in one action. Used for the Phase 1 "pattern" stand-ins. */
+    /** Set range + speed in one action. Used for one-shot tap-only presets
+     *  (Pulse / Tease / Edge / etc) that don't have a time-based envelope. */
     data class Preset(val rangeMin: Int, val rangeMax: Int, val speed: Int) : VoiceAction()
+
+    /** Run a named [PatternEngine] pattern at the caller's intensity. */
+    data class Pattern(val name: String, val intensity: Int = 100) : VoiceAction()
 }

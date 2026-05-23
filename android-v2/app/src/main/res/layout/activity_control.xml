@@ -94,65 +94,512 @@
                 android:layout_height="56dp"
                 android:layout_marginTop="16dp"
                 android:text="@string/btn_connect"
+                android:textColor="@color/on_primary"
                 android:textSize="18sp"
+                android:textStyle="bold"
                 app:backgroundTint="@color/primary"
                 app:cornerRadius="8dp" />
         </LinearLayout>
 
-        <!-- Control Panel -->
+        <!-- Control Panel — visible once connected. Tabbed: Voice / Manual. -->
         <LinearLayout
             android:id="@+id/controlPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="8dp"
             android:orientation="vertical"
             android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@id/header"
             tools:visibility="visible">
 
-            <!-- Voice control card -->
-            <LinearLayout
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/modeTabs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/card_dark"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:padding="20dp">
+                app:tabIndicatorColor="@color/accent_primary"
+                app:tabSelectedTextColor="@color/accent_primary"
+                app:tabTextColor="@color/text_secondary">
 
-                <TextView
-                    android:id="@+id/voiceModeLabel"
+                <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Tap mic to listen"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
+                    android:text="Voice" />
+
+                <com.google.android.material.tabs.TabItem
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Manual" />
+            </com.google.android.material.tabs.TabLayout>
+
+            <!-- Voice tab content -->
+            <LinearLayout
+                android:id="@+id/voicePanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@color/card_dark"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:id="@+id/voiceModeLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tap mic to listen"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/micButton"
+                        android:layout_width="@dimen/mic_button_size"
+                        android:layout_height="@dimen/mic_button_size"
+                        android:layout_marginTop="12dp"
+                        android:text="MIC"
+                        android:textColor="@color/on_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        app:backgroundTint="@color/primary"
+                        app:cornerRadius="48dp" />
+
+                    <TextView
+                        android:id="@+id/lastMatchText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:gravity="center"
+                        android:minHeight="24dp"
+                        android:textColor="@color/status_connected"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:text="Heard: begin (12.3)" />
+
+                    <!-- Live audio level meter. Scales 0..1 in code so the
+                         user can see at a glance whether the mic is picking
+                         anything up. -->
+                    <View
+                        android:id="@+id/voicePeakBar"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/level_bar"
+                        android:transformPivotX="0dp"
+                        android:scaleX="0" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/slowerButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:text="Slower"
+                        android:textColor="@color/accent_primary"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/fasterButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        android:text="Faster"
+                        android:textColor="@color/accent_primary"
+                        app:strokeColor="@color/accent_primary" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/rerecordButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="2"
+                        android:text="Re-record"
+                        android:textColor="@color/accent_secondary"
+                        android:textSize="14sp"
+                        app:strokeColor="@color/accent_secondary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/clearRecordingsButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="Clear all"
+                        android:textColor="@color/emergency_red"
+                        android:textSize="14sp"
+                        app:strokeColor="@color/emergency_red" />
+                </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/micButton"
-                    android:layout_width="@dimen/mic_button_size"
-                    android:layout_height="@dimen/mic_button_size"
-                    android:layout_marginTop="12dp"
-                    android:text="MIC"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="@color/primary"
-                    app:cornerRadius="48dp" />
+                    android:id="@+id/debugToggleButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:text="Show Debug"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:id="@+id/debugPanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Debug Log"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/debugCopyButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:text="Copy"
+                            android:textColor="@color/accent_primary"
+                            android:textSize="12sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/debugClearButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:text="Clear"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <ScrollView
+                        android:id="@+id/debugScrollView"
+                        android:layout_width="match_parent"
+                        android:layout_height="240dp"
+                        android:layout_marginTop="4dp"
+                        android:background="#1A1A1A"
+                        android:padding="8dp">
+
+                        <TextView
+                            android:id="@+id/debugLogText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:lineSpacingExtra="2dp"
+                            android:textColor="#AAAAAA"
+                            android:textSize="11sp"
+                            tools:text="[12:00:01] Engine ready" />
+                    </ScrollView>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Manual tab content — hidden until the Manual tab is picked. -->
+            <LinearLayout
+                android:id="@+id/manualPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="Min"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <SeekBar
+                        android:id="@+id/strokeMinSlider"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:progress="10"
+                        android:progressTint="@color/accent_primary"
+                        android:thumbTint="@color/accent_primary" />
+
+                    <EditText
+                        android:id="@+id/strokeMinInput"
+                        android:layout_width="60dp"
+                        android:layout_height="40dp"
+                        android:autofillHints="off"
+                        android:background="@drawable/input_bg"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:text="10"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="Max"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <SeekBar
+                        android:id="@+id/strokeMaxSlider"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:progress="90"
+                        android:progressTint="@color/accent_primary"
+                        android:thumbTint="@color/accent_primary" />
+
+                    <EditText
+                        android:id="@+id/strokeMaxInput"
+                        android:layout_width="60dp"
+                        android:layout_height="40dp"
+                        android:autofillHints="off"
+                        android:background="@drawable/input_bg"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:text="90"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="Speed"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <SeekBar
+                        android:id="@+id/speedSlider"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressTint="@color/accent_secondary"
+                        android:thumbTint="@color/accent_secondary" />
+
+                    <EditText
+                        android:id="@+id/speedInput"
+                        android:layout_width="60dp"
+                        android:layout_height="40dp"
+                        android:autofillHints="off"
+                        android:background="@drawable/input_bg"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:text="0"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <GridLayout
+                    android:id="@+id/patternGrid"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:columnCount="3"
+                    android:rowCount="4"
+                    android:useDefaultMargins="true">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternHeartbeat"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Heartbeat"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternWave"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Wave"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternSurge"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Surge"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternBreathe"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Breathe"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternStorm"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Storm"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternPulse"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Pulse"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternTease"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Tease"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternEdge"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Edge"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternRush"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Rush"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternThrob"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Throb"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternBounce"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Bounce"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/patternClimax"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_columnWeight="1"
+                        android:text="Climax"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+                </GridLayout>
 
                 <TextView
-                    android:id="@+id/lastMatchText"
+                    android:id="@+id/manualFeedbackText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:gravity="center"
-                    android:minHeight="24dp"
-                    android:textColor="@color/status_connected"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    tools:text="Heard: start (12.3)" />
+                    android:minHeight="20dp"
+                    android:textColor="@color/accent_primary"
+                    android:textSize="14sp"
+                    tools:text="Stroke: 10-90%" />
             </LinearLayout>
 
-            <!-- Manual fallback row -->
+            <!-- Start/Stop — always visible regardless of tab so STOP is
+                 always one tap away. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -167,6 +614,7 @@
                     android:layout_weight="1"
                     android:text="START"
                     android:textAllCaps="true"
+                    android:textColor="@color/on_primary"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     app:backgroundTint="@color/status_connected"
@@ -183,106 +631,6 @@
                     android:textStyle="bold"
                     app:backgroundTint="@color/emergency_red"
                     app:cornerRadius="8dp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/slowerButton"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="56dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:text="Slower"
-                    android:textColor="@color/slider_orange"
-                    app:strokeColor="@color/slider_orange" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/fasterButton"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="56dp"
-                    android:layout_weight="1"
-                    android:text="Faster"
-                    android:textColor="@color/slider_orange"
-                    app:strokeColor="@color/slider_orange" />
-            </LinearLayout>
-
-            <!-- Debug panel -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/debugToggleButton"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="16dp"
-                android:text="Show Debug"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:id="@+id/debugPanel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Debug Log"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/debugCopyButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:text="Copy"
-                        android:textColor="@color/slider_orange"
-                        android:textSize="12sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/debugClearButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:text="Clear"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <ScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="240dp"
-                    android:layout_marginTop="4dp"
-                    android:background="#1A1A1A"
-                    android:padding="8dp">
-
-                    <TextView
-                        android:id="@+id/debugLogText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:lineSpacingExtra="2dp"
-                        android:textColor="#AAAAAA"
-                        android:textSize="11sp"
-                        tools:text="[12:00:01] Engine ready\n[12:00:02] Listening...\n[12:00:05] Heard: start (12.3)" />
-                </ScrollView>
             </LinearLayout>
         </LinearLayout>
 

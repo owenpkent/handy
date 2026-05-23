@@ -7,13 +7,12 @@ import android.widget.PopupMenu
 import com.handyvoice.v2.R
 
 /**
- * Shared overflow menu so the user can jump between Voice control, Manual
- * controls and Settings from any screen. The current screen's own entry is
- * hidden, and leaving a non-Control screen via this menu finishes the
- * source activity so the back stack stays a single hop deep.
+ * Shared overflow menu — jumps between the main Control screen (which now
+ * hosts Voice + Manual as tabs) and Settings. The current screen's own
+ * entry is hidden, and leaving a non-Control screen via this menu finishes
+ * the source activity so the back stack stays a single hop deep.
  */
 private const val MENU_VOICE = 1
-private const val MENU_MANUAL = 2
 private const val MENU_SETTINGS = 3
 
 fun Activity.showMainMenu(anchor: View) {
@@ -23,16 +22,12 @@ fun Activity.showMainMenu(anchor: View) {
     if (current != ControlActivity::class.java) {
         menu.menu.add(0, MENU_VOICE, order++, R.string.menu_voice)
     }
-    if (current != ManualActivity::class.java) {
-        menu.menu.add(0, MENU_MANUAL, order++, R.string.menu_manual)
-    }
     if (current != SettingsActivity::class.java) {
         menu.menu.add(0, MENU_SETTINGS, order++, R.string.menu_settings)
     }
     menu.setOnMenuItemClickListener { item ->
         val target: Class<*> = when (item.itemId) {
             MENU_VOICE -> ControlActivity::class.java
-            MENU_MANUAL -> ManualActivity::class.java
             MENU_SETTINGS -> SettingsActivity::class.java
             else -> return@setOnMenuItemClickListener false
         }

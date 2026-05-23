@@ -91,6 +91,18 @@ class Mfcc(
                 coeffs[c] = sum
             }
         }
+        // Cepstral Mean Normalization. Subtracting each coefficient's mean
+        // across the whole utterance removes the static channel / loudness
+        // offset. Without CMN the energy-carrying c0 dominates DTW
+        // distance, so two similarly-loud words ("start" vs "stop") match
+        // each other's templates better than their own.
+        if (out.isNotEmpty()) {
+            val means = DoubleArray(numCoeffs)
+            for (frame in out) for (c in 0 until numCoeffs) means[c] += frame[c]
+            val n = out.size.toDouble()
+            for (c in 0 until numCoeffs) means[c] /= n
+            for (frame in out) for (c in 0 until numCoeffs) frame[c] -= means[c]
+        }
         return out
     }
 

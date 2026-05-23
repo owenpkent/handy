@@ -1,5 +1,6 @@
 package com.handyvoice.v2.api
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,23 @@ class HandyV2ApiClient {
 
     private var connectionKey: String = ""
 
+    /**
+     * When true, "user-coord 0" is the device's fully-extended end and
+     * "user-coord 100" is the retracted end. We apply this transform inside
+     * [setStrokeRange] so callers always think in user coords; the device
+     * sees `(100 - userMax, 100 - userMin)` when invert is on.
+     */
+    private var invertStroke: Boolean = false
+
+    /**
+     * Global safety band for stroke position. The connect-time park uses
+     * the retracted edge of this band as its target so it doesn't drive
+     * past the user's configured floor / ceiling. Activities push this in
+     * after reading prefs.
+     */
+    private var globalStrokeMin: Int = 0
+    private var globalStrokeMax: Int = 100
+
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -68,6 +86,19 @@ class HandyV2ApiClient {
     }
 
     fun getConnectionKey(): String = connectionKey
+
+    fun setInvertStroke(value: Boolean) {
+        invertStroke = value
+    }
+
+    fun isInverted(): Boolean = invertStroke
+
+    fun setGlobalStrokeBand(min: Int, max: Int) {
+        val safeMin = min.coerceIn(0, 100)
+        val safeMax = max.coerceIn(safeMin, 100)
+        globalStrokeMin = safeMin
+        globalStrokeMax = safeMax
+    }
 
     private fun log(message: String) {
         val current = _debugLog.value.toMutableList()
@@ -95,6 +126,7 @@ class HandyV2ApiClient {
                     _connectionState.value = ConnectionState.CONNECTED
                     _lastError.value = null
                     refreshState()
+                    parkAtRetracted()
                     true
                 } else {
                     log("Failed to set mode: ${modeResponse.code()}")
@@ -201,6 +233,12 @@ class HandyV2ApiClient {
     /**
      * V2 stroke range uses a single PUT /slide with {min, max}. The legacy
      * /slide/min + /slide/max endpoints 404.
+     *
+     * Args are in *user coords* (0 = retracted, 100 = extended in the
+     * orientation the user has chosen). If [invertStroke] is on, we map
+     * to device coords via `(100 - userMax, 100 - userMin)` so callers
+     * (Manual sliders, presets, voice dispatch) never need to know.
+     * The cached [strokeMin] / [strokeMax] always reflect user coords.
      */
     suspend fun setStrokeRange(min: Int, max: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) {
@@ -208,15 +246,25 @@ class HandyV2ApiClient {
             return false
         }
 
-        val safeMin = min.coerceIn(0, 100)
-        val safeMax = max.coerceIn(0, 100)
+        val userMin = min.coerceIn(0, 100)
+        val userMax = max.coerceIn(0, 100)
+        val devMin: Int
+        val devMax: Int
+        if (invertStroke) {
+            devMin = 100 - userMax
+            devMax = 100 - userMin
+        } else {
+            devMin = userMin
+            devMax = userMax
+        }
 
         return try {
-            log("Setting stroke: $safeMin-$safeMax%")
-            val response = api.setSlide(connectionKey, SlideRangeRequest(safeMin, safeMax))
+            val tag = if (invertStroke) " (inv → dev $devMin-$devMax)" else ""
+            log("Setting stroke: $userMin-$userMax%$tag")
+            val response = api.setSlide(connectionKey, SlideRangeRequest(devMin, devMax))
             if (response.isSuccessful) {
-                _strokeMin.value = safeMin
-                _strokeMax.value = safeMax
+                _strokeMin.value = userMin
+                _strokeMax.value = userMax
                 _lastError.value = null
                 true
             } else {
@@ -228,6 +276,127 @@ class HandyV2ApiClient {
         } catch (e: Exception) {
             _lastError.value = "Set stroke error: ${e.message}"
             log("Stroke error: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Drive the device to the user-coord retracted end and stop it there.
+     *
+     * Primary path uses HDSP (direct position) so the move is a single
+     * slow slide. If the HDSP call fails — older firmware, transient error,
+     * etc. — fall back to HAMP with a degenerate `slide(0, 0)` range so the
+     * device parks without an oscillating stroke. Invert flips which end
+     * the user considers retracted: device position 0 by default, 100 when
+     * inverted.
+     */
+    private suspend fun parkAtRetracted() {
+        if (_connectionState.value != ConnectionState.CONNECTED) return
+        // "Retracted" is the user-facing retracted edge of the configured
+        // global stroke band — NOT a hard 0. Respect the safety floor.
+        // In user coords that's globalStrokeMin (or globalStrokeMax when
+        // inverted); the slide-range / HDSP target below are in device
+        // coords, so apply the invert flip the same way setStrokeRange does.
+        val userMin = globalStrokeMin
+        val userMax = globalStrokeMax
+        val devMin: Int
+        val devMax: Int
+        val target: Int
+        if (invertStroke) {
+            devMin = 100 - userMax
+            devMax = 100 - userMin
+            target = devMax  // user's "retracted" = device's extended end
+        } else {
+            devMin = userMin
+            devMax = userMax
+            target = devMin  // user's "retracted" = device's retracted end
+        }
+        log("Parking to user-coord 0 (device $target, band $devMin..$devMax)...")
+        val durationMs = 2500
+
+        // HDSP position is clamped by the active slide range. Open the
+        // range to the global safety band first so "position $target"
+        // means what we expect.
+        runCatching {
+            val openRange = api.setSlide(connectionKey, SlideRangeRequest(devMin, devMax))
+            if (openRange.isSuccessful) {
+                _strokeMin.value = userMin
+                _strokeMax.value = userMax
+                log("Slide range set to device $devMin..$devMax for park.")
+            } else {
+                log("Park: set-range failed code=${openRange.code()}")
+            }
+        }
+
+        val parked = tryHdspPark(target, durationMs)
+        if (!parked) {
+            log("HDSP path failed; trying HAMP slide($target,$target) fallback.")
+            tryHampZeroPark(target)
+        }
+        // Ensure we leave the device in HAMP for the rest of the app.
+        val backToHamp = runCatching { api.setMode(connectionKey, ModeRequest(0)) }
+        backToHamp.getOrNull()?.let {
+            if (!it.isSuccessful) log("Park: restore HAMP failed code=${it.code()}")
+        }
+        _isRunning.value = false
+        _currentSpeed.value = 0
+    }
+
+    private suspend fun tryHdspPark(target: Int, durationMs: Int): Boolean {
+        return try {
+            val hdspMode = api.setMode(connectionKey, ModeRequest(2))
+            if (!hdspMode.isSuccessful) {
+                log("Park: HDSP mode switch failed code=${hdspMode.code()}")
+                return false
+            }
+            log("HDSP mode set; sending xpt position=$target duration=${durationMs}ms.")
+            // Small breath after the mode switch — some firmwares need a
+            // moment before they accept HDSP commands.
+            delay(120)
+            val resp = api.hdspXpt(
+                connectionKey,
+                HdspPositionRequest(position = target, duration = durationMs)
+            )
+            if (!resp.isSuccessful) {
+                val body = resp.errorBody()?.string() ?: "no body"
+                log("Park: hdsp/xpt failed code=${resp.code()} body=$body")
+                return false
+            }
+            log("hdsp/xpt accepted; waiting ${durationMs}ms for slide.")
+            delay((durationMs + 200).toLong())
+            log("Parked via HDSP.")
+            true
+        } catch (e: Exception) {
+            log("Park HDSP error: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Fallback for firmwares without working HDSP: ask HAMP for a zero-width
+     * range at the target end (0,0 or 100,100). On the Handy this collapses
+     * the stroke and the firmware parks at that position. Velocity is
+     * dropped to 0 so we never pump even briefly.
+     */
+    private suspend fun tryHampZeroPark(target: Int): Boolean {
+        return try {
+            val hampMode = api.setMode(connectionKey, ModeRequest(0))
+            if (!hampMode.isSuccessful) {
+                log("Park: HAMP mode failed code=${hampMode.code()}")
+                return false
+            }
+            delay(120)
+            val slide = api.setSlide(connectionKey, SlideRangeRequest(target, target))
+            if (!slide.isSuccessful) {
+                log("Park: HAMP slide($target,$target) failed code=${slide.code()}")
+                return false
+            }
+            // Velocity 0 means no pumping even if firmware briefly starts.
+            api.setVelocity(connectionKey, VelocityRequest(0.0))
+            log("Parked via HAMP slide($target,$target).")
+            true
+        } catch (e: Exception) {
+            log("Park HAMP error: ${e.message}")
             false
         }
     }
@@ -291,6 +460,17 @@ interface HandyV2ApiService {
         @Header("X-Connection-Key") connectionKey: String,
         @Body request: SlideRangeRequest
     ): Response<Unit>
+
+    /**
+     * HDSP "go to position over duration" command. Used by parkAtRetracted
+     * so the device slides smoothly to position 0 without HAMP's pumping.
+     * See HANDY_API_NOTES.md for mode semantics.
+     */
+    @PUT("hdsp/xpt")
+    suspend fun hdspXpt(
+        @Header("X-Connection-Key") connectionKey: String,
+        @Body request: HdspPositionRequest
+    ): Response<Unit>
 }
 
 data class ConnectedResponse(val connected: Boolean)
@@ -298,3 +478,12 @@ data class ModeRequest(val mode: Int)
 data class VelocityRequest(val velocity: Double)
 data class VelocityInfo(val velocity: Double)
 data class SlideRangeRequest(val min: Int, val max: Int)
+data class HdspPositionRequest(
+    val position: Int,
+    val duration: Int,
+    val stopOnTarget: Boolean = true,
+    // Production Handy clients (MultiFunPlayer, defucilis/thehandy,
+    // iwakan/teledong) all send true here. Without it some firmwares
+    // appear to accept the response but never trigger the move.
+    val immediateResponse: Boolean = true,
+)
