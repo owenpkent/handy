@@ -68,9 +68,9 @@ New Android client that recognizes voice commands by matching against **prerecor
 | File | Purpose |
 |------|---------|
 | `HandyVoiceApp.kt` | `Application` subclass. Placeholder for future DI. |
-| `ui/ControlActivity.kt` | Single-screen home for both control modes. **Material `TabLayout`** at the top switches between **Voice** and **Manual** panels; the START / STOP row is always visible below the tabs (safety button stays one tap away). Voice panel: mic toggle, live peak meter, "Heard:" readout, Slower/Faster, Re-record/Clear-all (with confirmation), auto-scrolling debug log. Manual panel: stroke Min/Max sliders bounded to the global band, speed slider bounded to `[0, globalMaxSpeed]`, 4×3 pattern grid (5 buttons share voice labels via `Dispatch.dispatch`, 7 are tap-only presets), feedback line. Templates reload in `onResume` so new recordings take effect without restart. `ManualActivity` is gone — its logic lives here. |
-| `ui/TrainingActivity.kt` | First-run onboarding, re-recording, and post-training verification. Single Record tap runs an auto-advance session through every (label, take) needing audio, with a pre-roll → "Listening — speak now" UI and a brief breathing pause between takes. Cross-validation flags outlier takes per label. Build templates triggers the verification pass before onboarded is set true. Skip / Prev / Next stay enabled between captures so the user can navigate without canceling. Ack tone on every save + verify pass. |
-| `ui/SettingsActivity.kt` | Settings — connection key, listening mode (button vs always-on), global max speed, global stroke band (min + max), invert-stroke toggle, match threshold, re-record button. Header has a **←  Home** button that returns directly to `ControlActivity` (replacing the older overflow-menu cog that lived there). |
+| `ui/ControlActivity.kt` | Single-screen home for both control modes. **Material `TabLayout`** at the top switches between **Voice** and **Manual** panels; the START / STOP row is always visible below the tabs (safety button stays one tap away). Voice panel: mic toggle, live peak meter, "Heard:" readout, and tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) routed through `Dispatch.dispatch` for parity with the spoken path. Auto-scrolling debug log below. Recording management (Re-record / Clear all) lives in Settings, not on the Voice tab. Manual panel: stroke Min/Max sliders bounded to the global band, speed slider bounded to `[0, globalMaxSpeed]`, 4×3 pattern grid (3 buttons share voice labels via `Dispatch.dispatch`, 9 are tap-only), feedback line. Templates reload in `onResume` so new recordings take effect without restart. |
+| `ui/TrainingActivity.kt` | First-run onboarding and re-recording. Single Record tap runs an auto-advance session through every (label, take) needing audio, with a pre-roll → "Listening, speak now" UI and a brief breathing pause between takes. Cross-validation flags outlier takes per label and offers an inline re-record. Build templates sets onboarded=true and returns to Control. Skip / Prev / Next stay enabled between captures so the user can navigate without canceling. Ack tone on every saved take. |
+| `ui/SettingsActivity.kt` | Settings — connection key, listening mode (button vs always-on), global max speed, global stroke band (min + max), invert-stroke toggle, match threshold. **Re-record voice samples** opens Training without touching saved takes (earlier this button silently wiped everything — that was a footgun). **Clear all recordings** wipes templates with a confirmation dialog and then routes to Training. Header has a **←  Home** button that returns directly to `ControlActivity`. |
 | `api/HandyV2ApiClient.kt` | Handy V2 REST API client (Retrofit). Self-contained models (no V1 import). Single `PUT /slide` for stroke range. |
 | `audio/AudioCapture.kt` | Thin AudioRecord wrapper. `readWindow(seconds)` for fixed captures, `stream(...)` for the always-on loop. Source = `MediaRecorder.AudioSource.VOICE_RECOGNITION`. |
 | `audio/Vad.kt` | Energy + zero-crossing-rate voice activity detector. Used only by always-on mode. |
@@ -97,9 +97,9 @@ New Android client that recognizes voice commands by matching against **prerecor
 | File | Purpose |
 |------|---------|
 | `activity_training.xml` | Euphonia-style card per command. Big record button (Record electric-blue → Cancel indigo → Re-record sage), take dots, play button, prev/next/skip, Build templates CTA. |
-| `activity_control.xml` | Setup panel ↔ control panel split. Voice card with mic toggle + last-match readout. Manual fallback row (start/stop/slower/faster). Re-record + Clear-all buttons. Debug panel auto-scrolls to newest on update. |
+| `activity_control.xml` | Setup panel ↔ control panel split. Voice card with mic toggle + last-match readout. Tap-shortcut rows below the mic: Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse — one button per voice label. Debug panel auto-scrolls to newest on update. Recording management buttons (Re-record, Clear all) live in Settings, not here. |
 | `activity_manual.xml` | Manual control screen. Stroke min/max sliders + speed slider, 4×3 pattern grid (gold outlined), START/STOP. |
-| `activity_settings.xml` | Connection key input, listening-mode radio group, global-max-speed slider, global-stroke-band sliders (min + max), invert-stroke MaterialSwitch, threshold slider, re-record + Save buttons. |
+| `activity_settings.xml` | Connection key input, listening-mode radio group, global-max-speed slider, global-stroke-band sliders (min + max), invert-stroke MaterialSwitch, threshold slider, Re-record voice samples + Clear all recordings + Save buttons. |
 
 ### Documentation (`docs/`)
 
@@ -243,23 +243,23 @@ mic ─► AudioCapture (16 kHz mono int16)
        Dispatch.dispatch(label) ─► HandyV2ApiClient ─► REST v2
 ```
 
-### Phase 1 vocabulary
+### Voice vocabulary
 
-Mirrors `vega/commands.py`'s DISPATCH closely (one rename). Nine labels:
+Seven labels, picked for acoustic distinctness in MFCC+DTW space (different syllable counts, vowel positions, consonant families) so the matcher has wide gaps between any two trained words. The original vega set had `heartbeat / wave / surge / breathe / storm` for patterns; those collapsed into a similar fricative-and-nasal corner of MFCC space and kept colliding, so the kept patterns were renamed and the rest dropped from the spoken set (envelopes are still tap-able on the Manual tab).
 
 | Label | Action |
 |-------|--------|
 | `begin` | `SetSpeed(25)` — ensure running, set speed. Renamed from `start` because "start" and "stop" collide in MFCC space for slower / less-articulated speech. |
-| `stop` | `Stop` — immediate stop |
+| `stop` | `Stop` — immediate stop. Also cancels any running pattern. |
 | `faster` | `AdjustSpeed(+15)` |
 | `slower` | `AdjustSpeed(-15)` |
-| `heartbeat` | `Preset(50, 90, 25)` — slow, top range (pattern stand-in) |
-| `wave` | `Preset(0, 100, 50)` — medium, full (pattern stand-in) |
-| `surge` | `Preset(0, 100, 80)` — fast, full (pattern stand-in) |
-| `breathe` | `Preset(0, 100, 25)` — slow, full (pattern stand-in) |
-| `storm` | `Preset(50, 90, 80)` — fast, top range (pattern stand-in) |
+| `thunder` | `Pattern("thunder")` — random-walk envelope (was `storm`). |
+| `ripple` | `Pattern("ripple")` — sine swell (was `wave`). |
+| `pulse` | `Pattern("pulse")` — lub-dub rhythm (was `heartbeat`). |
 
-All 5 voice pattern labels now route through a real **`PatternEngine`** (`dispatch/PatternEngine.kt`) ported from `homeassistant/custom_components/handy/patterns.py`. Each pattern is a `suspend fun(api, intensity)` that loops forever, emitting `(envelope, durationMs)` pairs to `api.setSpeed(envelope × intensity)`. Cancelling the job stops the device. The Manual tab also exposes 7 additional tap-only envelopes (`pulse`, `tease`, `edge`, `rush`, `throb`, `bounce`, `climax`) that share the same engine — 12 envelopes total. `VoiceAction.Pattern(name, intensity)` is the dispatch shape; `Preset` stays around for static one-shot range+speed actions but is no longer wired to the Manual grid.
+The Voice tab carries tap-shortcut buttons for all seven so the user has a one-tap fallback when speech isn't an option (or templates aren't trained yet). Tap shortcuts call `Dispatch.dispatch(label)` directly — same code path the voice match takes, same caps applied.
+
+Pattern envelopes live in **`PatternEngine`** (`dispatch/PatternEngine.kt`) ported from `homeassistant/custom_components/handy/patterns.py`. Each pattern is a `suspend fun(api, intensity)` that loops forever, emitting `(envelope, durationMs)` pairs to `api.setSpeed(envelope × intensity)`. Cancelling the job stops the device. The Manual tab exposes all twelve envelopes: the three voice-addressable ones (`thunder` / `ripple` / `pulse`), the two voice-dropped ones (`surge` / `breathe`) as tap-only with their old wide range, plus seven other tap-only envelopes (`tick` / `tease` / `edge` / `rush` / `throb` / `bounce` / `climax`). `tick` is the old metronome envelope that used to be named `pulse`; renamed to free the `pulse` name for the voice-addressable lub-dub. `VoiceAction.Pattern(name, intensity)` is the dispatch shape.
 
 ### Listening modes
 
@@ -272,15 +272,15 @@ Both modes use a **post-VAD delay** (~1.8 s) before snapshotting the rolling buf
 
 A 1.5 s cooldown after each dispatch prevents same-utterance double-fire.
 
-### Onboarding + verification flow
+### Onboarding flow
 
 First launch (or after **Clear all**) → no templates on disk → routes to `TrainingActivity`. The user records **3 takes of each label**. Capture is a 2.5 s window with a ~450 ms "Get ready…" pre-roll so the first syllable isn't clipped by reaction time. MFCCs are saved per take so a crash mid-flow keeps partial progress. A short ack tone fires after each saved take so the user knows it landed.
 
-After the last take of a label, a **cross-validation gate** scores each take against its siblings via DTW. If one is an outlier (mean distance to its siblings > `matchThreshold × 1.4`), a dialog asks "Take N looks off — re-record?". Re-record wipes that one take and the loop captures another; Skip accepts as-is.
+After the last take of a label, a **cross-validation gate** scores each take against its siblings via DTW. If one is an outlier (mean distance to its siblings > `matchThreshold × 1.4`), a dialog asks "Take N looks off, re-record?". Re-record wipes that one take and the loop captures another; Skip accepts as-is.
 
-Tapping **Build templates** triggers a **verification pass**: for each trained label, the user is asked to say it once and the engine has to return that exact label with `score ≤ threshold`. Failures pop a dialog ("Heard 'stop' instead — Re-record samples for 'begin'?") that, on Re-record, wipes the label and captures 3 fresh takes inline before re-verifying. Pass = ack tone + advance. The pass is mandatory; Skip on a failure accepts the current takes for that label.
+Tapping **Build templates** sets `onboarded=true` and returns to Control. There is no post-training verification pass: the cross-validation gate already catches inconsistent takes per label, and the Voice tab gives instant feedback on the first real use. An earlier verification pass made the user say every command again after recording and could get stuck looping on a missed word; it was removed.
 
-Re-train any time from the **Re-record** button on the Voice tab, or from `Settings → Re-record voice samples`. **Clear all** on the Voice tab wipes every template (with confirmation) and relaunches Training fresh.
+Re-train any time from `Settings → Re-record voice samples` (preserves existing takes; user can navigate to specific labels and re-record them individually). `Settings → Clear all recordings` wipes every template (with confirmation) and relaunches Training fresh. The Voice tab itself stays clean — recording-management buttons live in Settings now to keep stop-adjacent surface area minimal.
 
 ### Key design decisions
 
@@ -304,7 +304,7 @@ Re-train any time from the **Re-record** button on the Voice tab, or from `Setti
 
 **Live peak meters everywhere we listen.** Training capture and the Voice tab each have a horizontal bar driven by the audio block peak amplitude. Killed the "is the mic even working?" diagnostic problem dead — if the bar moves, audio is reaching the app; if it's flat, something upstream is broken (permissions, emulator routing, etc.).
 
-**Ack tone on success.** `ToneGenerator(STREAM_MUSIC).TONE_PROP_ACK` plays a short beep when (a) a training take is saved, (b) a verification capture passes, (c) a voice match fires a command. Pure audible confirmation; no haptics yet.
+**Ack tone on success.** `ToneGenerator(STREAM_MUSIC).TONE_PROP_ACK` plays a short beep when (a) a training take is saved, (b) a voice match fires a command. Pure audible confirmation; no haptics yet.
 
 **Global max speed cap is enforced in `Dispatch.dispatch()`**, not in the API client. The client accepts 0–100; dispatch scales `design × globalMaxSpeed / 100` before passing through. Voice "faster"/"slower" deltas are also clamped to `[0, globalMaxSpeed]` so repeated "faster" can't sneak past the cap. Manual sliders apply the same caps at the UI layer (slider bounds = global band).
 

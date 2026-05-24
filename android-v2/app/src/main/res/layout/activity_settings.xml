@@ -267,13 +267,25 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/retrainButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:layout_marginTop="32dp"
             android:text="Re-record voice samples"
+            android:textColor="@color/accent_secondary"
             android:textSize="16sp"
-            app:backgroundTint="@color/accent_secondary"
-            app:cornerRadius="8dp" />
+            app:strokeColor="@color/accent_secondary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/clearRecordingsButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:text="Clear all recordings"
+            android:textColor="@color/emergency_red"
+            android:textSize="16sp"
+            app:strokeColor="@color/emergency_red" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveButton"

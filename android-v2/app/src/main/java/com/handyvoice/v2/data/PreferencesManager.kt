@@ -25,6 +25,9 @@ class PreferencesManager(private val context: Context) {
         private val KEY_GLOBAL_MIN_STROKE = intPreferencesKey("global_min_stroke")
         private val KEY_GLOBAL_MAX_STROKE = intPreferencesKey("global_max_stroke")
         private val KEY_INVERT_STROKE = booleanPreferencesKey("invert_stroke")
+        private val KEY_MANUAL_STROKE_MIN = intPreferencesKey("manual_stroke_min")
+        private val KEY_MANUAL_STROKE_MAX = intPreferencesKey("manual_stroke_max")
+        private val KEY_MANUAL_SPEED = intPreferencesKey("manual_speed_design")
 
         const val MODE_BUTTON = "button"
         const val MODE_ALWAYS_ON = "always_on"
@@ -34,6 +37,9 @@ class PreferencesManager(private val context: Context) {
         const val DEFAULT_GLOBAL_MIN_STROKE = 0          // stroke-position floor (presets squashed into [min,max]).
         const val DEFAULT_GLOBAL_MAX_STROKE = 100        // stroke-position ceiling.
         const val DEFAULT_INVERT_STROKE = false          // flip user-space positions on the way to the device.
+        const val DEFAULT_MANUAL_STROKE_MIN = 0          // last position of the Manual tab's stroke-min slider.
+        const val DEFAULT_MANUAL_STROKE_MAX = 100        // last position of the Manual tab's stroke-max slider.
+        const val DEFAULT_MANUAL_SPEED = 0               // last position of the Manual tab's speed slider (design space).
     }
 
     val connectionKey: Flow<String> = context.dataStore.data
@@ -60,6 +66,15 @@ class PreferencesManager(private val context: Context) {
     val invertStroke: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_INVERT_STROKE] ?: DEFAULT_INVERT_STROKE }
 
+    val manualStrokeMin: Flow<Int> = context.dataStore.data
+        .map { it[KEY_MANUAL_STROKE_MIN] ?: DEFAULT_MANUAL_STROKE_MIN }
+
+    val manualStrokeMax: Flow<Int> = context.dataStore.data
+        .map { it[KEY_MANUAL_STROKE_MAX] ?: DEFAULT_MANUAL_STROKE_MAX }
+
+    val manualSpeed: Flow<Int> = context.dataStore.data
+        .map { it[KEY_MANUAL_SPEED] ?: DEFAULT_MANUAL_SPEED }
+
     suspend fun setConnectionKey(value: String) = edit { it[KEY_CONNECTION_KEY] = value }
     suspend fun setListeningMode(value: String) = edit { it[KEY_LISTENING_MODE] = value }
     suspend fun setGlobalMaxSpeed(value: Int) = edit { it[KEY_GLOBAL_MAX_SPEED] = value.coerceIn(1, 100) }
@@ -68,6 +83,9 @@ class PreferencesManager(private val context: Context) {
     suspend fun setGlobalMinStroke(value: Int) = edit { it[KEY_GLOBAL_MIN_STROKE] = value.coerceIn(0, 100) }
     suspend fun setGlobalMaxStroke(value: Int) = edit { it[KEY_GLOBAL_MAX_STROKE] = value.coerceIn(0, 100) }
     suspend fun setInvertStroke(value: Boolean) = edit { it[KEY_INVERT_STROKE] = value }
+    suspend fun setManualStrokeMin(value: Int) = edit { it[KEY_MANUAL_STROKE_MIN] = value.coerceIn(0, 100) }
+    suspend fun setManualStrokeMax(value: Int) = edit { it[KEY_MANUAL_STROKE_MAX] = value.coerceIn(0, 100) }
+    suspend fun setManualSpeed(value: Int) = edit { it[KEY_MANUAL_SPEED] = value.coerceIn(0, 100) }
 
     suspend fun snapshot(): Snapshot = context.dataStore.data.first().let {
         Snapshot(
@@ -79,6 +97,9 @@ class PreferencesManager(private val context: Context) {
             globalMinStroke = it[KEY_GLOBAL_MIN_STROKE] ?: DEFAULT_GLOBAL_MIN_STROKE,
             globalMaxStroke = it[KEY_GLOBAL_MAX_STROKE] ?: DEFAULT_GLOBAL_MAX_STROKE,
             invertStroke = it[KEY_INVERT_STROKE] ?: DEFAULT_INVERT_STROKE,
+            manualStrokeMin = it[KEY_MANUAL_STROKE_MIN] ?: DEFAULT_MANUAL_STROKE_MIN,
+            manualStrokeMax = it[KEY_MANUAL_STROKE_MAX] ?: DEFAULT_MANUAL_STROKE_MAX,
+            manualSpeed = it[KEY_MANUAL_SPEED] ?: DEFAULT_MANUAL_SPEED,
         )
     }
 
@@ -95,5 +116,8 @@ class PreferencesManager(private val context: Context) {
         val globalMinStroke: Int,
         val globalMaxStroke: Int,
         val invertStroke: Boolean,
+        val manualStrokeMin: Int,
+        val manualStrokeMax: Int,
+        val manualSpeed: Int,
     )
 }

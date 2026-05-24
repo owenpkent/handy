@@ -79,7 +79,7 @@ If you can hear yourself when you tap **Play** after a take, the mic *is* workin
 
 ### On a real Android device
 
-1. Mic permission must be granted: Settings → Apps → Handy Voice V2 → Permissions → Microphone → Allow.
+1. Mic permission must be granted: Settings → Apps → Smart Dong v2 → Permissions → Microphone → Allow.
 2. Don't cover the mic with the phone case or your hand.
 3. Mute switch is not on (some devices have a hardware switch that gates `MIC`).
 4. The peak meter should respond to voice or finger-tap on the mic position. If it doesn't, something below the app layer is wrong.
@@ -88,7 +88,7 @@ If you can hear yourself when you tap **Play** after a take, the mic *is* workin
 
 ### App launches into a blank "scaffold" screen, no Training screen
 
-You may have an old build. The Phase 1 scaffold's `ControlActivity` was a stub showing "Handy Voice V2 - scaffold". The final `ControlActivity` routes to `TrainingActivity` if no templates exist on disk. Reinstall the latest debug APK:
+You may have an old build. The Phase 1 scaffold's `ControlActivity` was a stub showing "Handy Voice V2 - scaffold" (back when the app was still called Handy Voice V2). The final `ControlActivity` routes to `TrainingActivity` if no templates exist on disk. Reinstall the latest debug APK:
 
 ```powershell
 .\gradlew.bat :app:installDebug
@@ -100,7 +100,7 @@ The first time you tap Record, Android shows a permission prompt. **Deny** sends
 
 If you denied:
 
-- Settings → Apps → Handy Voice V2 → Permissions → Microphone → Allow.
+- Settings → Apps → Smart Dong v2 → Permissions → Microphone → Allow.
 
 Re-launch the app and try again.
 
@@ -148,7 +148,7 @@ Network is hung. The Retrofit client has a 15-second timeout on each request; af
 
 The engine loaded zero templates. Either:
 
-- You haven't completed Training yet. Voice tab → **Re-record**.
+- You haven't completed Training yet. Settings → **Re-record voice samples**.
 - The templates directory was wiped externally (e.g. you cleared app data). Same fix: Re-record.
 - The on-disk takes were saved by an older app version with an incompatible MFCC pipeline (format version is below the current 3). They're auto-filtered out on load and you'll see this message; re-record to repopulate.
 
@@ -166,7 +166,7 @@ The match passed the threshold but failed the **margin gate**: the runner-up lab
 
 - Two of your labels sound too similar to each other in MFCC space. Either re-record one more crisply, or pick more phonetically distinct labels (the `start`/`stop` lesson applies broadly).
 - Only one or two labels are trained — with so few choices, the margin is inherently small. Adding more labels usually helps because each one gives the matcher more vocabulary "shape" to discriminate against.
-- The post-Build verification pass is your safety net for this. If you skipped it, run Voice tab → **Re-record** → Build templates → say each label once when prompted.
+- The per-label cross-validation gate inside Training is your inline safety net. If you skipped past an outlier-take dialog without re-recording, that label may be the one tripping the margin gate now. Fix: Settings → **Re-record voice samples** → navigate to the offending label → tap the Sage Re-record button to capture a fresh 3-take session for it.
 
 ### Wrong command fires every time
 

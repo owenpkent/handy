@@ -89,15 +89,17 @@ class PatternEngine(
         private const val MIN_STEP_MS = 50L
 
         private val PATTERNS: Map<String, suspend (HandyV2ApiClient, Int) -> Unit> = mapOf(
-            // From HA `patterns.py`.
-            "heartbeat" to ::heartbeat,
-            "wave"      to ::wave,
+            // Voice-addressable envelopes. Names were renamed (storm→thunder,
+            // wave→ripple, heartbeat→pulse) for acoustic distinctness in the
+            // MFCC matcher; the envelope shapes are unchanged.
+            "pulse"     to ::pulse,
+            "ripple"    to ::ripple,
             "surge"     to ::surge,
             "breathe"   to ::breathe,
-            "storm"     to ::storm,
-            // Original to android-v2; envelopes designed to feel distinct
-            // from each other and from the HA patterns above.
-            "pulse"     to ::pulse,
+            "thunder"   to ::thunder,
+            // Tap-only envelopes (Manual tab). "tick" is the old "pulse"
+            // metronome, renamed to free the "pulse" name for voice.
+            "tick"      to ::tick,
             "tease"     to ::tease,
             "edge"      to ::edge,
             "rush"      to ::rush,
@@ -107,7 +109,7 @@ class PatternEngine(
         )
 
         /** Lub-dub rhythm: two pulses then a long rest. ~2 s cycle. */
-        private suspend fun heartbeat(api: HandyV2ApiClient, intensity: Int) {
+        private suspend fun pulse(api: HandyV2ApiClient, intensity: Int) {
             while (coroutineContext.isActive) {
                 emit(api, 0.85, intensity, 150)  // lub
                 emit(api, 0.0, intensity, 180)   // gap
@@ -117,7 +119,7 @@ class PatternEngine(
         }
 
         /** Smooth sine swell, 0 -> peak -> 0. 8 s cycle. */
-        private suspend fun wave(api: HandyV2ApiClient, intensity: Int) {
+        private suspend fun ripple(api: HandyV2ApiClient, intensity: Int) {
             val periodMs = 8000L
             val steps = 32
             val dt = periodMs / steps
@@ -158,7 +160,7 @@ class PatternEngine(
         }
 
         /** Random walk: unpredictable bursts and pauses. */
-        private suspend fun storm(api: HandyV2ApiClient, intensity: Int) {
+        private suspend fun thunder(api: HandyV2ApiClient, intensity: Int) {
             while (coroutineContext.isActive) {
                 val env = Random.nextDouble()
                 val durationMs = (400 + Random.nextDouble() * 1200).toLong()  // 0.4..1.6 s
@@ -167,7 +169,7 @@ class PatternEngine(
         }
 
         /** Steady metronome: even high-low pulses, no rest. ~400 ms cycle. */
-        private suspend fun pulse(api: HandyV2ApiClient, intensity: Int) {
+        private suspend fun tick(api: HandyV2ApiClient, intensity: Int) {
             while (coroutineContext.isActive) {
                 emit(api, 0.75, intensity, 200)
                 emit(api, 0.0, intensity, 200)

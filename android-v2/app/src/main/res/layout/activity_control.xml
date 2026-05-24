@@ -192,6 +192,39 @@
                         android:scaleX="0" />
                 </LinearLayout>
 
+                <!-- Shortcut row 1: Begin / Stop. Mirrors two of the voice
+                     commands so the user can tap them when voice isn't
+                     handy. The big START/STOP pair at the screen bottom is
+                     still there too. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/voiceBeginButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:text="Begin"
+                        android:textColor="@color/status_connected"
+                        app:strokeColor="@color/status_connected" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/voiceStopButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        android:text="Stop"
+                        android:textColor="@color/emergency_red"
+                        app:strokeColor="@color/emergency_red" />
+                </LinearLayout>
+
+                <!-- Shortcut row 2: Slower / Faster speed nudges. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -220,34 +253,47 @@
                         app:strokeColor="@color/accent_primary" />
                 </LinearLayout>
 
+                <!-- Shortcut row 3: the three trained pattern words. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="8dp"
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/rerecordButton"
+                        android:id="@+id/voiceThunderButton"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="56dp"
                         android:layout_marginEnd="8dp"
-                        android:layout_weight="2"
-                        android:text="Re-record"
-                        android:textColor="@color/accent_secondary"
-                        android:textSize="14sp"
-                        app:strokeColor="@color/accent_secondary" />
+                        android:layout_weight="1"
+                        android:text="Thunder"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/clearRecordingsButton"
+                        android:id="@+id/voiceRippleButton"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="56dp"
+                        android:layout_marginEnd="8dp"
                         android:layout_weight="1"
-                        android:text="Clear all"
-                        android:textColor="@color/emergency_red"
-                        android:textSize="14sp"
-                        app:strokeColor="@color/emergency_red" />
+                        android:text="Ripple"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/voicePulseButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        android:text="Pulse"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/accent_primary" />
                 </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
@@ -454,23 +500,23 @@
                     android:useDefaultMargins="true">
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/patternHeartbeat"
+                        android:id="@+id/patternPulse"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="56dp"
                         android:layout_columnWeight="1"
-                        android:text="Heartbeat"
+                        android:text="Pulse"
                         android:textColor="@color/accent_primary"
                         android:textSize="13sp"
                         app:strokeColor="@color/accent_primary" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/patternWave"
+                        android:id="@+id/patternRipple"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="56dp"
                         android:layout_columnWeight="1"
-                        android:text="Wave"
+                        android:text="Ripple"
                         android:textColor="@color/accent_primary"
                         android:textSize="13sp"
                         app:strokeColor="@color/accent_primary" />
@@ -498,23 +544,23 @@
                         app:strokeColor="@color/accent_primary" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/patternStorm"
+                        android:id="@+id/patternThunder"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="56dp"
                         android:layout_columnWeight="1"
-                        android:text="Storm"
+                        android:text="Thunder"
                         android:textColor="@color/accent_primary"
                         android:textSize="13sp"
                         app:strokeColor="@color/accent_primary" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/patternPulse"
+                        android:id="@+id/patternTick"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="56dp"
                         android:layout_columnWeight="1"
-                        android:text="Pulse"
+                        android:text="Tick"
                         android:textColor="@color/accent_primary"
                         android:textSize="13sp"
                         app:strokeColor="@color/accent_primary" />

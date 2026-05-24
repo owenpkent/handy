@@ -9,6 +9,7 @@ import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
@@ -39,6 +40,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var thresholdSlider: SeekBar
     private lateinit var thresholdValue: TextView
     private lateinit var retrainButton: MaterialButton
+    private lateinit var clearRecordingsButton: MaterialButton
     private lateinit var saveButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +65,7 @@ class SettingsActivity : AppCompatActivity() {
         thresholdSlider = findViewById(R.id.thresholdSlider)
         thresholdValue = findViewById(R.id.thresholdValue)
         retrainButton = findViewById(R.id.retrainButton)
+        clearRecordingsButton = findViewById(R.id.clearRecordingsButton)
         saveButton = findViewById(R.id.saveButton)
 
         globalMaxSlider.setOnSeekBarChangeListener(simpleListener { p ->
@@ -89,6 +92,7 @@ class SettingsActivity : AppCompatActivity() {
 
         saveButton.setOnClickListener { onSave() }
         retrainButton.setOnClickListener { onRetrain() }
+        clearRecordingsButton.setOnClickListener { confirmClearAll() }
 
         lifecycleScope.launch { populate() }
     }
@@ -128,7 +132,32 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Open Training without touching saved takes. The user can re-record
+     * individual labels via the per-label record button there, or use Skip
+     * / Next to leave existing ones alone. Earlier this button silently
+     * wiped everything, which was a footgun.
+     */
     private fun onRetrain() {
+        startActivity(Intent(this, TrainingActivity::class.java))
+        finish()
+    }
+
+    /**
+     * Confirm, then wipe every saved take and force onboarding. Routes back
+     * to Training (the first-run flow) since the engine has nothing to match
+     * against until at least one label is recorded.
+     */
+    private fun confirmClearAll() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear all voice recordings?")
+            .setMessage("Every saved take is deleted. You'll be taken to the recording screen to start over.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Clear") { _, _ -> clearAll() }
+            .show()
+    }
+
+    private fun clearAll() {
         lifecycleScope.launch {
             withContext(Dispatchers.IO) { store.clearAll() }
             prefs.setOnboarded(false)
