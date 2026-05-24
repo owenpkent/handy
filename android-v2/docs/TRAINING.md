@@ -4,7 +4,7 @@ How to record your voice samples for the best results. User-facing; no code know
 
 ## How it works in one paragraph
 
-The first time you open Handy Voice V2, the app asks you to record three takes of each of nine commands. Each take is a 2.5 second window with a brief "Get ready..." prompt before the mic opens. After all 27 recordings, the app turns those into mathematical fingerprints (MFCC sequences, mean-normalised per utterance) that live on the phone forever. Every time you later speak a command, the app compares what you just said against the nine fingerprints and picks the one that looks most similar. The app never tries to "understand" English — it only checks "does this sound like the way Owen said `faster`?"
+The first time you open Smart Dong v2, the app asks you to record three takes of each of seven commands. Each take is a 2.5 second window with a brief "Get ready..." prompt before the mic opens. After all 21 recordings, the app turns those into mathematical fingerprints (MFCC sequences, mean-normalised per utterance) that live on the phone forever. Every time you later speak a command, the app compares what you just said against the seven fingerprints and picks the one that looks most similar. The app never tries to "understand" English — it only checks "does this sound like the way Owen said `faster`?"
 
 That's why the system works for non-standard speech: it doesn't need to. It only needs your voice to be similar to itself between training and use.
 
@@ -14,14 +14,14 @@ The Training screen shows one command at a time on a big card:
 
 ```
         Teach Me Your Voice
-        Command 1 of 9
+        Command 1 of 7
 
   ┌─────────────────────────────┐
   │                             │
   │      Say:                   │
   │      begin                  │
   │                             │
-  │      Listening — speak now  │
+  │      Listening, speak now   │
   │      ● ○ ○                  │
   │                             │
   │      ▒▒▒▒▒░░░░░░░░ peak     │
@@ -39,9 +39,9 @@ The Training screen shows one command at a time on a big card:
    [ Build templates ]
 ```
 
-- **Top text** tells you which command (1 of 9, etc.).
+- **Top text** tells you which command (1 of 7, etc.).
 - **Big word in the middle** is what you should say.
-- **Take dots** show your progress: filled dots = completed takes for this command.
+- **Take dots** show the *active* take (one dot on take 1, two on take 2, three on take 3) so you can see which capture is about to happen.
 - **Peak meter** is a thin horizontal bar that grows with your voice while the mic is open. If it stays flat-zero you have a microphone problem (see [TROUBLESHOOTING](TROUBLESHOOTING.md#mic-not-picking-anything-up)).
 - **Record button**:
   - **Blue (Record)**: idle, tap once to start the auto-advance session.
@@ -49,7 +49,7 @@ The Training screen shows one command at a time on a big card:
   - **Sage (Re-record)**: this label is complete with 3 takes. Tapping starts a re-record of *this label only*.
 - **Play** plays back the most recent take so you can verify it sounds right.
 - **Prev / Next / Skip** move between commands. Skip during a running session jumps the session forward.
-- **Build templates** stays enabled the whole time. Tap it whenever you're done; the verification pass runs before onboarding completes.
+- **Build templates** stays enabled the whole time. Tap it whenever you're done; `onboarded` flips and you return to Control. (No post-Build verification pass anymore — see below.)
 
 ## Auto-advance recording session
 
@@ -64,29 +64,21 @@ For each (label, take):
 
 After all takes of a label, a **cross-validation gate** scores them against each other. If one take is noticeably different from the others, a dialog pops up:
 
-> Take 2 of 'begin' looks off — Re-record this take so the engine can be more confident?
+> Take 2 of 'begin' looks off, re-record this take so the engine can be more confident?
 
 Tap **Re-record** to delete that take and capture a fresh one; tap **Skip** to accept all three as-is.
 
-The session ends when all 27 takes are recorded. Tap **Build templates** to continue.
+The session ends when all 21 takes are recorded. Tap **Build templates** to continue. `onboarded` flips and you return to Control.
 
-## Verification pass (post-Build)
+## Why no verification pass
 
-When you tap **Build templates**, the app runs one final check: for each label it asks you to say it once and confirms the engine returns that exact label.
+Earlier versions ran a verification gauntlet right after Build: for every trained label the app would ask you to say it once and confirm the engine returned the right label, with an inline re-record loop on a miss. It was removed because:
 
-For each label:
+1. The cross-validation gate above already catches the bad-take case at the moment the audio is freshest in your mind.
+2. The Voice tab gives instant feedback the first time you use a label in real use, so collisions surface within a few seconds of normal operation rather than after another long forced loop.
+3. The pass could get stuck looping on a borderline word, which was worse UX than just letting the first real use catch it.
 
-1. The prompt shows the word and "Test — get ready...".
-2. The mic opens for 2.5 seconds. **Say the word once.**
-3. If the engine picks the right label, the card says "✓ Recognised 'begin'", a beep plays, and the next label starts.
-4. If the engine picks a different label (or a score above your threshold), a dialog appears:
-
-   > 'begin' not recognised. Heard 'stop' instead. Re-record samples for 'begin'?
-
-   - **Re-record** wipes that label's takes and runs the same auto-advance loop you used in training (3 fresh takes), then retries the verification.
-   - **Skip** accepts the takes as-is and continues. You can fix it later from the Voice tab's **Re-record** button.
-
-The verification pass is the most reliable predictor of in-use behaviour. If two of your labels keep colliding (you say A but the engine returns B), the dialog will catch it before you leave training rather than after.
+If two of your labels collide in real use, fix it by re-recording them from Settings (see below).
 
 ## Manual single-take re-record
 
@@ -100,7 +92,7 @@ These four habits are the difference between "matches every time" and "have to r
 
 Hold the phone the way you normally would when using it. Don't lean in close to the microphone for training and then sit back when using the app — the two will not match.
 
-If you're going to use Handy Voice V2 with the phone propped on the bedside table, prop it on the bedside table now and record from there. If you'll use it with the phone in your lap, record with it in your lap. **Match the recording posture to the using posture.**
+If you're going to use Smart Dong v2 with the phone propped on the bedside table, prop it on the bedside table now and record from there. If you'll use it with the phone in your lap, record with it in your lap. **Match the recording posture to the using posture.**
 
 ### 2. Speak the same way each take
 
@@ -124,13 +116,13 @@ If a command in `Dispatch.LABELS` ever takes more than 2.5 seconds to say comfor
 
 Three paths, easiest first:
 
-**Re-record one label** — Training screen, navigate to the label, the **Sage Re-record button** wipes just that label and runs a fresh 3-take session. Or, from the Voice tab tap **Re-record** to open Training without wiping anything; the auto-advance session skips already-full labels.
+**Re-record one label** — Settings → **Re-record voice samples** opens Training without wiping anything. Navigate to the label you want and tap the **Sage Re-record button** to wipe just that label's 3 takes and capture fresh ones.
 
-**Re-record everything (in place)** — Voice tab → **Re-record** opens Training; if all labels are already full, navigate to one and tap the Sage Re-record to start fresh on that label. Repeat for every label you want to redo. Existing labels you don't touch are preserved.
+**Re-record everything (in place)** — Same path: Settings → **Re-record voice samples**. Navigate label by label, tap the Sage Re-record on each one you want to redo. Existing labels you don't touch are preserved.
 
-**Wipe and start over** — Voice tab → **Clear all** (with confirmation) deletes every template and routes back to Training fresh. Use this if you changed mics, your voice has changed significantly, or matches feel uniformly bad. Also use this after any code change that touches `WINDOW_SECONDS` or `Mfcc` (the format version bumps and old takes won't match anyway, but the user-facing path is the Clear all button).
+**Wipe and start over** — Settings → **Clear all recordings** (with confirmation) deletes every template and routes back to Training fresh. Use this if you changed mics, your voice has changed significantly, or matches feel uniformly bad. Also use this after any code change that touches `WINDOW_SECONDS` or `Mfcc` (the format version bumps and old takes won't match anyway, but the user-facing path is the Clear all button).
 
-Settings → **Re-record voice samples** is also available; it does the same thing as Voice tab → Re-record.
+These management buttons used to live on the Voice tab but were moved to Settings to keep stop-adjacent surface area minimal.
 
 ## Reading match scores
 
@@ -139,7 +131,7 @@ Open the debug panel on the Voice tab (**Show Debug** below the buttons). Every 
 ```
 [14:23:01] Heard: faster  score=8.2 margin=1.4
 [14:23:05] Heard: stop  score=9.94 margin=0.04  (low confidence (margin 0.0))
-[14:23:09] Heard: surge  score=45.1 margin=3.2  (below threshold)
+[14:23:09] Heard: ripple  score=45.1 margin=3.2  (below threshold)
 ```
 
 - `score` is the [path-normalised DTW distance](VOICE_ENGINE.md#dtw). Lower is better. With CMN applied, expect scores in the 5–15 range for good matches; 30+ is the default cutoff.
@@ -149,7 +141,7 @@ Open the debug panel on the Voice tab (**Show Debug** below the buttons). Every 
 
 - **`score=5–10` for correct matches** — typical with CMN. Your templates are clean.
 - **`score=20+` for correct matches** — either your templates are inconsistent or the environment is much louder/different from training. Re-record in the same environment you'll use the app in.
-- **`score=8` for *incorrect* matches** — two of your templates sound alike to the matcher. The post-training verification pass should have caught this; if not, re-record the offending label, or rename it to something more phonetically distinct.
+- **`score=8` for *incorrect* matches** — two of your templates sound alike to the matcher. Re-record the offending label, or rename it to something more phonetically distinct (the `storm` / `wave` / `heartbeat` set was renamed to `thunder` / `ripple` / `pulse` for exactly this reason).
 - **`(low confidence)` repeating** — the winner and runner-up are too close. Either re-record one of them more crisply, or accept the rejection (you can also speak a touch slower so the consonants land clearer).
 - **`(below threshold)`** — match was rejected by score (winner's distance > 30). Either your voice has drifted from training, or the audio capture was poor. Check the live peak meter on the Voice tab during your next attempt.
 

@@ -26,7 +26,6 @@ import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.Dispatch
 import com.handyvoice.v2.voice.Dtw
 import com.handyvoice.v2.voice.Mfcc
-import com.handyvoice.v2.voice.MfccDtwEngine
 import com.handyvoice.v2.voice.TemplateStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +58,7 @@ class TrainingActivity : AppCompatActivity() {
         private const val TAKES_PER_LABEL = 3
         // Capture window — must match ControlActivity.WINDOW_SECONDS so the
         // recognition path produces MFCC sequences the templates can align
-        // with. Long enough that a slowly-spoken word ("heartbeat") isn't
+        // with. Long enough that a slowly-spoken word ("thunder") isn't
         // truncated; short enough that "stop" doesn't pad with too much
         // silence.
         private const val WINDOW_SECONDS = 2.5
@@ -96,15 +95,8 @@ class TrainingActivity : AppCompatActivity() {
     private lateinit var mfcc: Mfcc
     private lateinit var capture: AudioCapture
     private lateinit var vad: Vad
-    /**
-     * Local matcher used by the post-training verification pass. Loaded
-     * from disk just before verification so it picks up any takes the
-     * recording session just wrote.
-     */
-    private val verifyEngine = MfccDtwEngine()
-    private var verifying: Boolean = false
-    /** Same ack beep as ControlActivity — confirms a captured take or a
-     *  passing verification. Released in onDestroy. */
+    /** Same ack beep as ControlActivity, confirms a captured take.
+     *  Released in onDestroy. */
     private var ackTone: ToneGenerator? = null
 
     private val labels = Dispatch.LABELS
@@ -163,10 +155,9 @@ class TrainingActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Don't hold the mic in the background; session and verification
-        // both bail out so the user resumes from a clean state.
+        // Don't hold the mic in the background; cancel any in-flight session
+        // so the user resumes from a clean state.
         cancelSession()
-        verifying = false
     }
 
     override fun onDestroy() {
@@ -248,8 +239,12 @@ class TrainingActivity : AppCompatActivity() {
         val activeTake = (count + 1).coerceAtMost(TAKES_PER_LABEL)
         takeProgressText.text = getString(R.string.training_take_progress, activeTake, TAKES_PER_LABEL)
 
+        // Dots reflect the *active* take number, not completed takes: one dot
+        // on take 1, two on take 2, three on take 3. The previous "filled =
+        // already saved" rule made the first take show zero dots, which read
+        // as "nothing's happening."
         for ((i, dot) in dots.withIndex()) {
-            dot.setBackgroundResource(if (i < count) R.drawable.dot_filled else R.drawable.dot_empty)
+            dot.setBackgroundResource(if (i < activeTake) R.drawable.dot_filled else R.drawable.dot_empty)
         }
 
         val complete = count >= TAKES_PER_LABEL
@@ -530,135 +525,8 @@ class TrainingActivity : AppCompatActivity() {
     private fun finishOnboarding() {
         cancelSession()
         lifecycleScope.launch {
-            runVerification()
             prefs.setOnboarded(true)
             finish()
-        }
-    }
-
-    /**
-     * Self-test: for every trained label, ask the user to say it once and
-     * verify the engine returns that label. On miss, offer an inline
-     * re-record of just that label (3 takes) and try again. Skips labels
-     * with no stored takes so a partial training doesn't get stuck.
-     */
-    private suspend fun runVerification() {
-        verifying = true
-        try {
-            val allTakes = withContext(Dispatchers.IO) { store.loadAll() }
-            verifyEngine.loadInto(allTakes)
-            val snap = prefs.snapshot()
-            val threshold = snap.matchThreshold
-            val trained = verifyEngine.labels()
-            if (trained.isEmpty()) return
-
-            for (label in trained) {
-                if (!verifying) return
-                var passed = false
-                while (!passed && verifying) {
-                    val match = captureForVerify(label)
-                    passed = match != null &&
-                        match.label == label &&
-                        match.score <= threshold
-                    val outcome = describeVerify(label, match, passed)
-                    takeProgressText.text = outcome
-                    if (passed) {
-                        playAck()
-                        delay(800)
-                    } else {
-                        val rerecord = promptVerifyFailure(label, match)
-                        if (!rerecord) {
-                            passed = true  // user chose to keep current takes
-                        } else {
-                            withContext(Dispatchers.IO) { store.clearLabel(label) }
-                            val idx = labels.indexOf(label).coerceAtLeast(0)
-                            takeCounts[idx] = 0
-                            recordLabelInPlace(idx)
-                            // Reload templates so the next verify reads
-                            // the newly-recorded takes.
-                            val refreshed = withContext(Dispatchers.IO) { store.loadAll() }
-                            verifyEngine.loadInto(refreshed)
-                        }
-                    }
-                }
-            }
-        } finally {
-            verifying = false
-            isRecording = false
-            peakBar.visibility = View.INVISIBLE
-            render()
-        }
-    }
-
-    private suspend fun captureForVerify(label: String): com.handyvoice.v2.voice.TemplateEngine.Match? {
-        labelIndex = labels.indexOf(label).coerceAtLeast(0)
-        render()
-        promptText.text = Dispatch.PROMPTS[label] ?: label
-        takeProgressText.text = "Test — get ready..."
-        peakBar.visibility = View.INVISIBLE
-        recordButton.text = "Verifying"
-        delay(PRE_ROLL_MS)
-        if (!verifying) return null
-
-        isRecording = true
-        peakBar.scaleX = 0f
-        peakBar.visibility = View.VISIBLE
-        takeProgressText.text = "Test — say '${Dispatch.PROMPTS[label] ?: label}'"
-
-        val audio = withContext(Dispatchers.IO) {
-            runCatching {
-                capture.readWindow(WINDOW_SECONDS) { peak ->
-                    val scale = (peak / 16000f).coerceIn(0f, 1f)
-                    peakBar.post { peakBar.scaleX = scale }
-                }
-            }.getOrNull()
-        }
-        isRecording = false
-        peakBar.visibility = View.INVISIBLE
-        peakBar.scaleX = 0f
-        if (audio == null) return null
-        return withContext(Dispatchers.Default) { verifyEngine.match(audio) }
-    }
-
-    private fun describeVerify(
-        label: String,
-        match: com.handyvoice.v2.voice.TemplateEngine.Match?,
-        passed: Boolean,
-    ): String {
-        if (passed) return "✓ Recognized '$label'"
-        if (match == null) return "Couldn't catch that"
-        return "Heard '${match.label}' (score ${"%.1f".format(match.score)})"
-    }
-
-    private suspend fun promptVerifyFailure(
-        label: String,
-        match: com.handyvoice.v2.voice.TemplateEngine.Match?,
-    ): Boolean = suspendCancellableCoroutine { cont ->
-        val heard = match?.let { "Heard '${it.label}' instead." } ?: "Didn't catch that."
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("'$label' not recognized")
-            .setMessage("$heard Re-record samples for '$label' and try again?")
-            .setPositiveButton("Re-record") { _, _ -> if (cont.isActive) cont.resume(true) }
-            .setNegativeButton("Skip") { _, _ -> if (cont.isActive) cont.resume(false) }
-            .setOnCancelListener { if (cont.isActive) cont.resume(false) }
-            .setCancelable(true)
-            .show()
-        cont.invokeOnCancellation { runCatching { dialog.dismiss() } }
-    }
-
-    /**
-     * Capture TAKES_PER_LABEL fresh takes for the current label, using
-     * the same pre-roll + "Listening" UI as the main session. Used by
-     * the verification re-record path.
-     */
-    private suspend fun recordLabelInPlace(idx: Int) {
-        labelIndex = idx
-        lastTake = null
-        render()
-        repeat(TAKES_PER_LABEL) { i ->
-            if (!verifying) return
-            captureOneTake()
-            if (i < TAKES_PER_LABEL - 1) delay(INTER_TAKE_DELAY_MS)
         }
     }
 

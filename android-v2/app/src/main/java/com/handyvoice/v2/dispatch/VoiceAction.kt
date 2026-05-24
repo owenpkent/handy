@@ -4,12 +4,11 @@ package com.handyvoice.v2.dispatch
  * What a matched voice label should make the device do.
  *
  * The dispatch table maps labels (the spoken words the user records as
- * templates) to one of these. Mirrors vega/commands.py's DISPATCH dict.
- *
- * Patterns (heartbeat/wave/surge/breathe/storm) currently map to fixed
- * (speed + range) preset combinations. The proper pattern engine port
- * from vega/devices/handy.py is Phase 2 work; the recording UX does not
- * need to change when it lands because labels stay the same.
+ * templates) to one of these. Pattern labels (thunder / ripple / pulse)
+ * route through [PatternEngine] for time-based envelopes; basic actions
+ * hit [HandyV2ApiClient] directly. Preset stays around for callers that
+ * want a static range+speed in a single VoiceAction, even though no
+ * voice labels currently use it.
  */
 sealed class VoiceAction {
     /** Stop the device. Sends hamp/stop and clears running state. */

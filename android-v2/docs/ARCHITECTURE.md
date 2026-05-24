@@ -200,7 +200,7 @@ HandyV2ApiClient            PatternEngine (background coroutine, looped)
 PUT https://www.handyfeeling.com/api/handy/v2/...
 ```
 
-The dispatch path always emits a log line (matched or below-threshold) and updates `lastMatchText`. Below-threshold matches are shown to the user as `? heartbeat (score 41.2)` so they can see what the engine *almost* matched.
+The dispatch path always emits a log line (matched or below-threshold) and updates `lastMatchText`. Below-threshold matches are shown to the user as `? thunder (score 41.2)` so they can see what the engine *almost* matched.
 
 ## Always-on listening state machine
 
@@ -247,7 +247,7 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 - **No background service.** The mic is hot only while `ControlActivity` is `RESUMED`. This is intentional: an always-on background recorder is a privacy footgun, and Android imposes foreground-service requirements that complicate the app. If hands-free across screen-off becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
 - **No automatic reconnection retries.** If `api.connect()` fails, the user must tap Connect again. The API client surfaces errors in `lastError` and `debugLog`. Retries belong in user-driven UI, not silently in the background.
 - **No template versioning beyond `format: 1`.** A future migration script can read `format` and adapt; for now there is one shape.
-- **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for nine labels.
+- **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for seven labels.
 - **No analytics, telemetry, or crash reporting.** This is a personal accessibility tool; everything stays on-device.
 - **No A/B between engines.** `MfccDtwEngine` is hard-wired in `ControlActivity`. When `TfliteEmbeddingEngine` ships, the switch will be a single line plus a prefs toggle.
 - **No microphone selection UI.** The default `VOICE_RECOGNITION` source is used. If the user has a Bluetooth headset and wants to record through it, that's a future setting.

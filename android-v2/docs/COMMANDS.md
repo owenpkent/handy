@@ -4,7 +4,7 @@ The fixed vocabulary, what each command does, and how to add a new one.
 
 ## Vocabulary
 
-Mirrors `vega/commands.py`'s `DISPATCH` closely (one rename: `start` → `begin` — see "Naming conventions" below). See `dispatch/Dispatch.kt`.
+Seven labels, picked for acoustic distinctness in MFCC+DTW space. Two renames vs vega: `start → begin` (the `st-` cluster collides with `stop`), and the old `storm / wave / heartbeat` pattern set was renamed to `thunder / ripple / pulse` (the originals all sat in a similar fricative-and-nasal corner and kept being mistaken for each other). `surge` and `breathe` were dropped from voice entirely; their envelopes still exist as tap-only buttons on the Manual tab. See `dispatch/Dispatch.kt`.
 
 | Label | Action | Notes |
 | --- | --- | --- |
@@ -12,11 +12,9 @@ Mirrors `vega/commands.py`'s `DISPATCH` closely (one rename: `start` → `begin`
 | `stop` | `Stop` | Immediate stop. Cancels any running pattern envelope as well. |
 | `faster` | `AdjustSpeed(+15)` | Add 15 design points to current speed. Scaled by global max; clamped to `[0, globalMaxSpeed]`. |
 | `slower` | `AdjustSpeed(-15)` | Subtract 15. Same scaling + clamp. |
-| `heartbeat` | `Pattern("heartbeat")` | Lub-dub envelope. See [PatternEngine](#pattern-engine). |
-| `wave` | `Pattern("wave")` | Sine swell envelope. |
-| `surge` | `Pattern("surge")` | Ramp-hold-rest envelope. |
-| `breathe` | `Pattern("breathe")` | Gentle 0.10..0.60 sine. |
-| `storm` | `Pattern("storm")` | Random walk envelope. |
+| `thunder` | `Pattern("thunder")` | Random walk envelope (was `storm`). See [PatternEngine](#pattern-engine). |
+| `ripple` | `Pattern("ripple")` | Sine swell envelope (was `wave`). |
+| `pulse` | `Pattern("pulse")` | Lub-dub envelope (was `heartbeat`). |
 
 ## VoiceAction sealed class
 
@@ -88,7 +86,7 @@ Edit `dispatch/Dispatch.kt`:
 ```kotlin
 val LABELS: List<String> = listOf(
     "begin", "stop", "faster", "slower",
-    "heartbeat", "wave", "surge", "breathe", "storm",
+    "thunder", "ripple", "pulse",
     "deeper",                           // <-- new
 )
 
@@ -107,12 +105,12 @@ Order in `LABELS` is the order the user sees during training.
 
 ### 3. Record templates
 
-Re-record. From the Voice tab tap **Re-record** (opens Training without wiping existing takes) or **Clear all** (wipes everything, with confirmation, then opens Training). After Build templates the verification pass runs to confirm recognition; if your new label collides phonetically with an existing one, that's where you'll find out.
+Re-record. From **Settings → Re-record voice samples** (opens Training without wiping existing takes) or **Settings → Clear all recordings** (wipes everything with confirmation, then opens Training). Tap **Build templates** when done. There's no post-Build verification pass anymore: the per-label cross-validation gate runs inline after each label's 3 takes (catches inconsistent takes when the audio is freshest), and the Voice tab gives instant feedback on the first real use — so a collision shows up the first time you try the new word, not after another forced 9-prompt gauntlet.
 
 ### Naming conventions
 
 - One word, ideally one syllable. "deeper" works; "go deeper" is two captures and the matcher gets confused by the silence between words.
-- **Avoid pairs that sound alike.** This is what bit us with `start` / `stop` — both begin with the `st-` cluster and end with `-p`/`-t`, and even with CMN the MFCCs scored close enough that `start` audio routinely matched `stop` templates better than its own. We renamed to `begin` / `stop`; you'll hit similar problems with any pair sharing first-syllable phonetics. The post-Build verification pass is the safety net but it's better to pick distinct words up-front.
+- **Avoid pairs that sound alike.** This bit us hard with `start` / `stop` (renamed `start → begin`) and with the original `storm / wave / heartbeat / surge / breathe` pattern set (all fricative-and-nasal-heavy, all collided). With CMN applied, MFCCs of acoustically similar words score close enough that the wrong template often wins. Maximise separation: vary syllable count, vowel position (front "ee" vs back "oh"), and consonant family (plosive vs nasal vs fricative).
 - Prefer words with distinctive consonants. Fricatives (`s`, `sh`, `f`, `v`) survive noise well; vowel-only words like "oh" don't.
 - Lowercase only. `TemplateStore.sanitize()` will lowercase anyway; using lowercase in source keeps debug output legible.
 
@@ -123,7 +121,7 @@ The whole point of v2 is to skip the speech-to-text step that fails for non-stan
 1. Running an ASR ("set speed to fifty" → `SetSpeed(50)`), which is exactly what v1 does and exactly what we're avoiding.
 2. Running an LLM ("a little faster" → `AdjustSpeed(+10)`), which is what vega's *dormant* LLM path does. It works, but at the cost of cloud round-trips, API spend, and the failure modes of speech recognition we ran from in the first place.
 
-Phase 1 chooses the constraint: nine labels, fixed actions, perfect determinism. New utterances become new labels in the dispatch table, not new parsing rules.
+Phase 1 chooses the constraint: seven labels, fixed actions, perfect determinism. New utterances become new labels in the dispatch table, not new parsing rules.
 
 ## Pattern engine
 
@@ -133,12 +131,12 @@ The 12 envelopes:
 
 | Name | Envelope | Cycle |
 | --- | --- | --- |
-| `heartbeat` | lub (0.85, 150 ms) → gap (0, 180 ms) → dub (0.7, 150 ms) → rest (0, 1500 ms) | ~2 s |
-| `wave` | smooth sine 0..1..0 over 8 s, 32 steps | 8 s |
+| `pulse` | lub (0.85, 150 ms) → gap (0, 180 ms) → dub (0.7, 150 ms) → rest (0, 1500 ms) | ~2 s |
+| `ripple` | smooth sine 0..1..0 over 8 s, 32 steps | 8 s |
 | `surge` | 24-step linear ramp to peak (12 s), hold (4 s), rest (3 s) | ~19 s |
 | `breathe` | sine confined to 0.10..0.60 over 6 s, never silent, never peak | 6 s |
-| `storm` | random envelope 0..1 for 0.4..1.6 s, repeat | unpredictable |
-| `pulse` | steady metronome 0.75 / 200 ms ↔ 0 / 200 ms | 400 ms |
+| `thunder` | random envelope 0..1 for 0.4..1.6 s, repeat | unpredictable |
+| `tick` | steady metronome 0.75 / 200 ms ↔ 0 / 200 ms | 400 ms |
 | `tease` | 0.40 / 0.5 s → silent 2 s → 0.30 / 0.3 s → silent 3 s | ~5.8 s |
 | `edge` | 5 s ramp to 0.95, hold 6 s, drop 4 s | ~15 s |
 | `rush` | constant 0.95, sliced into 500 ms chunks for cancellability | n/a |
@@ -146,7 +144,7 @@ The 12 envelopes:
 | `bounce` | sine 0.40..0.90 over 2 s, 16 steps | 2 s |
 | `climax` | 0.30 → 0.50 → 0.70 → 0.85 (3 s each) → 1.0 hold (8 s) → reset (2 s) | ~22 s |
 
-The first five share labels with the voice dispatch table. The remaining seven are tap-only on the Manual tab; each has its own stroke range that's set just before the envelope starts (see `ControlActivity.TapPattern` for the data class).
+Three share labels with the voice dispatch table: `pulse`, `ripple`, `thunder` (these were renamed from the older `heartbeat`, `wave`, `storm` to give the voice matcher acoustically distinct words). The other nine are tap-only on the Manual tab; each has its own stroke range that's set just before the envelope starts (see `ControlActivity.TapPattern` for the data class). `tick` is the old `pulse` metronome envelope, renamed when `pulse` was reclaimed for the voice-addressable lub-dub.
 
 ### Lifecycle and interaction
 
@@ -163,8 +161,8 @@ The first five share labels with the voice dispatch table. The remaining seven a
 3. To bind it to a voice label, add a row to `Dispatch.TABLE`: `"newword" to VoiceAction.Pattern("newpattern")`. Then add `"newword"` to `LABELS` + `PROMPTS` and re-record.
 4. To bind it to a Manual tap button, add a grid button to `activity_control.xml`, an entry to `ControlActivity.tapOnlyPatterns` with its stroke range, and click-wire it in `wireManualPatterns`.
 
-## Why mirror vega's vocabulary
+## Divergence from vega's vocabulary
 
-A user who learns to say "start, stop, faster, slower, heartbeat, wave, surge, breathe, storm" on the Pi (vega) gets the same surface on Android (v2). Same actions, same trigger conditions. The two devices are interchangeable from the user's perspective, which is the point: voice control is a habit, and the habit should transfer.
+We *used* to mirror vega's word list exactly so the habit would transfer between Pi and phone. That broke down when the pattern words (`heartbeat / wave / surge / breathe / storm`) turned out to collide acoustically for Owen's voice: the MFCC matcher had trouble distinguishing them, and verification kept failing on whichever one was second-trained. Android v2 picked acoustically distant replacements (`thunder / ripple / pulse`) and dropped `surge / breathe` from voice entirely (still tap-able on Manual).
 
-If a label is too hard to say reliably on Owen's voice in either implementation, change it in *both* places at once (this file and `vega/commands.py`). Don't let them diverge.
+If you change vocabulary here, decide whether vega should follow. The control words (`begin / stop / faster / slower`) still match. The pattern words don't, by design — they were chosen for *this* matcher on *this* voice.

@@ -14,39 +14,42 @@ object Dispatch {
 
     const val DEFAULT_STEP: Int = 15
 
-    /** Phase-1 labels. "begin" stands in for "start" because the latter
-     *  collides phonetically with "stop" in MFCC space for slower speakers. */
+    /**
+     * Voice labels. Picked for acoustic distinctness in MFCC+DTW space:
+     * different syllable counts, vowel positions, and consonant types so
+     * the matcher has wide gaps between any two labels.
+     *  - "begin" stands in for "start" (start/stop collide).
+     *  - "thunder" / "ripple" / "pulse" replace the old storm / wave /
+     *    heartbeat names, which all sat in a similar fricative-and-nasal
+     *    corner of MFCC space and kept getting confused for each other.
+     *    The motion envelopes are unchanged, just renamed.
+     */
     val LABELS: List<String> = listOf(
         "begin", "stop", "faster", "slower",
-        "heartbeat", "wave", "surge", "breathe", "storm",
+        "thunder", "ripple", "pulse",
     )
 
     /** Human-readable prompt shown on the training card for each label. */
     val PROMPTS: Map<String, String> = mapOf(
-        "begin"     to "begin",
-        "stop"      to "stop",
-        "faster"    to "faster",
-        "slower"    to "slower",
-        "heartbeat" to "heartbeat",
-        "wave"      to "wave",
-        "surge"     to "surge",
-        "breathe"   to "breathe",
-        "storm"     to "storm",
+        "begin"   to "begin",
+        "stop"    to "stop",
+        "faster"  to "faster",
+        "slower"  to "slower",
+        "thunder" to "thunder",
+        "ripple"  to "ripple",
+        "pulse"   to "pulse",
     )
 
     private val TABLE: Map<String, VoiceAction> = mapOf(
-        "begin"     to VoiceAction.SetSpeed(25),
-        "stop"      to VoiceAction.Stop,
-        "faster"    to VoiceAction.AdjustSpeed(DEFAULT_STEP),
-        "slower"    to VoiceAction.AdjustSpeed(-DEFAULT_STEP),
-        // True looping envelopes — ported from HA `patterns.py`. The
-        // intensity 100 means "drive the pattern's peak at globalMaxSpeed";
-        // dispatch() scales that down before passing to the engine.
-        "heartbeat" to VoiceAction.Pattern("heartbeat"),
-        "wave"      to VoiceAction.Pattern("wave"),
-        "surge"     to VoiceAction.Pattern("surge"),
-        "breathe"   to VoiceAction.Pattern("breathe"),
-        "storm"     to VoiceAction.Pattern("storm"),
+        "begin"   to VoiceAction.SetSpeed(25),
+        "stop"    to VoiceAction.Stop,
+        "faster"  to VoiceAction.AdjustSpeed(DEFAULT_STEP),
+        "slower"  to VoiceAction.AdjustSpeed(-DEFAULT_STEP),
+        // Looping envelopes — same shapes as before, renamed for acoustic
+        // distinctness. See PatternEngine.PATTERNS for the envelope source.
+        "thunder" to VoiceAction.Pattern("thunder"),
+        "ripple"  to VoiceAction.Pattern("ripple"),
+        "pulse"   to VoiceAction.Pattern("pulse"),
     )
 
     fun actionFor(label: String): VoiceAction? = TABLE[label]

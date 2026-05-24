@@ -19,7 +19,6 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.tabs.TabLayout
-import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -118,8 +117,11 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var stopButton: MaterialButton
     private lateinit var slowerButton: MaterialButton
     private lateinit var fasterButton: MaterialButton
-    private lateinit var rerecordButton: MaterialButton
-    private lateinit var clearRecordingsButton: MaterialButton
+    private lateinit var voiceBeginButton: MaterialButton
+    private lateinit var voiceStopButton: MaterialButton
+    private lateinit var voiceThunderButton: MaterialButton
+    private lateinit var voiceRippleButton: MaterialButton
+    private lateinit var voicePulseButton: MaterialButton
     private lateinit var debugToggleButton: MaterialButton
     private lateinit var debugPanel: View
     private lateinit var debugScrollView: ScrollView
@@ -145,6 +147,15 @@ class ControlActivity : AppCompatActivity() {
     private var globalMaxStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_STROKE
     private var threshold: Float = PreferencesManager.DEFAULT_THRESHOLD
     private var listeningMode: String = PreferencesManager.MODE_BUTTON
+
+    // Last positions of the Manual tab sliders. Restored on resume so the
+    // tab feels stateful instead of snapping back every time the activity
+    // re-enters foreground. Persisted to DataStore on commit so they also
+    // survive process death. These are *UI* state only: restoring a slider
+    // position does not auto-push the value to the device.
+    private var manualStrokeMin: Int = PreferencesManager.DEFAULT_MANUAL_STROKE_MIN
+    private var manualStrokeMax: Int = PreferencesManager.DEFAULT_MANUAL_STROKE_MAX
+    private var manualSpeed: Int = PreferencesManager.DEFAULT_MANUAL_SPEED
 
     private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -189,8 +200,11 @@ class ControlActivity : AppCompatActivity() {
         stopButton = findViewById(R.id.stopButton)
         slowerButton = findViewById(R.id.slowerButton)
         fasterButton = findViewById(R.id.fasterButton)
-        rerecordButton = findViewById(R.id.rerecordButton)
-        clearRecordingsButton = findViewById(R.id.clearRecordingsButton)
+        voiceBeginButton = findViewById(R.id.voiceBeginButton)
+        voiceStopButton = findViewById(R.id.voiceStopButton)
+        voiceThunderButton = findViewById(R.id.voiceThunderButton)
+        voiceRippleButton = findViewById(R.id.voiceRippleButton)
+        voicePulseButton = findViewById(R.id.voicePulseButton)
         debugToggleButton = findViewById(R.id.debugToggleButton)
         debugPanel = findViewById(R.id.debugPanel)
         debugScrollView = findViewById(R.id.debugScrollView)
@@ -229,10 +243,14 @@ class ControlActivity : AppCompatActivity() {
         fasterButton.setOnClickListener {
             lifecycleScope.launch { adjustSpeedRespectingLimits(Dispatch.DEFAULT_STEP) }
         }
-        rerecordButton.setOnClickListener {
-            startActivity(Intent(this, TrainingActivity::class.java))
-        }
-        clearRecordingsButton.setOnClickListener { confirmClearRecordings() }
+        // Voice-command shortcut buttons: tap acts exactly like the voice
+        // path so the user has a one-tap fallback when speech isn't an
+        // option (or when they're still recording their templates).
+        voiceBeginButton.setOnClickListener   { runVoiceShortcut("begin") }
+        voiceStopButton.setOnClickListener    { runVoiceShortcut("stop") }
+        voiceThunderButton.setOnClickListener { runVoiceShortcut("thunder") }
+        voiceRippleButton.setOnClickListener  { runVoiceShortcut("ripple") }
+        voicePulseButton.setOnClickListener   { runVoiceShortcut("pulse") }
 
         debugToggleButton.setOnClickListener {
             val show = debugPanel.visibility != View.VISIBLE
@@ -297,6 +315,9 @@ class ControlActivity : AppCompatActivity() {
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
             listeningMode = snap.listeningMode
+            manualStrokeMin = snap.manualStrokeMin
+            manualStrokeMax = snap.manualStrokeMax
+            manualSpeed = snap.manualSpeed
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -337,6 +358,9 @@ class ControlActivity : AppCompatActivity() {
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
             listeningMode = snap.listeningMode
+            manualStrokeMin = snap.manualStrokeMin
+            manualStrokeMax = snap.manualStrokeMax
+            manualSpeed = snap.manualSpeed
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -577,24 +601,25 @@ class ControlActivity : AppCompatActivity() {
         debugScrollView.post { debugScrollView.scrollTo(0, 0) }
     }
 
-    private fun confirmClearRecordings() {
-        AlertDialog.Builder(this)
-            .setTitle("Clear all voice recordings?")
-            .setMessage("Every saved take is deleted. You'll be taken to the recording screen to start over.")
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Clear") { _, _ -> clearRecordingsAndRetrain() }
-            .show()
-    }
-
-    private fun clearRecordingsAndRetrain() {
+    /**
+     * Tap shortcut for a voice label: runs the exact same dispatch path the
+     * spoken word would, so behavior stays in sync regardless of input.
+     * Logged to the debug panel so the user can see tap dispatches alongside
+     * voice matches.
+     */
+    private fun runVoiceShortcut(label: String) {
+        appLog("Tap shortcut: $label")
         lifecycleScope.launch {
-            withContext(Dispatchers.IO) { store.clearAll() }
-            engine.clearAll()
-            prefs.setOnboarded(false)
-            updateLastMatchForTemplates()
-            api.clearLog()
-            appLog("Voice recordings cleared.")
-            startActivity(Intent(this@ControlActivity, TrainingActivity::class.java))
+            runCatching {
+                Dispatch.dispatch(
+                    label = label,
+                    api = api,
+                    globalMaxSpeed = globalMaxSpeed,
+                    globalMinStroke = globalMinStroke,
+                    globalMaxStroke = globalMaxStroke,
+                    patternEngine = patternEngine,
+                )
+            }.onFailure { appLog("Shortcut $label error: ${it.message}") }
         }
     }
 
@@ -623,7 +648,9 @@ class ControlActivity : AppCompatActivity() {
 
     /**
      * Bind slider ranges to the global safety caps so the user physically
-     * cannot drag past the configured limits.
+     * cannot drag past the configured limits, then restore the last-known
+     * slider positions (clamped to the current band). Restoring does not
+     * push to the device — the API call only happens on a touch commit.
      */
     private fun applyManualCaps() {
         val gMin = globalMinStroke.coerceIn(0, 100)
@@ -634,9 +661,17 @@ class ControlActivity : AppCompatActivity() {
         // globalMaxSpeed before being sent to the device. The actual device
         // velocity is shown in the feedback line so the user can see both.
         rebound(speedSlider, 0, 100)
-        setSliderValue(strokeMinSlider, strokeMinInput, gMin)
-        setSliderValue(strokeMaxSlider, strokeMaxInput, gMax)
-        setSliderValue(speedSlider, speedInput, 0)
+        val sMin = manualStrokeMin.coerceIn(gMin, gMax)
+        val sMax = manualStrokeMax.coerceIn(sMin, gMax)
+        val spd = manualSpeed.coerceIn(0, 100)
+        // Update in-memory state so commits below (and the next persistence
+        // write) reflect any clamping the global band forced on us.
+        manualStrokeMin = sMin
+        manualStrokeMax = sMax
+        manualSpeed = spd
+        setSliderValue(strokeMinSlider, strokeMinInput, sMin)
+        setSliderValue(strokeMaxSlider, strokeMaxInput, sMax)
+        setSliderValue(speedSlider, speedInput, spd)
     }
 
     private fun rebound(slider: SeekBar, min: Int, max: Int) {
@@ -656,7 +691,11 @@ class ControlActivity : AppCompatActivity() {
             if (min != value) setSliderValue(strokeMinSlider, strokeMinInput, min)
             val max = strokeMaxSlider.progress.coerceAtLeast(min)
             if (max != strokeMaxSlider.progress) setSliderValue(strokeMaxSlider, strokeMaxInput, max)
+            manualStrokeMin = min
+            manualStrokeMax = max
             lifecycleScope.launch {
+                prefs.setManualStrokeMin(min)
+                prefs.setManualStrokeMax(max)
                 val ok = api.setStrokeRange(min, max)
                 if (ok) manualFeedbackText.text = "Stroke: $min-$max%"
             }
@@ -666,7 +705,11 @@ class ControlActivity : AppCompatActivity() {
             if (max != value) setSliderValue(strokeMaxSlider, strokeMaxInput, max)
             val min = strokeMinSlider.progress.coerceAtMost(max)
             if (min != strokeMinSlider.progress) setSliderValue(strokeMinSlider, strokeMinInput, min)
+            manualStrokeMin = min
+            manualStrokeMax = max
             lifecycleScope.launch {
+                prefs.setManualStrokeMin(min)
+                prefs.setManualStrokeMax(max)
                 val ok = api.setStrokeRange(min, max)
                 if (ok) manualFeedbackText.text = "Stroke: $min-$max%"
             }
@@ -674,10 +717,12 @@ class ControlActivity : AppCompatActivity() {
         wireManualSlider(speedSlider, speedInput) { value ->
             val design = value.coerceIn(0, 100)
             if (design != value) setSliderValue(speedSlider, speedInput, design)
+            manualSpeed = design
             // Scale design-space (0..100) to device velocity, capped at
             // globalMaxSpeed. Slider 100 = globalMaxSpeed at the device.
             val device = (design * globalMaxSpeed.coerceIn(1, 100) / 100).coerceIn(0, 100)
             lifecycleScope.launch {
+                prefs.setManualSpeed(design)
                 val ok = api.setSpeed(device)
                 if (ok) manualFeedbackText.text = "Speed: $device% (design $design)"
             }
@@ -718,21 +763,32 @@ class ControlActivity : AppCompatActivity() {
     )
 
     private val tapOnlyPatterns: Map<Int, TapPattern> = mapOf(
-        R.id.patternPulse  to TapPattern("pulse",  "Pulse",  40, 60),
-        R.id.patternTease  to TapPattern("tease",  "Tease",  0,  50),
-        R.id.patternEdge   to TapPattern("edge",   "Edge",   70, 90),
-        R.id.patternRush   to TapPattern("rush",   "Rush",   0,  100),
-        R.id.patternThrob  to TapPattern("throb",  "Throb",  40, 70),
-        R.id.patternBounce to TapPattern("bounce", "Bounce", 20, 80),
-        R.id.patternClimax to TapPattern("climax", "Climax", 30, 90),
+        // The old "pulse" metronome was renamed to "tick" so the "pulse"
+        // name could move to the (formerly heartbeat) lub-dub envelope used
+        // by the voice command.
+        R.id.patternTick    to TapPattern("tick",    "Tick",    40, 60),
+        // Surge and Breathe used to be voice commands but were dropped from
+        // the spoken set for acoustic distinctness. They keep their envelopes
+        // here as tap-only patterns with the same wide range Dispatch used.
+        R.id.patternSurge   to TapPattern("surge",   "Surge",   0,  100),
+        R.id.patternBreathe to TapPattern("breathe", "Breathe", 0,  100),
+        R.id.patternTease   to TapPattern("tease",   "Tease",   0,  50),
+        R.id.patternEdge    to TapPattern("edge",    "Edge",    70, 90),
+        R.id.patternRush    to TapPattern("rush",    "Rush",    0,  100),
+        R.id.patternThrob   to TapPattern("throb",   "Throb",   40, 70),
+        R.id.patternBounce  to TapPattern("bounce",  "Bounce",  20, 80),
+        R.id.patternClimax  to TapPattern("climax",  "Climax",  30, 90),
     )
 
+    /**
+     * Manual-grid buttons that route through [Dispatch] using a voice label.
+     * Tapping them produces exactly the same device state as the voice match
+     * would, including the full stroke band and globalMaxSpeed scaling.
+     */
     private val voicePatternIds: Map<Int, String> = mapOf(
-        R.id.patternHeartbeat to "heartbeat",
-        R.id.patternWave      to "wave",
-        R.id.patternSurge     to "surge",
-        R.id.patternBreathe   to "breathe",
-        R.id.patternStorm     to "storm",
+        R.id.patternThunder to "thunder",
+        R.id.patternRipple  to "ripple",
+        R.id.patternPulse   to "pulse",
     )
 
     private fun wireManualPatterns() {
