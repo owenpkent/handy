@@ -63,7 +63,9 @@ JDK 17+ required to launch the Gradle daemon (Android Studio's bundled JBR is fi
 .\gradlew.bat :app:assembleDebug
 ```
 
-The signed debug APK lands at `app/build/intermediates/apk/debug/app-debug.apk`. Or open `android-v2/` in Android Studio and let it sync.
+The signed debug APK lands at `app/build/outputs/apk/debug/app-debug.apk`. Or open `android-v2/` in Android Studio and let it sync.
+
+A version-named copy is also dropped into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) by the `copyDebugApkToRoot` task, so there's a stable, human-named installer to grab for sideloading. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See [`apks/README.md`](../apks/README.md).
 
 ### First run on device
 

@@ -41,6 +41,23 @@ android {
     }
 }
 
+// After a debug build, drop a version-named copy of the APK into the
+// repo-root `apks/` folder so there's a stable, human-named installer to grab
+// (e.g. to upload to Drive or sideload). The name tracks versionName, so bump
+// versionName / versionCode in defaultConfig above to cut a new versioned file.
+val copyDebugApkToRoot = tasks.register<Copy>("copyDebugApkToRoot") {
+    val version = android.defaultConfig.versionName ?: "dev"
+    from(layout.buildDirectory.dir("outputs/apk/debug")) {
+        include("app-debug.apk")
+    }
+    into(rootProject.projectDir.parentFile.resolve("apks"))
+    rename { "SmartDongV2-v$version-debug.apk" }
+}
+
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+    finalizedBy(copyDebugApkToRoot)
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
