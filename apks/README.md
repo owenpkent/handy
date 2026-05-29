@@ -6,7 +6,8 @@ one for sideloading (USB, Google Drive, a local download link, etc).
 ## How they get here
 
 `android-v2`'s `copyDebugApkToRoot` Gradle task runs automatically after
-`assembleDebug` and copies the debug APK in as:
+`packageDebug` (which both `assembleDebug` and `installDebug` run through, so
+building or installing refreshes the copy) and writes the debug APK in as:
 
 ```
 SmartDongV2-v<versionName>-debug.apk
