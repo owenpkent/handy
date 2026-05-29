@@ -310,6 +310,8 @@ Re-train any time from `Settings → Re-record voice samples` (preserves existin
 
 **Stroke inversion is applied inside the API client.** `HandyV2ApiClient.setStrokeRange` accepts user-coord `(min, max)` and, if `invertStroke` is on, sends `(100 - userMax, 100 - userMin)` to the device. All callers (Manual sliders, voice presets, tap presets) think in user coords; the flip happens once.
 
+**Settings that affect the stroke range are re-asserted to the device in `ControlActivity.onResume`.** Invert and the global stroke band only reach the device when something pushes a range, so a change made in Settings used to sit dormant until the next pattern / preset / manual-slider commit (it "only worked for patterns"). `onResume` now detects an invert or band change and pushes immediately while connected: a band change sends the new full band `gMin..gMax` (matching what a pattern's `squashRange(0,100)` sends, and working in both directions); an invert-only change re-pushes the current cached range so the orientation flips without changing the range. If a third stroke-affecting setting ever shows the same lag, the cleaner fix is to make `setGlobalStrokeBand` / `setInvertStroke` push to the device themselves when connected.
+
 **Connect-time park uses HDSP first, with a HAMP `slide(0,0)` fallback.** On a successful connect we open the slide range to the configured global band (so HDSP's `position` isn't clamped by a narrow leftover range from a prior session), switch to mode 2 (HDSP), and send one `PUT /hdsp/xpt` with `position=<globalStrokeMin or globalStrokeMax if inverted>, duration=2500ms, stopOnTarget=true, immediateResponse=true`. If that fails (older firmware, error code), fall back to HAMP `slide(target, target)` with `velocity=0` — a degenerate zero-width range that parks the device without oscillation. HAMP is always restored at the end either way. Older code did the park with HAMP+velocity which produced a visible pumping motion; HDSP gives a single slow slide.
 
 ### Adding a new voice command (Android V2)
@@ -509,7 +511,7 @@ python -m http.server 8000   # Serve v2-web/ locally
   ```
 - Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 14 tests, ~30 ms.
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
-- Every `assembleDebug` also drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
+- Every debug build drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The task is hooked to `packageDebug` (not `assembleDebug`) so it fires for `installDebug` too. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.
 - No models to download. Templates are user-recorded; nothing leaves the device.
 - Reset everything: `adb shell pm clear com.handyvoice.v2` wipes prefs + templates.
