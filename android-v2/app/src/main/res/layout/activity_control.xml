@@ -644,13 +644,17 @@
                     tools:text="Stroke: 10-90%" />
             </LinearLayout>
 
-            <!-- Start/Stop — always visible regardless of tab so STOP is
-                 always one tap away. -->
+            <!-- Start/Stop — shown on the Manual tab only. The Voice tab has
+                 its own Begin / Stop shortcut buttons, so this big pair would
+                 be redundant there. Default hidden because Voice is the
+                 initially-selected tab; wireTabs() toggles it. -->
             <LinearLayout
+                android:id="@+id/startStopRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:visibility="gone">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/startButton"
