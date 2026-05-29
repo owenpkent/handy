@@ -509,6 +509,7 @@ python -m http.server 8000   # Serve v2-web/ locally
   ```
 - Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 14 tests, ~30 ms.
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
+- Every `assembleDebug` also drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.
 - No models to download. Templates are user-recorded; nothing leaves the device.
 - Reset everything: `adb shell pm clear com.handyvoice.v2` wipes prefs + templates.

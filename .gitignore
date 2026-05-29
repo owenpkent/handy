@@ -26,6 +26,9 @@ Thumbs.db
 *.swo
 *~
 
+# Built APK installers (binaries); keep the folder via apks/README.md
+/apks/*.apk
+
 # Logs
 *.log
 npm-debug.log*
