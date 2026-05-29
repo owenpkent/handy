@@ -363,6 +363,8 @@ class ControlActivity : AppCompatActivity() {
             val snap = prefs.snapshot()
             val modeChanged = listeningMode != snap.listeningMode
             val invertChanged = invertStroke != snap.invertStroke
+            val bandChanged = globalMinStroke != snap.globalMinStroke ||
+                globalMaxStroke != snap.globalMaxStroke
             globalMaxSpeed = snap.globalMaxSpeed
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
@@ -380,14 +382,26 @@ class ControlActivity : AppCompatActivity() {
             engine.loadInto(reloaded)
             updateLastMatchForTemplates()
 
-            // Invert is applied inside HandyV2ApiClient.setStrokeRange, so it
-            // only reaches the device the next time a range is pushed (a
-            // pattern, a preset, a manual-slider commit). That made the toggle
-            // feel like it "only worked for patterns". Re-assert the current
-            // user-coord range now so flipping invert in Settings re-orients
-            // the device right away — including for plain Begin / faster.
-            if (invertChanged && api.connectionState.value == ConnectionState.CONNECTED) {
-                api.setStrokeRange(api.strokeMin.value, api.strokeMax.value)
+            // The stroke band / invert only reach the device the next time a
+            // range is pushed (a pattern, a preset, a manual-slider commit), so
+            // changing them in Settings used to feel like it "only worked for
+            // patterns". Re-assert the range now so the change lands right away,
+            // including for a plain Begin / faster.
+            //   - Band changed: push the new full band (gMin..gMax). This is
+            //     exactly what a pattern's squashRange(0,100) sends, so it
+            //     matches what the user saw "apply" when they ran a pattern,
+            //     and it works in both directions (widening or narrowing).
+            //   - Invert only: re-push the current user-coord range so the
+            //     orientation flips while keeping whatever range is active.
+            // setStrokeRange applies invert internally, so the band push also
+            // covers a simultaneous invert change.
+            if ((bandChanged || invertChanged) &&
+                api.connectionState.value == ConnectionState.CONNECTED) {
+                if (bandChanged) {
+                    api.setStrokeRange(snap.globalMinStroke, snap.globalMaxStroke)
+                } else {
+                    api.setStrokeRange(api.strokeMin.value, api.strokeMax.value)
+                }
             }
 
             if (modeChanged && api.connectionState.value == ConnectionState.CONNECTED) {

@@ -11,8 +11,8 @@ android {
         applicationId = "com.handyvoice.v2"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -54,7 +54,10 @@ val copyDebugApkToRoot = tasks.register<Copy>("copyDebugApkToRoot") {
     rename { "SmartDongV2-v$version-debug.apk" }
 }
 
-tasks.matching { it.name == "assembleDebug" }.configureEach {
+// Hook packageDebug (not assembleDebug): packageDebug is what actually writes
+// the APK and is a dependency of both assembleDebug and installDebug, so the
+// copy fires whichever entry point built the APK.
+tasks.matching { it.name == "packageDebug" }.configureEach {
     finalizedBy(copyDebugApkToRoot)
 }
 
