@@ -73,7 +73,7 @@ The signed debug APK lands at `app/build/intermediates/apk/debug/app-debug.apk`.
 4. After the last take of each label, a **cross-validation gate** scores the takes against each other; if one looks like an outlier you'll get a "Re-record take N?" dialog.
 5. Tap **Build templates** to finish; `onboarded` flips and you return to Control. (Earlier versions ran a post-Build verification pass that asked you to say every label once more; that was removed because the cross-validation gate above plus first-use feedback on the Voice tab covers the same ground without a second gauntlet.)
 6. Back on the main screen, enter your Handy connection key and tap **Connect**. The device performs a slow HDSP slide to position 0 (or `globalStrokeMin` if you've set one) on a successful connect.
-7. Use the **Voice / Manual** tabs. Voice tab: tap MIC to start continuous VAD-driven listening, tap again to stop. Live peak meter under "Heard:" confirms the mic is hot. Tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) sit below. Manual tab: stroke / speed sliders + all 12 pattern buttons. START / STOP is always visible below the tabs.
+7. Use the **Voice / Manual** tabs. Voice tab: tap MIC to start continuous VAD-driven listening, tap again to stop. Live peak meter under "Heard:" confirms the mic is hot. Tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) sit below. Manual tab: stroke / speed sliders + all 12 pattern buttons. The big START / STOP row shows on the Manual tab only (the Voice tab's Begin / Stop shortcuts cover it there).
 
 ### Tests
 
@@ -135,11 +135,11 @@ One activity (`ControlActivity`) hosts both control surfaces via a `TabLayout`:
 │  "Pattern: Pulse"                        │
 │                                          │
 ├──────────────────────────────────────────┤
-│ [    START   ]   [    STOP    ]          │   always visible below the tabs
+│ [    START   ]   [    STOP    ]          │   Manual tab only
 └──────────────────────────────────────────┘
 ```
 
-- **Settings cog** (top right of every screen) opens the overflow menu. On Settings there's a **← Home** button instead, which goes straight back to this screen.
+- **Settings cog** (top right) opens Settings directly. On Settings there's a **← Home** button, which goes straight back to this screen.
 - **Voice-tab shortcut buttons** (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) all route through `Dispatch.dispatch(label)` — same code path as the voice match — so taps and voice produce identical device state.
 - **Recording management** (Re-record voice samples, Clear all recordings) lives in Settings, not on the Voice tab.
 
@@ -207,13 +207,12 @@ Both modes use a **post-VAD wait** (~1.8 s) before snapshotting the rolling buff
 | `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | `LABELS`, `PROMPTS`, `TABLE`, and a suspending `dispatch(label, api, ..., patternEngine)`. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/PatternEngine.kt` | 12-pattern looping envelope engine. Ported from `homeassistant/.../patterns.py`. |
 | `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, global stroke band, invert toggle, match threshold, onboarded flag. |
-| `app/src/main/java/com/handyvoice/v2/ui/MainMenu.kt` | `Activity.showMainMenu(anchor)` extension. Overflow menu offers Voice + Settings. |
 | `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding + re-recording. Auto-advance session, per-label cross-validation gate (offers inline re-record of an outlier take). Build templates sets `onboarded=true` and returns to Control. Ack tone on every saved take. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. Always-visible START / STOP row below. Owns the `PatternEngine` for the activity. Ack tone on voice match. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine` for the activity. Ack tone on voice match. |
 | `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Re-record voice samples (opens Training, preserves takes) and Clear all recordings (wipes with confirmation, then opens Training) live here. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests covering MFCC, DTW, and engine behaviour. |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots (3), peak bar, record button. |
-| `app/src/main/res/layout/activity_control.xml` | Combined voice + manual UI with TabLayout and shared START/STOP row. |
+| `app/src/main/res/layout/activity_control.xml` | Combined voice + manual UI with TabLayout. `startStopRow` (Manual tab only) holds the big START/STOP pair. |
 | `app/src/main/res/layout/activity_settings.xml` | Settings form with the ← Home header button. |
 
 ## Differences from `../android/`

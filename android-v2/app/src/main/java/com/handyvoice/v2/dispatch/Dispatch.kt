@@ -12,7 +12,11 @@ import com.handyvoice.v2.api.HandyV2ApiClient
  */
 object Dispatch {
 
-    const val DEFAULT_STEP: Int = 15
+    // Design-space nudge for faster/slower (before globalMaxSpeed scaling).
+    // At Owen's 30% cap this lands ~7 device-velocity points per press
+    // (25 * 30 / 100), so ~4 presses span the whole band. 15 felt too
+    // subtle (only ~4 points/press). Bump here if it still feels small.
+    const val DEFAULT_STEP: Int = 25
 
     /**
      * Voice labels. Picked for acoustic distinctness in MFCC+DTW space:

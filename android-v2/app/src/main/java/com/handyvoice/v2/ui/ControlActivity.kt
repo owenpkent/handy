@@ -113,6 +113,7 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var micButton: MaterialButton
     private lateinit var lastMatchText: TextView
     private lateinit var voicePeakBar: View
+    private lateinit var startStopRow: LinearLayout
     private lateinit var startButton: MaterialButton
     private lateinit var stopButton: MaterialButton
     private lateinit var slowerButton: MaterialButton
@@ -147,6 +148,7 @@ class ControlActivity : AppCompatActivity() {
     private var globalMaxStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_STROKE
     private var threshold: Float = PreferencesManager.DEFAULT_THRESHOLD
     private var listeningMode: String = PreferencesManager.MODE_BUTTON
+    private var invertStroke: Boolean = PreferencesManager.DEFAULT_INVERT_STROKE
 
     // Last positions of the Manual tab sliders. Restored on resume so the
     // tab feels stateful instead of snapping back every time the activity
@@ -196,6 +198,7 @@ class ControlActivity : AppCompatActivity() {
         micButton = findViewById(R.id.micButton)
         lastMatchText = findViewById(R.id.lastMatchText)
         voicePeakBar = findViewById(R.id.voicePeakBar)
+        startStopRow = findViewById(R.id.startStopRow)
         startButton = findViewById(R.id.startButton)
         stopButton = findViewById(R.id.stopButton)
         slowerButton = findViewById(R.id.slowerButton)
@@ -225,7 +228,12 @@ class ControlActivity : AppCompatActivity() {
         wireManualPatterns()
 
         connectButton.setOnClickListener { onConnectTapped() }
-        settingsButton.setOnClickListener { v -> showMainMenu(v) }
+        // The gear goes straight to Settings — no intermediate menu. We're
+        // already on the Voice/Manual home, so the menu's only other entry
+        // was Settings anyway.
+        settingsButton.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         micButton.setOnClickListener { onMicTapped() }
         startButton.setOnClickListener { lifecycleScope.launch { api.start() } }
         stopButton.setOnClickListener {
@@ -318,6 +326,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
+            invertStroke = snap.invertStroke
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -353,6 +362,7 @@ class ControlActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val snap = prefs.snapshot()
             val modeChanged = listeningMode != snap.listeningMode
+            val invertChanged = invertStroke != snap.invertStroke
             globalMaxSpeed = snap.globalMaxSpeed
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
@@ -361,6 +371,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
+            invertStroke = snap.invertStroke
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -368,6 +379,16 @@ class ControlActivity : AppCompatActivity() {
             val reloaded = withContext(Dispatchers.IO) { store.loadAll() }
             engine.loadInto(reloaded)
             updateLastMatchForTemplates()
+
+            // Invert is applied inside HandyV2ApiClient.setStrokeRange, so it
+            // only reaches the device the next time a range is pushed (a
+            // pattern, a preset, a manual-slider commit). That made the toggle
+            // feel like it "only worked for patterns". Re-assert the current
+            // user-coord range now so flipping invert in Settings re-orients
+            // the device right away — including for plain Begin / faster.
+            if (invertChanged && api.connectionState.value == ConnectionState.CONNECTED) {
+                api.setStrokeRange(api.strokeMin.value, api.strokeMax.value)
+            }
 
             if (modeChanged && api.connectionState.value == ConnectionState.CONNECTED) {
                 applyListeningMode()
@@ -640,6 +661,9 @@ class ControlActivity : AppCompatActivity() {
                 val voice = tab.position == 0
                 voicePanel.visibility = if (voice) View.VISIBLE else View.GONE
                 manualPanel.visibility = if (voice) View.GONE else View.VISIBLE
+                // The big START/STOP pair only shows on Manual. Voice has its
+                // own Begin / Stop shortcut buttons.
+                startStopRow.visibility = if (voice) View.GONE else View.VISIBLE
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
             override fun onTabReselected(tab: TabLayout.Tab?) {}
