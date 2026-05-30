@@ -89,16 +89,6 @@ class ControlActivity : AppCompatActivity() {
          * only one label trained, runnerUp is +inf and the gate is a no-op.
          */
         private const val MIN_RELATIVE_MARGIN = 0.05
-        /**
-         * Auto-sleep guard. After this long with no user activity — no voice
-         * command firing and no touch on the screen — we stop the device,
-         * stop listening, and drop the keep-awake so the phone sleeps
-         * normally. The timer resets on every voice match and on any touch
-         * (onUserInteraction), so it only fires once the user has genuinely
-         * walked away. 10 minutes rides through normal pauses between
-         * commands without stopping mid-session.
-         */
-        private const val IDLE_TIMEOUT_MS = 10 * 60 * 1000L
     }
 
     private lateinit var prefs: PreferencesManager
@@ -130,6 +120,16 @@ class ControlActivity : AppCompatActivity() {
      */
     private var idleTimeoutJob: Job? = null
     private var lastActivityAt: Long = 0L
+
+    /**
+     * Auto-sleep window: stop the device + listening after this long with no
+     * voice command and no touch, so the phone can sleep. User-configurable
+     * in Settings (minutes); cached here in millis, refreshed on every
+     * onResume, and read by the watcher on each re-check so a change applies
+     * without restart.
+     */
+    private var idleTimeoutMs: Long =
+        PreferencesManager.DEFAULT_IDLE_TIMEOUT_MIN * 60_000L
 
     // Views
     private lateinit var setupPanel: LinearLayout
@@ -538,7 +538,7 @@ class ControlActivity : AppCompatActivity() {
         idleTimeoutJob = lifecycleScope.launch {
             while (true) {
                 val idleFor = System.currentTimeMillis() - lastActivityAt
-                val remaining = IDLE_TIMEOUT_MS - idleFor
+                val remaining = idleTimeoutMs - idleFor
                 if (remaining <= 0) break
                 delay(remaining)
             }
@@ -555,7 +555,7 @@ class ControlActivity : AppCompatActivity() {
      * the next resume).
      */
     private fun onIdleTimeout() {
-        appLog("Idle ${IDLE_TIMEOUT_MS / 60000} min — stopping device and listening.")
+        appLog("Idle ${idleTimeoutMs / 60000} min — stopping device and listening.")
         lifecycleScope.launch {
             runCatching {
                 Dispatch.dispatch(
