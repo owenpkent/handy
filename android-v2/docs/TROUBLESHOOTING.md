@@ -210,7 +210,7 @@ If you still see listening die on screen-off, check: (1) the app actually starte
 
 ### Listening stopped and the device stopped after a while of not using it
 
-By design. After 10 minutes (`IDLE_TIMEOUT_MS` in `ControlActivity`) with no voice command **and** no screen touch, the app stops the Handy and stops listening so the phone can sleep — it assumes you've walked away. Tap the mic to resume (this works in always-on mode too). The timer resets on every voice match and every touch, so it won't fire while you're actually using either the voice or Manual controls. To change the window, edit `IDLE_TIMEOUT_MS`.
+By design. After the idle window (default 10 min) with no voice command **and** no screen touch, the app stops the Handy and stops listening so the phone can sleep — it assumes you've walked away. Tap the mic to resume (this works in always-on mode too). The timer resets on every voice match and every touch, so it won't fire while you're actually using either the voice or Manual controls. Change the window in **Settings → Idle auto-stop (minutes)** (1–30 min).
 
 ## Runtime: dispatch
 

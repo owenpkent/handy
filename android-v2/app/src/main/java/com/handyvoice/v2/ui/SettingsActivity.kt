@@ -39,6 +39,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var invertSwitch: MaterialSwitch
     private lateinit var thresholdSlider: SeekBar
     private lateinit var thresholdValue: TextView
+    private lateinit var idleTimeoutSlider: SeekBar
+    private lateinit var idleTimeoutValue: TextView
     private lateinit var retrainButton: MaterialButton
     private lateinit var clearRecordingsButton: MaterialButton
     private lateinit var saveButton: MaterialButton
@@ -64,6 +66,8 @@ class SettingsActivity : AppCompatActivity() {
         invertSwitch = findViewById(R.id.invertSwitch)
         thresholdSlider = findViewById(R.id.thresholdSlider)
         thresholdValue = findViewById(R.id.thresholdValue)
+        idleTimeoutSlider = findViewById(R.id.idleTimeoutSlider)
+        idleTimeoutValue = findViewById(R.id.idleTimeoutValue)
         retrainButton = findViewById(R.id.retrainButton)
         clearRecordingsButton = findViewById(R.id.clearRecordingsButton)
         saveButton = findViewById(R.id.saveButton)
@@ -89,6 +93,10 @@ class SettingsActivity : AppCompatActivity() {
         thresholdSlider.setOnSeekBarChangeListener(simpleListener { p ->
             thresholdValue.text = p.toString()
         })
+        // SeekBar min is 1 in the layout, so progress is already in minutes.
+        idleTimeoutSlider.setOnSeekBarChangeListener(simpleListener { p ->
+            idleTimeoutValue.text = p.toString()
+        })
 
         saveButton.setOnClickListener { onSave() }
         retrainButton.setOnClickListener { onRetrain() }
@@ -111,6 +119,8 @@ class SettingsActivity : AppCompatActivity() {
         invertSwitch.isChecked = snap.invertStroke
         thresholdSlider.progress = snap.matchThreshold.toInt()
         thresholdValue.text = snap.matchThreshold.toInt().toString()
+        idleTimeoutSlider.progress = snap.idleTimeoutMin
+        idleTimeoutValue.text = snap.idleTimeoutMin.toString()
     }
 
     private fun onSave() {
@@ -127,6 +137,7 @@ class SettingsActivity : AppCompatActivity() {
             prefs.setGlobalMaxStroke(globalMaxStrokeSlider.progress.coerceIn(0, 100))
             prefs.setInvertStroke(invertSwitch.isChecked)
             prefs.setMatchThreshold(thresholdSlider.progress.toFloat())
+            prefs.setIdleTimeoutMin(idleTimeoutSlider.progress)
             Toast.makeText(this@SettingsActivity, "Saved", Toast.LENGTH_SHORT).show()
             finish()
         }
