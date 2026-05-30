@@ -530,7 +530,7 @@ class ControlActivity : AppCompatActivity() {
      * Start the inactivity watcher from now. It sleeps until the deadline,
      * and if activity happened in the meantime (lastActivityAt moved) it
      * sleeps again for the remaining time instead of firing. Only stops the
-     * session once the full IDLE_TIMEOUT_MS has elapsed with no activity.
+     * session once the full idleTimeoutMs has elapsed with no activity.
      */
     private fun armIdleTimeout() {
         idleTimeoutJob?.cancel()
@@ -548,7 +548,7 @@ class ControlActivity : AppCompatActivity() {
     }
 
     /**
-     * Fired after IDLE_TIMEOUT_MS of no activity. Stop the device (same path
+     * Fired after idleTimeoutMs of no activity. Stop the device (same path
      * as a "stop" command — cancels any running pattern, then HAMP stop),
      * then stop listening, which drops the keep-awake so the phone sleeps
      * normally. The user restarts with a mic tap (or always-on re-arms on
