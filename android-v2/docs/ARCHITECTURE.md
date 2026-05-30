@@ -159,6 +159,10 @@ File names use `take_N.json` where N is the next integer after the existing coun
 
 - Held only while the listening loop runs. Sets/clears `FLAG_KEEP_SCREEN_ON` on the window (stops the screen idling out from under an active listen) and acquires/releases a non-reference-counted `PARTIAL_WAKE_LOCK` (`"HandyVoiceV2:listening"`) so a deliberate power-off can't suspend the CPU. Acquired in `startAlwaysOn`, released in `stopAlwaysOn` and again in `onDestroy`. The `isHeld` guard keeps acquire/release idempotent.
 
+`ControlActivity` idle auto-stop:
+
+- Holding the screen awake forever during a silent session is wasteful, so an inactivity watcher (`armIdleTimeout`, armed in `startAlwaysOn`) stops the session after `IDLE_TIMEOUT_MS` (10 min) of no activity. "Activity" is any voice match (`handleAudio` calls `noteActivity`) **or** any touch (`onUserInteraction` calls `noteActivity`, so working the Manual sliders counts and the device won't stop out from under hands-on use). The watcher is a single coroutine that sleeps to the deadline and re-checks a `lastActivityAt` timestamp — touches just stamp the long, they don't restart the coroutine, so a slider drag streaming touch events is cheap. On expiry, `onIdleTimeout` **stops the device** (reuses the `"stop"` dispatch — cancels any running pattern, then HAMP stop) and calls `stopAlwaysOn`, which drops the keep-awake so the phone sleeps normally. Restart is a mic tap (in always-on mode too — `onMicTapped` re-arms the loop when it's down) or the next foreground resume.
+
 `TrainingActivity.onCreate`:
 
 1. Inflate layout.

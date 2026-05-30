@@ -39,6 +39,7 @@ import com.handyvoice.v2.voice.TemplateEngine
 import com.handyvoice.v2.voice.TemplateStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,6 +89,16 @@ class ControlActivity : AppCompatActivity() {
          * only one label trained, runnerUp is +inf and the gate is a no-op.
          */
         private const val MIN_RELATIVE_MARGIN = 0.05
+        /**
+         * Auto-sleep guard. After this long with no user activity — no voice
+         * command firing and no touch on the screen — we stop the device,
+         * stop listening, and drop the keep-awake so the phone sleeps
+         * normally. The timer resets on every voice match and on any touch
+         * (onUserInteraction), so it only fires once the user has genuinely
+         * walked away. 10 minutes rides through normal pauses between
+         * commands without stopping mid-session.
+         */
+        private const val IDLE_TIMEOUT_MS = 10 * 60 * 1000L
     }
 
     private lateinit var prefs: PreferencesManager
@@ -109,6 +120,16 @@ class ControlActivity : AppCompatActivity() {
      * off so acquire/release stay idempotent against the isHeld guard.
      */
     private var wakeLock: PowerManager.WakeLock? = null
+
+    /**
+     * Inactivity watcher. Armed while listening; on expiry we stop the
+     * device and stop listening (see onIdleTimeout). Null when not
+     * listening. Rather than restart the coroutine on every touch, activity
+     * just stamps `lastActivityAt` and the watcher re-checks — cheap even
+     * when touches stream in from a slider drag.
+     */
+    private var idleTimeoutJob: Job? = null
+    private var lastActivityAt: Long = 0L
 
     // Views
     private lateinit var setupPanel: LinearLayout
@@ -489,6 +510,73 @@ class ControlActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Any touch dispatched to the activity counts as activity, so a user
+     * working the Manual sliders (no voice command involved) won't get the
+     * device stopped out from under them. Voice matches reset the timer
+     * separately in handleAudio.
+     */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        noteActivity()
+    }
+
+    /** Mark activity so the idle watcher pushes its deadline forward. Cheap. */
+    private fun noteActivity() {
+        lastActivityAt = System.currentTimeMillis()
+    }
+
+    /**
+     * Start the inactivity watcher from now. It sleeps until the deadline,
+     * and if activity happened in the meantime (lastActivityAt moved) it
+     * sleeps again for the remaining time instead of firing. Only stops the
+     * session once the full IDLE_TIMEOUT_MS has elapsed with no activity.
+     */
+    private fun armIdleTimeout() {
+        idleTimeoutJob?.cancel()
+        noteActivity()
+        idleTimeoutJob = lifecycleScope.launch {
+            while (true) {
+                val idleFor = System.currentTimeMillis() - lastActivityAt
+                val remaining = IDLE_TIMEOUT_MS - idleFor
+                if (remaining <= 0) break
+                delay(remaining)
+            }
+            idleTimeoutJob = null
+            onIdleTimeout()
+        }
+    }
+
+    /**
+     * Fired after IDLE_TIMEOUT_MS of no activity. Stop the device (same path
+     * as a "stop" command — cancels any running pattern, then HAMP stop),
+     * then stop listening, which drops the keep-awake so the phone sleeps
+     * normally. The user restarts with a mic tap (or always-on re-arms on
+     * the next resume).
+     */
+    private fun onIdleTimeout() {
+        appLog("Idle ${IDLE_TIMEOUT_MS / 60000} min — stopping device and listening.")
+        lifecycleScope.launch {
+            runCatching {
+                Dispatch.dispatch(
+                    label = "stop",
+                    api = api,
+                    globalMaxSpeed = globalMaxSpeed,
+                    globalMinStroke = globalMinStroke,
+                    globalMaxStroke = globalMaxStroke,
+                    patternEngine = patternEngine,
+                )
+            }.onFailure { appLog("Idle-stop dispatch error: ${it.message}") }
+        }
+        stopAlwaysOn()
+        if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
+            voiceModeLabel.text = "Paused (idle) — tap mic to resume"
+        } else {
+            voiceModeLabel.text = "Tap mic to listen"
+        }
+        micButton.text = "MIC"
+    }
+
     private fun onConnectTapped() {
         val key = connectionKeyInput.text.toString().trim()
         if (key.isBlank()) {
@@ -526,11 +614,19 @@ class ControlActivity : AppCompatActivity() {
     /**
      * In button mode the mic acts as a continuous-listen toggle: first tap
      * starts the VAD-driven loop (same one always-on uses), second tap
-     * stops it. Always-on mode keeps its hands-free behaviour and the
-     * button stays a status indicator.
+     * stops it. Always-on mode normally self-manages, but after an idle
+     * auto-stop the loop is down — a tap there brings it back without making
+     * the user leave and re-enter the screen.
      */
     private fun onMicTapped() {
         if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
+            if (alwaysOnJob?.isActive != true) {
+                ensureMicThenRun {
+                    voiceModeLabel.text = "Always listening"
+                    micButton.text = "ON"
+                    startAlwaysOn()
+                }
+            }
             return
         }
         if (alwaysOnJob?.isActive == true) {
@@ -576,6 +672,7 @@ class ControlActivity : AppCompatActivity() {
             else -> "? close call — try again"
         }
         if (passes) {
+            noteActivity()
             playAck()
             runCatching {
                 Dispatch.dispatch(
@@ -593,6 +690,7 @@ class ControlActivity : AppCompatActivity() {
     private fun startAlwaysOn() {
         if (alwaysOnJob?.isActive == true) return
         keepAwake(true)
+        armIdleTimeout()
         appLog("Always-on listening started.")
         alwaysOnJob = lifecycleScope.launch(Dispatchers.IO) {
             val blockSamples = AudioCapture.SAMPLE_RATE * VAD_BLOCK_MS / 1000
@@ -675,6 +773,8 @@ class ControlActivity : AppCompatActivity() {
             }
         }
         alwaysOnJob = null
+        idleTimeoutJob?.cancel()
+        idleTimeoutJob = null
         keepAwake(false)
         voicePeakBar.post { voicePeakBar.scaleX = 0f }
     }

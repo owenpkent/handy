@@ -208,6 +208,10 @@ Fixed. While the listening loop is active, `ControlActivity.keepAwake(true)` hol
 
 If you still see listening die on screen-off, check: (1) the app actually started listening (Always-on mode, or you tapped the mic in button mode — the peak bar should be live); (2) the device isn't force-stopping the app under aggressive OEM battery management (some Android skins ignore wake locks for "optimized" apps — exclude the app from battery optimization in system settings). Note that `android:keepScreenOn` on an `<activity>` in the manifest does nothing; the working flag is set in code.
 
+### Listening stopped and the device stopped after a while of not using it
+
+By design. After 10 minutes (`IDLE_TIMEOUT_MS` in `ControlActivity`) with no voice command **and** no screen touch, the app stops the Handy and stops listening so the phone can sleep — it assumes you've walked away. Tap the mic to resume (this works in always-on mode too). The timer resets on every voice match and every touch, so it won't fire while you're actually using either the voice or Manual controls. To change the window, edit `IDLE_TIMEOUT_MS`.
+
 ## Runtime: dispatch
 
 ### Device starts at low speed and nothing changes when I say `faster`
