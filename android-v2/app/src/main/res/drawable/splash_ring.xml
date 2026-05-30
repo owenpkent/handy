@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A hollow accent ring. Two of these expand-and-fade behind the logo on the
+     splash to read as sound waves radiating from the mic. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <stroke
+        android:width="2dp"
+        android:color="@color/accent_primary" />
+    <solid android:color="@android:color/transparent" />
+</shape>

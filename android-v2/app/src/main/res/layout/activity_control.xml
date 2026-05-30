@@ -99,6 +99,38 @@
                 android:textStyle="bold"
                 app:backgroundTint="@color/primary"
                 app:cornerRadius="8dp" />
+
+            <!-- Shown only while a connection attempt is in flight. The
+                 spinner + "Connecting…" line tell the user something is
+                 happening so they aren't tempted to mash Connect again
+                 (the button is disabled at the same time). -->
+            <LinearLayout
+                android:id="@+id/connectProgressRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/connectProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:indeterminate="true"
+                    app:indicatorColor="@color/accent_primary"
+                    app:indicatorSize="28dp"
+                    app:trackThickness="3dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Connecting…"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="16sp" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Control Panel — visible once connected. Tabbed: Voice / Manual. -->
