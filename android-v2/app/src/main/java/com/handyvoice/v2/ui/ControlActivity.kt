@@ -26,6 +26,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.api.HandyV2ApiClient
@@ -96,7 +97,9 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var engine: MfccDtwEngine
     private lateinit var capture: AudioCapture
     private lateinit var vad: Vad
-    private val api = HandyV2ApiClient()
+    // Shared with SplashActivity (held on the Application) so a connection
+    // the splash started while animating carries over here intact.
+    private val api: HandyV2ApiClient by lazy { (application as HandyVoiceApp).api }
     private val patternEngine: PatternEngine by lazy { PatternEngine(api, lifecycleScope) }
     /** Short ack beep on a successful voice match. Released in onDestroy. */
     private var ackTone: ToneGenerator? = null
@@ -313,35 +316,44 @@ class ControlActivity : AppCompatActivity() {
     }
 
     private fun observeApi() {
+        // Apply the current state once, synchronously, so the very first
+        // frame already reflects a connection the splash started — otherwise
+        // the Connect button flashes until the collector's first emission.
+        applyConnectionState(api.connectionState.value)
         lifecycleScope.launch {
-            api.connectionState.collectLatest { state ->
-                when (state) {
-                    ConnectionState.CONNECTED -> {
-                        showConnecting(false)
-                        setupPanel.visibility = View.GONE
-                        controlPanel.visibility = View.VISIBLE
-                        statusText.setText(R.string.status_connected)
-                        applyListeningMode()
-                    }
-                    ConnectionState.CONNECTING -> {
-                        statusText.text = "Connecting..."
-                        showConnecting(true)
-                    }
-                    ConnectionState.DISCONNECTED -> {
-                        showConnecting(false)
-                        controlPanel.visibility = View.GONE
-                        setupPanel.visibility = View.VISIBLE
-                        statusText.setText(R.string.status_disconnected)
-                        stopAlwaysOn()
-                    }
-                }
-            }
+            api.connectionState.collectLatest { state -> applyConnectionState(state) }
         }
         lifecycleScope.launch {
             api.debugLog.collectLatest { lines ->
                 // The API client maintains its own ring buffer; just mirror it.
                 val merged = (lines + log).distinct().take(80)
                 renderDebugLog(merged.joinToString("\n"))
+            }
+        }
+    }
+
+    /** Drive the setup/control panels and the connecting spinner off one
+     *  connection state. Called both synchronously on create (for the first
+     *  frame) and from the state collector. */
+    private fun applyConnectionState(state: ConnectionState) {
+        when (state) {
+            ConnectionState.CONNECTED -> {
+                showConnecting(false)
+                setupPanel.visibility = View.GONE
+                controlPanel.visibility = View.VISIBLE
+                statusText.setText(R.string.status_connected)
+                applyListeningMode()
+            }
+            ConnectionState.CONNECTING -> {
+                statusText.text = "Connecting..."
+                showConnecting(true)
+            }
+            ConnectionState.DISCONNECTED -> {
+                showConnecting(false)
+                controlPanel.visibility = View.GONE
+                setupPanel.visibility = View.VISIBLE
+                statusText.setText(R.string.status_disconnected)
+                stopAlwaysOn()
             }
         }
     }
@@ -384,9 +396,12 @@ class ControlActivity : AppCompatActivity() {
             updateLastMatchForTemplates()
             appLog("Engine ready (${loaded.size} labels: ${loaded.keys.joinToString(",")})")
 
-            // Restore connection key + try to connect.
+            // Restore connection key. The splash already kicks off the
+            // connect while it animates, so only start one here if it didn't
+            // (no key at splash time, or the shared client is still idle).
             connectionKeyInput.setText(snap.connectionKey)
-            if (snap.connectionKey.isNotBlank()) {
+            if (snap.connectionKey.isNotBlank() &&
+                api.connectionState.value == ConnectionState.DISCONNECTED) {
                 api.setConnectionKey(snap.connectionKey)
                 api.connect()
             }

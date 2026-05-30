@@ -11,7 +11,11 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
+import com.handyvoice.v2.api.ConnectionState
+import com.handyvoice.v2.data.PreferencesManager
+import kotlinx.coroutines.launch
 
 /**
  * Animated launch screen.
@@ -24,11 +28,14 @@ import com.handyvoice.v2.R
  *   1. Logo fades in and scales up with a slight overshoot.
  *   2. Two rings expand and fade outward behind it, like sound waves, and
  *      keep pulsing for the life of the screen.
- *   3. Title + tagline fade up.
+ *   3. Title fades up.
  *   4. The whole screen fades out and ControlActivity takes over.
  *
- * Hard cap [SPLASH_HANDOFF_MS] guarantees we always advance, even if an
- * animation callback is dropped.
+ * While all that plays, we also kick off the device connection (if a key is
+ * saved) on the shared API client, so Control comes up already connecting or
+ * connected instead of flashing the Connect button. Hard cap
+ * [SPLASH_HANDOFF_MS] guarantees we always advance, even if an animation
+ * callback is dropped.
  */
 class SplashActivity : AppCompatActivity() {
 
@@ -43,9 +50,10 @@ class SplashActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
+        startConnecting()
+
         val logo = findViewById<ImageView>(R.id.splashLogo)
         val title = findViewById<TextView>(R.id.splashTitle)
-        val tagline = findViewById<TextView>(R.id.splashTagline)
         val ring1 = findViewById<View>(R.id.splashRing1)
         val ring2 = findViewById<View>(R.id.splashRing2)
         val root = findViewById<View>(R.id.splashRoot)
@@ -66,9 +74,8 @@ class SplashActivity : AppCompatActivity() {
         startRingPulse(ring1, startDelay = 250)
         startRingPulse(ring2, startDelay = 250 + RING_PERIOD_MS / 2)
 
-        // Title + tagline: fade up after the logo lands.
+        // Title: fade up after the logo lands.
         fadeUp(title, startDelay = 560)
-        fadeUp(tagline, startDelay = 720)
 
         // Hand off: fade the whole screen out, then launch Control.
         root.postDelayed({
@@ -81,6 +88,30 @@ class SplashActivity : AppCompatActivity() {
                 })
                 .start()
         }, SPLASH_HANDOFF_MS)
+    }
+
+    /**
+     * Begin the device connection in the background while the animation
+     * plays. Uses the shared API client so ControlActivity sees the same
+     * connection state and never has to start from scratch. No-op if no key
+     * is saved (Control will show the setup panel) or a connect is already
+     * in flight / done.
+     */
+    private fun startConnecting() {
+        val app = application as HandyVoiceApp
+        val api = app.api
+        if (api.connectionState.value != ConnectionState.DISCONNECTED) return
+        // Run on the application scope, not lifecycleScope: this splash
+        // finishes in ~1.7 s, well before a network connect completes, and a
+        // cancelled connect would leave the client stuck in CONNECTING.
+        app.appScope.launch {
+            val snap = PreferencesManager(applicationContext).snapshot()
+            if (snap.connectionKey.isBlank()) return@launch
+            api.setInvertStroke(snap.invertStroke)
+            api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
+            api.setConnectionKey(snap.connectionKey)
+            api.connect()
+        }
     }
 
     private fun fadeUp(view: View, startDelay: Long) {
