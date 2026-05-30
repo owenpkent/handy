@@ -10,6 +10,7 @@ import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
@@ -139,6 +140,10 @@ class TrainingActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Recording sessions are hands-busy and quiet; don't let the screen
+        // idle out mid-take. (The manifest's android:keepScreenOn on an
+        // <activity> is silently ignored — this is the flag that works.)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_training)
 
         prefs = PreferencesManager(applicationContext)

@@ -266,7 +266,9 @@ Pattern envelopes live in **`PatternEngine`** (`dispatch/PatternEngine.kt`) port
 Set in `Settings → Listening mode`:
 
 - **Tap mic** (default) — tapping the mic button starts continuous VAD-driven listening (and tapping again stops it). Same loop as always-on, just gated by the user.
-- **Always listening** — VAD-driven loop runs whenever the screen is open and connected.
+- **Always listening** — VAD-driven loop runs whenever the activity is in the foreground and connected.
+
+**Keep-awake while listening.** Whenever the listening loop is active (either mode), `ControlActivity.keepAwake(true)` sets the window's `FLAG_KEEP_SCREEN_ON` and acquires a `PARTIAL_WAKE_LOCK` (`"HandyVoiceV2:listening"`); both are dropped in `stopAlwaysOn` / `onDestroy`. This is what stops the phone screen sleeping out from under an active listen. Teardown is **screen-aware**: `onStop` only cancels the loop when `PowerManager.isInteractive` (a real navigate-away — Home / Settings); a screen-off (power button) leaves the loop running on the wake lock so voice control keeps working with the screen dark. `onResume` re-arms always-on if it isn't already running. NB: `android:keepScreenOn` on an `<activity>` in the manifest is silently ignored — it's a `View` / window flag, not an activity attribute, so the keep-awake had to move into code. `TrainingActivity` sets the same window flag in `onCreate` so recording sessions don't idle out.
 
 Both modes use a **post-VAD delay** (~1.8 s) before snapshotting the rolling buffer. The VAD trigger fires ~120 ms into a word, so a same-instant snapshot would mostly be the silence preceding the utterance. The delay lets the buffer slide forward until the full word is inside the 2.5 s window — matching where words sit in the training takes.
 

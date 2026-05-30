@@ -202,6 +202,12 @@ VAD energy threshold is too high for your voice. Two paths:
 
 In Settings, the threshold slider only changes the match threshold, not the VAD threshold. Exposing VAD sensitivity as a setting is a Phase 2 item.
 
+### Listening stops when the phone screen sleeps
+
+Fixed. While the listening loop is active, `ControlActivity.keepAwake(true)` holds `FLAG_KEEP_SCREEN_ON` plus a `PARTIAL_WAKE_LOCK`, so the screen won't idle out and the CPU won't suspend mid-capture. If you deliberately press the power button, `onStop` sees a non-interactive screen and **keeps the loop running** on the wake lock — commands still fire with the screen dark. Navigating away (Home / Settings) tears the loop down and drops the lock; coming back re-arms always-on automatically.
+
+If you still see listening die on screen-off, check: (1) the app actually started listening (Always-on mode, or you tapped the mic in button mode — the peak bar should be live); (2) the device isn't force-stopping the app under aggressive OEM battery management (some Android skins ignore wake locks for "optimized" apps — exclude the app from battery optimization in system settings). Note that `android:keepScreenOn` on an `<activity>` in the manifest does nothing; the working flag is set in code.
+
 ## Runtime: dispatch
 
 ### Device starts at low speed and nothing changes when I say `faster`
