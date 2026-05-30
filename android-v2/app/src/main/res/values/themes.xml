@@ -13,4 +13,11 @@
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="android:textSize">18sp</item>
     </style>
+
+    <!-- Splash: same dark theme, but the window background is the splash
+         colour so there's no white/grey flash between the system window
+         appearing and the splash layout drawing. -->
+    <style name="Theme.HandyVoiceV2.Splash" parent="Theme.HandyVoiceV2">
+        <item name="android:windowBackground">@color/background_dark</item>
+    </style>
 </resources>

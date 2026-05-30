@@ -139,6 +139,7 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var manualPanel: LinearLayout
     private lateinit var connectionKeyInput: EditText
     private lateinit var connectButton: MaterialButton
+    private lateinit var connectProgressRow: View
     private lateinit var settingsButton: MaterialButton
     private lateinit var statusText: TextView
     private lateinit var statusDot: View
@@ -224,6 +225,7 @@ class ControlActivity : AppCompatActivity() {
         manualPanel = findViewById(R.id.manualPanel)
         connectionKeyInput = findViewById(R.id.connectionKeyInput)
         connectButton = findViewById(R.id.connectButton)
+        connectProgressRow = findViewById(R.id.connectProgressRow)
         settingsButton = findViewById(R.id.settingsButton)
         statusText = findViewById(R.id.statusText)
         statusDot = findViewById(R.id.statusDot)
@@ -315,6 +317,7 @@ class ControlActivity : AppCompatActivity() {
             api.connectionState.collectLatest { state ->
                 when (state) {
                     ConnectionState.CONNECTED -> {
+                        showConnecting(false)
                         setupPanel.visibility = View.GONE
                         controlPanel.visibility = View.VISIBLE
                         statusText.setText(R.string.status_connected)
@@ -322,8 +325,10 @@ class ControlActivity : AppCompatActivity() {
                     }
                     ConnectionState.CONNECTING -> {
                         statusText.text = "Connecting..."
+                        showConnecting(true)
                     }
                     ConnectionState.DISCONNECTED -> {
+                        showConnecting(false)
                         controlPanel.visibility = View.GONE
                         setupPanel.visibility = View.VISIBLE
                         statusText.setText(R.string.status_disconnected)
@@ -583,11 +588,28 @@ class ControlActivity : AppCompatActivity() {
             toast("Connection key required.")
             return
         }
+        // Flip the UI to its busy state immediately on tap, before the
+        // suspend connect() even sets CONNECTING — closes the brief window
+        // where a double-tap could fire two connect attempts.
+        showConnecting(true)
         lifecycleScope.launch {
             prefs.setConnectionKey(key)
             api.setConnectionKey(key)
             api.connect()
         }
+    }
+
+    /**
+     * Toggle the "busy connecting" UI: swap the Connect button for a spinner
+     * and lock the button + key field so an impatient tap can't queue a
+     * second connect attempt. Idempotent; driven by both the tap handler and
+     * the connectionState observer.
+     */
+    private fun showConnecting(connecting: Boolean) {
+        connectProgressRow.visibility = if (connecting) View.VISIBLE else View.GONE
+        connectButton.visibility = if (connecting) View.GONE else View.VISIBLE
+        connectButton.isEnabled = !connecting
+        connectionKeyInput.isEnabled = !connecting
     }
 
     private fun ensureMicThenRun(block: () -> Unit) {

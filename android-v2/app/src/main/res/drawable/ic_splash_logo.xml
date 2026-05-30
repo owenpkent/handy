@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mic glyph only (the launcher icon minus its dark background plate) so it
+     can sit on the animated splash background and be tinted / scaled freely. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="@color/accent_primary">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28a14,14 0 0,1 14,14v18a14,14 0 1,1 -28,0v-18a14,14 0 0,1 14,-14zM34,58v2a20,20 0 0,0 16,19.6v8.4h-8v6h24v-6h-8v-8.4a20,20 0 0,0 16,-19.6v-2h-6v2a14,14 0 1,1 -28,0v-2z" />
+</vector>

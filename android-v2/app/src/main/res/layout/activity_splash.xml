@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Animated launch screen. The logo scales/fades in, two rings pulse outward
+     behind it like sound waves, and the title/tagline fade up. SplashActivity
+     drives all of it in code and hands off to ControlActivity. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/splashRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_dark">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <!-- Logo + the rings that radiate behind it. Fixed-size frame so the
+             rings have room to expand without nudging the layout. -->
+        <FrameLayout
+            android:layout_width="220dp"
+            android:layout_height="220dp">
+
+            <View
+                android:id="@+id/splashRing1"
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:background="@drawable/splash_ring" />
+
+            <View
+                android:id="@+id/splashRing2"
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:background="@drawable/splash_ring" />
+
+            <ImageView
+                android:id="@+id/splashLogo"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_splash_logo" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/splashTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:alpha="0"
+            android:text="@string/app_name"
+            android:textColor="@color/text_primary"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/splashTagline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0"
+            android:text="@string/splash_tagline"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+</FrameLayout>
