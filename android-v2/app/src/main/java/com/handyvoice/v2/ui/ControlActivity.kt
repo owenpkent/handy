@@ -9,7 +9,9 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.View
+import android.view.WindowManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.EditText
@@ -97,6 +99,16 @@ class ControlActivity : AppCompatActivity() {
     private val patternEngine: PatternEngine by lazy { PatternEngine(api, lifecycleScope) }
     /** Short ack beep on a successful voice match. Released in onDestroy. */
     private var ackTone: ToneGenerator? = null
+
+    /**
+     * Held only while the listening loop is running so a sleeping screen
+     * can't suspend the CPU mid-utterance. Paired with FLAG_KEEP_SCREEN_ON
+     * (which stops the screen sleeping in the first place); the lock is the
+     * belt-and-suspenders for a deliberate power-button press. Released the
+     * moment listening stops and again in onDestroy. Reference counting is
+     * off so acquire/release stay idempotent against the isHeld guard.
+     */
+    private var wakeLock: PowerManager.WakeLock? = null
 
     // Views
     private lateinit var setupPanel: LinearLayout
@@ -404,8 +416,20 @@ class ControlActivity : AppCompatActivity() {
                 }
             }
 
-            if (modeChanged && api.connectionState.value == ConnectionState.CONNECTED) {
-                applyListeningMode()
+            // Re-arm listening when we come back to the foreground. Two cases
+            // matter here:
+            //   - Always-on: the loop may have been torn down by a real
+            //     navigate-away (Home/Settings), so restart it if it isn't
+            //     already running. (If it survived a screen-off on the wake
+            //     lock, the isActive guard makes this a no-op.)
+            //   - Button mode: only re-apply when the mode actually changed,
+            //     since button listening is tap-gated and must not auto-start.
+            if (api.connectionState.value == ConnectionState.CONNECTED) {
+                if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
+                    if (alwaysOnJob?.isActive != true) applyListeningMode()
+                } else if (modeChanged) {
+                    applyListeningMode()
+                }
             }
         }
     }
@@ -420,15 +444,49 @@ class ControlActivity : AppCompatActivity() {
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-        stopAlwaysOn()
+    override fun onStop() {
+        super.onStop()
+        // Distinguish a screen-off from a genuine navigate-away. When the
+        // screen goes dark (power button or — absent our flag — an idle
+        // timeout) the device is non-interactive but the user still wants
+        // voice control, so we keep the loop alive on the partial wake lock.
+        // When the user actually leaves (Home, or opening Settings) the
+        // screen is still interactive: stop listening then to free the mic
+        // and stop burning battery. onResume re-arms always-on on return.
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (pm.isInteractive) {
+            stopAlwaysOn()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        keepAwake(false)
         ackTone?.release()
         ackTone = null
+    }
+
+    /**
+     * Hold the device awake while the listening loop runs. Keeps the screen
+     * on (so it never idles out from under an active listen) and grabs a
+     * partial wake lock (so a deliberate power-off doesn't suspend the CPU
+     * and kill capture). Both are dropped the instant listening stops.
+     */
+    private fun keepAwake(on: Boolean) {
+        if (on) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (wakeLock == null) {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = pm.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "HandyVoiceV2:listening",
+                ).apply { setReferenceCounted(false) }
+            }
+            if (wakeLock?.isHeld != true) wakeLock?.acquire()
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        }
     }
 
     private fun onConnectTapped() {
@@ -534,6 +592,7 @@ class ControlActivity : AppCompatActivity() {
 
     private fun startAlwaysOn() {
         if (alwaysOnJob?.isActive == true) return
+        keepAwake(true)
         appLog("Always-on listening started.")
         alwaysOnJob = lifecycleScope.launch(Dispatchers.IO) {
             val blockSamples = AudioCapture.SAMPLE_RATE * VAD_BLOCK_MS / 1000
@@ -616,6 +675,7 @@ class ControlActivity : AppCompatActivity() {
             }
         }
         alwaysOnJob = null
+        keepAwake(false)
         voicePeakBar.post { voicePeakBar.scaleX = 0f }
     }
 

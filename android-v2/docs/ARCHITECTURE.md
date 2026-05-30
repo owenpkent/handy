@@ -48,7 +48,7 @@ The Android `AudioRecord` API allows only one active recorder at a time. We resp
 | --- | --- | --- |
 | Training capture | `TrainingActivity.captureOneTake` | Per-take 2.5 s window via `AudioCapture.readWindow`. Released after each. The streaming peak callback drives the live meter during capture. |
 | Training verify | `TrainingActivity.captureForVerify` | One 2.5 s window per label during the post-Build verification pass. Same path. |
-| Voice tab (tap-mic or always-on) | `ControlActivity.startAlwaysOn` | `AudioCapture.stream(...)` runs continuously while the loop is active; cancelled on STOP-listening, listening-mode change, or `onPause`. Same loop services both tap-mic toggle and the always-on setting. |
+| Voice tab (tap-mic or always-on) | `ControlActivity.startAlwaysOn` | `AudioCapture.stream(...)` runs continuously while the loop is active; cancelled on STOP-listening, listening-mode change, or a screen-on navigate-away (`onStop` while interactive). A screen-off keeps the loop alive on a partial wake lock. Same loop services both tap-mic toggle and the always-on setting. |
 
 `AudioCapture` doesn't pool `AudioRecord`s — each entry point constructs, records, releases. Source is `MediaRecorder.AudioSource.MIC` everywhere (not `VOICE_RECOGNITION`). The Android emulator's virtual mic delivers silence to `VOICE_RECOGNITION` while routing audio fine to `MIC`; we don't know what Google's path does differently but bare `MIC` works in every environment we've tested. We lose any AGC / noise suppression that a device's `VOICE_RECOGNITION` audio source might apply, which has not been a problem in practice.
 
@@ -63,7 +63,7 @@ The Android `AudioRecord` API allows only one active recorder at a time. We resp
 
 The matcher is invoked synchronously inside a single `withContext(Default)` block per utterance. For the Phase 1 vocabulary (9 labels × 3 takes), a single match takes a few hundred microseconds, so there is no benefit from parallelizing across labels.
 
-In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the `alwaysOnJob?.isActive == true` check; cancelling `alwaysOnJob` (in `onPause` or when listening mode changes) lets the loop drain and `AudioRecord.release()` run.
+In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the `alwaysOnJob?.isActive == true` check; cancelling `alwaysOnJob` (on a screen-on navigate-away, or when listening mode changes) lets the loop drain and `AudioRecord.release()` run. The loop deliberately survives a screen-off (see Lifecycle → `onStop`), held up by the partial wake lock, so commands keep working with the screen dark.
 
 ## State
 
@@ -149,11 +149,15 @@ File names use `take_N.json` where N is the next integer after the existing coun
 
 `ControlActivity.onResume`:
 
-- Re-reads the prefs snapshot. If the listening mode changed (the user just visited Settings), re-applies it.
+- Re-reads the prefs snapshot. If connected and in always-on mode, re-arms the listening loop when it isn't already running (so it comes back after a navigate-away, and is a no-op when it survived a screen-off on the wake lock). In button mode it only re-applies when the listening mode actually changed (button listening is tap-gated and must not auto-start).
 
-`ControlActivity.onPause`:
+`ControlActivity.onStop`:
 
-- Cancels `alwaysOnJob` if active. The capture loop drains and `AudioRecord.release()` runs.
+- **Screen-aware teardown.** Checks `PowerManager.isInteractive`. A genuine navigate-away (Home, or opening Settings) leaves the screen interactive → cancels `alwaysOnJob`, the capture loop drains, `AudioRecord.release()` runs, and `keepAwake(false)` drops the screen flag + wake lock. A screen-off (power button, or an idle timeout if the keep-screen-on flag is ever absent) leaves the device non-interactive → the loop is left running so voice control keeps working with the screen dark; the partial wake lock holds the CPU up so capture doesn't suspend. (Older code cancelled unconditionally in `onPause`, which is why listening died the moment the screen slept.)
+
+`ControlActivity.keepAwake(on)`:
+
+- Held only while the listening loop runs. Sets/clears `FLAG_KEEP_SCREEN_ON` on the window (stops the screen idling out from under an active listen) and acquires/releases a non-reference-counted `PARTIAL_WAKE_LOCK` (`"HandyVoiceV2:listening"`) so a deliberate power-off can't suspend the CPU. Acquired in `startAlwaysOn`, released in `stopAlwaysOn` and again in `onDestroy`. The `isHeld` guard keeps acquire/release idempotent.
 
 `TrainingActivity.onCreate`:
 
@@ -244,7 +248,7 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 
 ## Things deliberately missing
 
-- **No background service.** The mic is hot only while `ControlActivity` is `RESUMED`. This is intentional: an always-on background recorder is a privacy footgun, and Android imposes foreground-service requirements that complicate the app. If hands-free across screen-off becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
+- **No background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
 - **No automatic reconnection retries.** If `api.connect()` fails, the user must tap Connect again. The API client surfaces errors in `lastError` and `debugLog`. Retries belong in user-driven UI, not silently in the background.
 - **No template versioning beyond `format: 1`.** A future migration script can read `format` and adapt; for now there is one shape.
 - **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for seven labels.
