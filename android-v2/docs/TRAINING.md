@@ -131,7 +131,7 @@ Open the debug panel on the Voice tab (**Show Debug** below the buttons). Every 
 ```
 [14:23:01] Heard: faster  score=8.2 margin=1.4
 [14:23:05] Heard: stop  score=9.94 margin=0.04  (low confidence (margin 0.0))
-[14:23:09] Heard: ripple  score=45.1 margin=3.2  (below threshold)
+[14:23:09] Heard: shallow  score=45.1 margin=3.2  (below threshold)
 ```
 
 - `score` is the [path-normalised DTW distance](VOICE_ENGINE.md#dtw). Lower is better. With CMN applied, expect scores in the 5–15 range for good matches; 30+ is the default cutoff.

@@ -208,7 +208,7 @@ HandyV2ApiClient            PatternEngine (background coroutine, looped)
 PUT https://www.handyfeeling.com/api/handy/v2/...
 ```
 
-The dispatch path always emits a log line (matched or below-threshold) and updates `lastMatchText`. Below-threshold matches are shown to the user as `? thunder (score 41.2)` so they can see what the engine *almost* matched.
+The dispatch path always emits a log line (matched or below-threshold) and updates `lastMatchText`. Below-threshold matches are shown to the user as `? shallow (score 41.2)` so they can see what the engine *almost* matched.
 
 ## Always-on listening state machine
 

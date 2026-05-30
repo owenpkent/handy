@@ -4,7 +4,7 @@ The fixed vocabulary, what each command does, and how to add a new one.
 
 ## Vocabulary
 
-Seven labels, picked for acoustic distinctness in MFCC+DTW space. Two renames vs vega: `start → begin` (the `st-` cluster collides with `stop`), and the old `storm / wave / heartbeat` pattern set was renamed to `thunder / ripple / pulse` (the originals all sat in a similar fricative-and-nasal corner and kept being mistaken for each other). `surge` and `breathe` were dropped from voice entirely; their envelopes still exist as tap-only buttons on the Manual tab. See `dispatch/Dispatch.kt`.
+Seven labels, picked for acoustic distinctness in MFCC+DTW space. `start → begin` (the `st-` cluster collides with `stop`). The fixed pattern words (`thunder / ripple / pulse`) were **dropped from voice** — they weren't useful spoken — and replaced with two stroke-length commands (`deeper / shallow`) and a `random` envelope trigger. `shallow` is used in place of "lower" because "lower" collides with "slower" for less-articulated speech. All pattern envelopes still exist as tap-only buttons on the Manual tab. See `dispatch/Dispatch.kt`.
 
 | Label | Action | Notes |
 | --- | --- | --- |
@@ -12,9 +12,9 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. Two renames vs
 | `stop` | `Stop` | Immediate stop. Cancels any running pattern envelope as well. |
 | `faster` | `AdjustSpeed(+15)` | Add 15 design points to current speed. Scaled by global max; clamped to `[0, globalMaxSpeed]`. |
 | `slower` | `AdjustSpeed(-15)` | Subtract 15. Same scaling + clamp. |
-| `thunder` | `Pattern("thunder")` | Random walk envelope (was `storm`). See [PatternEngine](#pattern-engine). |
-| `ripple` | `Pattern("ripple")` | Sine swell envelope (was `wave`). |
-| `pulse` | `Pattern("pulse")` | Lub-dub envelope (was `heartbeat`). |
+| `deeper` | `AdjustStrokeMin(-15)` | Lengthen the stroke: lower the minimum (top of range) by 15, max held fixed. Clamped to `globalMinStroke` floor. |
+| `shallow` | `AdjustStrokeMin(+15)` | Shorten the stroke: raise the minimum by 15. Clamped to `currentMax - 1`, so it can never reach or cross the max-stroke setting. |
+| `random` | `RandomPattern` | Fires a randomly-chosen `PatternEngine` envelope. See [PatternEngine](#pattern-engine). |
 
 ## VoiceAction sealed class
 
@@ -25,9 +25,11 @@ sealed class VoiceAction {
     data object Stop : VoiceAction()
     data class SetSpeed(val percent: Int) : VoiceAction()
     data class AdjustSpeed(val delta: Int) : VoiceAction()
+    data class AdjustStrokeMin(val delta: Int) : VoiceAction()
     data class SetRange(val min: Int, val max: Int) : VoiceAction()
     data class Preset(val rangeMin: Int, val rangeMax: Int, val speed: Int) : VoiceAction()
     data class Pattern(val name: String, val intensity: Int = 100) : VoiceAction()
+    data class RandomPattern(val intensity: Int = 100) : VoiceAction()
 }
 ```
 
@@ -36,11 +38,13 @@ sealed class VoiceAction {
 | `Stop` | Cancel any running `PatternEngine` job, then `api.stop()` (`PUT /hamp/stop`). Clears `isRunning`. |
 | `SetSpeed(percent)` | If `percent == 0`, calls `api.stop()`. Otherwise: ensure the device is started, then `api.setSpeed(scaled)`. `scaled = percent × globalMaxSpeed / 100`. |
 | `AdjustSpeed(delta)` | Compute the target as `api.currentSpeed + (delta × globalMaxSpeed / 100)`, clamp to `[0, globalMaxSpeed]`, then `api.setSpeed(target)`. The clamp ensures repeated "faster" can't sneak past the cap. |
+| `AdjustStrokeMin(delta)` | Move the stroke minimum (top of range) by `delta`, keeping the current max fixed: `newMin = (api.strokeMin + delta).coerceIn(globalMinStroke, api.strokeMax - 1)`, then `api.setStrokeRange(newMin, api.strokeMax)`. The `max - 1` ceiling guarantees the min can never reach or cross the max-stroke setting. Negative delta = deeper (longer); positive = shallower. |
 | `SetRange(min, max)` | Range is squashed into `[globalMinStroke, globalMaxStroke]`, then `api.setStrokeRange(squashedMin, squashedMax)`. The client also applies the invert flip if enabled. |
 | `Preset(rangeMin, rangeMax, speed)` | One-shot static preset for the tap-only Manual buttons. Cancels any running pattern, squashes the range into the global band, then slide → start → velocity in that order. The Handy API resets velocity if it's written before `start`. |
 | `Pattern(name, intensity)` | Opens the stroke range to the full global band, then calls `patternEngine.start(name, scaleSpeed(intensity))`. The engine launches a looping coroutine that emits `(envelope, durationMs)` pairs into `api.setSpeed`. |
+| `RandomPattern(intensity)` | Same setup as `Pattern`, but calls `patternEngine.startRandom(scaleSpeed(intensity))`, which picks a random envelope from `PatternEngine.PATTERNS`. |
 
-`Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine)` is a suspending function that runs the action's API calls and returns `true` on success. All parameters except `label` and `api` have safe defaults (`30, 0, 100, null`) so call sites can omit any they don't care about, **except** that `Pattern` actions require a non-null `patternEngine` — passing `null` returns `false` from dispatch. `ControlActivity` always passes its engine instance.
+`Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine)` is a suspending function that runs the action's API calls and returns `true` on success. All parameters except `label` and `api` have safe defaults (`30, 0, 100, null`) so call sites can omit any they don't care about, **except** that `Pattern` / `RandomPattern` actions require a non-null `patternEngine` — passing `null` returns `false` from dispatch. `ControlActivity` always passes its engine instance.
 
 ## Caps and clamps
 
@@ -86,18 +90,18 @@ Edit `dispatch/Dispatch.kt`:
 ```kotlin
 val LABELS: List<String> = listOf(
     "begin", "stop", "faster", "slower",
-    "thunder", "ripple", "pulse",
-    "deeper",                           // <-- new
+    "deeper", "shallow", "random",
+    "edge",                             // <-- new
 )
 
 val PROMPTS: Map<String, String> = mapOf(
     ...
-    "deeper" to "deeper",               // <-- the displayed word on the training card
+    "edge" to "edge",                   // <-- the displayed word on the training card
 )
 
 private val TABLE: Map<String, VoiceAction> = mapOf(
     ...
-    "deeper" to VoiceAction.SetRange(0, 100),    // <-- new
+    "edge" to VoiceAction.Pattern("edge"),    // <-- new
 )
 ```
 
@@ -144,7 +148,7 @@ The 12 envelopes:
 | `bounce` | sine 0.40..0.90 over 2 s, 16 steps | 2 s |
 | `climax` | 0.30 → 0.50 → 0.70 → 0.85 (3 s each) → 1.0 hold (8 s) → reset (2 s) | ~22 s |
 
-Three share labels with the voice dispatch table: `pulse`, `ripple`, `thunder` (these were renamed from the older `heartbeat`, `wave`, `storm` to give the voice matcher acoustically distinct words). The other nine are tap-only on the Manual tab; each has its own stroke range that's set just before the envelope starts (see `ControlActivity.TapPattern` for the data class). `tick` is the old `pulse` metronome envelope, renamed when `pulse` was reclaimed for the voice-addressable lub-dub.
+No envelope is bound to a voice label by name anymore. The `random` voice command picks one at random via `PatternEngine.startRandom` (`PATTERNS.keys.random()`); all twelve are also tap-only on the Manual tab, each with its own stroke range that's set just before the envelope starts (see `ControlActivity.TapPattern` for the data class). `tick` is the old `pulse` metronome envelope, renamed back when `pulse` was dropped from the spoken set.
 
 ### Lifecycle and interaction
 
@@ -158,11 +162,11 @@ Three share labels with the voice dispatch table: `pulse`, `ripple`, `thunder` (
 
 1. Add a `suspend fun newpattern(api: HandyV2ApiClient, intensity: Int)` to `PatternEngine.companion` that loops forever emitting `(envelope, durationMs)` via the shared `emit()` helper.
 2. Add the entry to the `PATTERNS` map: `"newpattern" to ::newpattern`.
-3. To bind it to a voice label, add a row to `Dispatch.TABLE`: `"newword" to VoiceAction.Pattern("newpattern")`. Then add `"newword"` to `LABELS` + `PROMPTS` and re-record.
+3. To bind it to a voice label, add a row to `Dispatch.TABLE`: `"newword" to VoiceAction.Pattern("newpattern")`. Then add `"newword"` to `LABELS` + `PROMPTS` and re-record. (Or leave it tap-only and reach it via the `random` command, which already includes every pattern in `PATTERNS`.)
 4. To bind it to a Manual tap button, add a grid button to `activity_control.xml`, an entry to `ControlActivity.tapOnlyPatterns` with its stroke range, and click-wire it in `wireManualPatterns`.
 
 ## Divergence from vega's vocabulary
 
-We *used* to mirror vega's word list exactly so the habit would transfer between Pi and phone. That broke down when the pattern words (`heartbeat / wave / surge / breathe / storm`) turned out to collide acoustically for Owen's voice: the MFCC matcher had trouble distinguishing them, and verification kept failing on whichever one was second-trained. Android v2 picked acoustically distant replacements (`thunder / ripple / pulse`) and dropped `surge / breathe` from voice entirely (still tap-able on Manual).
+We *used* to mirror vega's word list exactly so the habit would transfer between Pi and phone. That broke down when the pattern words (`heartbeat / wave / surge / breathe / storm`) turned out to collide acoustically for Owen's voice: the MFCC matcher had trouble distinguishing them, and verification kept failing on whichever one was second-trained. Android v2 first tried acoustically distant pattern replacements (`thunder / ripple / pulse`), then dropped fixed pattern words from voice altogether — they weren't useful spoken — in favour of `deeper / shallow` (live stroke-length control) and `random` (surprise envelope). The pattern envelopes remain tap-only on Manual.
 
 If you change vocabulary here, decide whether vega should follow. The control words (`begin / stop / faster / slower`) still match. The pattern words don't, by design — they were chosen for *this* matcher on *this* voice.

@@ -245,7 +245,7 @@ mic ─► AudioCapture (16 kHz mono int16)
 
 ### Voice vocabulary
 
-Seven labels, picked for acoustic distinctness in MFCC+DTW space (different syllable counts, vowel positions, consonant families) so the matcher has wide gaps between any two trained words. The original vega set had `heartbeat / wave / surge / breathe / storm` for patterns; those collapsed into a similar fricative-and-nasal corner of MFCC space and kept colliding, so the kept patterns were renamed and the rest dropped from the spoken set (envelopes are still tap-able on the Manual tab).
+Seven labels, picked for acoustic distinctness in MFCC+DTW space (different syllable counts, vowel positions, consonant families) so the matcher has wide gaps between any two trained words. The fixed pattern words (`thunder` / `ripple` / `pulse`) were dropped from the spoken set — they weren't useful by voice — and replaced with two stroke-length commands plus a `random` envelope trigger. The pattern envelopes are all still tap-able on the Manual tab.
 
 | Label | Action |
 |-------|--------|
@@ -253,13 +253,15 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space (different syll
 | `stop` | `Stop` — immediate stop. Also cancels any running pattern. |
 | `faster` | `AdjustSpeed(+25)` — design-space step (`Dispatch.DEFAULT_STEP`), scaled by globalMaxSpeed. |
 | `slower` | `AdjustSpeed(-25)` |
-| `thunder` | `Pattern("thunder")` — random-walk envelope (was `storm`). |
-| `ripple` | `Pattern("ripple")` — sine swell (was `wave`). |
-| `pulse` | `Pattern("pulse")` — lub-dub rhythm (was `heartbeat`). |
+| `deeper` | `AdjustStrokeMin(-15)` — lengthen the stroke by lowering the minimum (top of range), max held fixed. Clamped to the global floor. |
+| `shallow` | `AdjustStrokeMin(+15)` — shorten the stroke by raising the minimum. Clamped to just below the current max-stroke setting, so it can never cross it. Chosen over "lower" (which collides with "slower"). |
+| `random` | `RandomPattern` — fires a randomly-chosen `PatternEngine` envelope. |
+
+`deeper` / `shallow` adjust the stroke minimum live, the same way `faster` / `slower` adjust speed. The min floor is `globalMinStroke`; the ceiling is `currentMax - 1`, so the stroke minimum can never reach or cross the max-stroke setting. Both read/write through `api.strokeMin` / `api.strokeMax` (user coords; invert is applied inside the client).
 
 The Voice tab carries tap-shortcut buttons for all seven so the user has a one-tap fallback when speech isn't an option (or templates aren't trained yet). Tap shortcuts call `Dispatch.dispatch(label)` directly — same code path the voice match takes, same caps applied.
 
-Pattern envelopes live in **`PatternEngine`** (`dispatch/PatternEngine.kt`) ported from `homeassistant/custom_components/handy/patterns.py`. Each pattern is a `suspend fun(api, intensity)` that loops forever, emitting `(envelope, durationMs)` pairs to `api.setSpeed(envelope × intensity)`. Cancelling the job stops the device. The Manual tab exposes all twelve envelopes: the three voice-addressable ones (`thunder` / `ripple` / `pulse`), the two voice-dropped ones (`surge` / `breathe`) as tap-only with their old wide range, plus seven other tap-only envelopes (`tick` / `tease` / `edge` / `rush` / `throb` / `bounce` / `climax`). `tick` is the old metronome envelope that used to be named `pulse`; renamed to free the `pulse` name for the voice-addressable lub-dub. `VoiceAction.Pattern(name, intensity)` is the dispatch shape.
+Pattern envelopes live in **`PatternEngine`** (`dispatch/PatternEngine.kt`) ported from `homeassistant/custom_components/handy/patterns.py`. Each pattern is a `suspend fun(api, intensity)` that loops forever, emitting `(envelope, durationMs)` pairs to `api.setSpeed(envelope × intensity)`. Cancelling the job stops the device. No pattern is voice-addressable by name anymore; the `random` command picks one via `PatternEngine.startRandom`, and the Manual tab exposes all twelve envelopes as tap buttons (`thunder` / `ripple` / `pulse` / `surge` / `breathe` / `tick` / `tease` / `edge` / `rush` / `throb` / `bounce` / `climax`). `tick` is the old metronome envelope that used to be named `pulse`. `VoiceAction.Pattern(name, intensity)` (named) and `VoiceAction.RandomPattern(intensity)` are the dispatch shapes.
 
 ### Listening modes
 
