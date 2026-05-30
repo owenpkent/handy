@@ -153,9 +153,9 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var fasterButton: MaterialButton
     private lateinit var voiceBeginButton: MaterialButton
     private lateinit var voiceStopButton: MaterialButton
-    private lateinit var voiceThunderButton: MaterialButton
-    private lateinit var voiceRippleButton: MaterialButton
-    private lateinit var voicePulseButton: MaterialButton
+    private lateinit var voiceDeeperButton: MaterialButton
+    private lateinit var voiceShallowButton: MaterialButton
+    private lateinit var voiceRandomButton: MaterialButton
     private lateinit var debugToggleButton: MaterialButton
     private lateinit var debugPanel: View
     private lateinit var debugScrollView: ScrollView
@@ -238,9 +238,9 @@ class ControlActivity : AppCompatActivity() {
         fasterButton = findViewById(R.id.fasterButton)
         voiceBeginButton = findViewById(R.id.voiceBeginButton)
         voiceStopButton = findViewById(R.id.voiceStopButton)
-        voiceThunderButton = findViewById(R.id.voiceThunderButton)
-        voiceRippleButton = findViewById(R.id.voiceRippleButton)
-        voicePulseButton = findViewById(R.id.voicePulseButton)
+        voiceDeeperButton = findViewById(R.id.voiceDeeperButton)
+        voiceShallowButton = findViewById(R.id.voiceShallowButton)
+        voiceRandomButton = findViewById(R.id.voiceRandomButton)
         debugToggleButton = findViewById(R.id.debugToggleButton)
         debugPanel = findViewById(R.id.debugPanel)
         debugScrollView = findViewById(R.id.debugScrollView)
@@ -289,9 +289,9 @@ class ControlActivity : AppCompatActivity() {
         // option (or when they're still recording their templates).
         voiceBeginButton.setOnClickListener   { runVoiceShortcut("begin") }
         voiceStopButton.setOnClickListener    { runVoiceShortcut("stop") }
-        voiceThunderButton.setOnClickListener { runVoiceShortcut("thunder") }
-        voiceRippleButton.setOnClickListener  { runVoiceShortcut("ripple") }
-        voicePulseButton.setOnClickListener   { runVoiceShortcut("pulse") }
+        voiceDeeperButton.setOnClickListener  { runVoiceShortcut("deeper") }
+        voiceShallowButton.setOnClickListener { runVoiceShortcut("shallow") }
+        voiceRandomButton.setOnClickListener  { runVoiceShortcut("random") }
 
         debugToggleButton.setOnClickListener {
             val show = debugPanel.visibility != View.VISIBLE

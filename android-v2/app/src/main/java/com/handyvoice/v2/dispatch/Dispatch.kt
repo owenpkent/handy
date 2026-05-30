@@ -18,19 +18,26 @@ object Dispatch {
     // subtle (only ~4 points/press). Bump here if it still feels small.
     const val DEFAULT_STEP: Int = 25
 
+    /** Per-press stroke-minimum nudge (user-coord points) for deeper/shallow. */
+    const val DEFAULT_STROKE_STEP: Int = 15
+
     /**
      * Voice labels. Picked for acoustic distinctness in MFCC+DTW space:
      * different syllable counts, vowel positions, and consonant types so
      * the matcher has wide gaps between any two labels.
      *  - "begin" stands in for "start" (start/stop collide).
-     *  - "thunder" / "ripple" / "pulse" replace the old storm / wave /
-     *    heartbeat names, which all sat in a similar fricative-and-nasal
-     *    corner of MFCC space and kept getting confused for each other.
-     *    The motion envelopes are unchanged, just renamed.
+     *  - "deeper" / "shallow" live-adjust the stroke length (the minimum /
+     *    top of the range). "shallow" deliberately over "lower" — "lower"
+     *    collides with "slower" for less-articulated speech. "deeper" and
+     *    "shallow" sit far apart from each other and from faster/slower
+     *    (different vowels and consonant families).
+     *  - "random" fires a random motion envelope. The fixed pattern words
+     *    (thunder / ripple / pulse) were dropped from the spoken set — they
+     *    weren't useful by voice — but stay tap-able on the Manual tab.
      */
     val LABELS: List<String> = listOf(
         "begin", "stop", "faster", "slower",
-        "thunder", "ripple", "pulse",
+        "deeper", "shallow", "random",
     )
 
     /** Human-readable prompt shown on the training card for each label. */
@@ -39,9 +46,9 @@ object Dispatch {
         "stop"    to "stop",
         "faster"  to "faster",
         "slower"  to "slower",
-        "thunder" to "thunder",
-        "ripple"  to "ripple",
-        "pulse"   to "pulse",
+        "deeper"  to "deeper",
+        "shallow" to "shallow",
+        "random"  to "random",
     )
 
     private val TABLE: Map<String, VoiceAction> = mapOf(
@@ -49,11 +56,12 @@ object Dispatch {
         "stop"    to VoiceAction.Stop,
         "faster"  to VoiceAction.AdjustSpeed(DEFAULT_STEP),
         "slower"  to VoiceAction.AdjustSpeed(-DEFAULT_STEP),
-        // Looping envelopes — same shapes as before, renamed for acoustic
-        // distinctness. See PatternEngine.PATTERNS for the envelope source.
-        "thunder" to VoiceAction.Pattern("thunder"),
-        "ripple"  to VoiceAction.Pattern("ripple"),
-        "pulse"   to VoiceAction.Pattern("pulse"),
+        // Lengthen / shorten the stroke by moving the minimum (top of range).
+        // Negative delta lowers the min (longer stroke); positive raises it.
+        "deeper"  to VoiceAction.AdjustStrokeMin(-DEFAULT_STROKE_STEP),
+        "shallow" to VoiceAction.AdjustStrokeMin(DEFAULT_STROKE_STEP),
+        // Surprise envelope — picks a random pattern each time.
+        "random"  to VoiceAction.RandomPattern(),
     )
 
     fun actionFor(label: String): VoiceAction? = TABLE[label]
@@ -120,6 +128,19 @@ object Dispatch {
                 api.setSpeed(target)
             }
 
+            is VoiceAction.AdjustStrokeMin -> {
+                // Move the stroke minimum (top of the range), keeping max fixed.
+                // Negative delta = deeper (longer stroke); positive = shallower.
+                // The min can rise to just below the current max and drop to
+                // the global floor — so it never crosses the max-stroke setting.
+                val curMin = api.strokeMin.value
+                val curMax = api.strokeMax.value
+                val floor = globalMinStroke.coerceIn(0, 100)
+                val ceil = (curMax - 1).coerceAtLeast(floor)
+                val newMin = (curMin + action.delta).coerceIn(floor, ceil)
+                api.setStrokeRange(newMin, curMax)
+            }
+
             is VoiceAction.SetRange -> {
                 val (min, max) = squashRange(action.min, action.max)
                 api.setStrokeRange(min, max)
@@ -146,6 +167,16 @@ object Dispatch {
                 if (!rangeOk) return false
                 val peak = scaleSpeed(action.intensity)
                 engine.start(action.name, peak)
+            }
+
+            is VoiceAction.RandomPattern -> {
+                val engine = patternEngine ?: return false
+                // Same setup as Pattern, but the engine picks the envelope.
+                val (min, max) = squashRange(0, 100)
+                val rangeOk = api.setStrokeRange(min, max)
+                if (!rangeOk) return false
+                val peak = scaleSpeed(action.intensity)
+                engine.startRandom(peak)
             }
         }
     }

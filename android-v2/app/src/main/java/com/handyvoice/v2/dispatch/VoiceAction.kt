@@ -20,6 +20,14 @@ sealed class VoiceAction {
     /** Adjust speed by [delta] percentage points. Positive = faster. */
     data class AdjustSpeed(val delta: Int) : VoiceAction()
 
+    /**
+     * Adjust the stroke *minimum* (the top of the range) by [delta] points,
+     * keeping the current max fixed. Negative = lengthen the stroke (min
+     * moves down); positive = shorten it (min moves up). Clamped so the min
+     * can never cross above the current max or below the global floor.
+     */
+    data class AdjustStrokeMin(val delta: Int) : VoiceAction()
+
     /** Set stroke range (each 0-100). */
     data class SetRange(val min: Int, val max: Int) : VoiceAction()
 
@@ -29,4 +37,7 @@ sealed class VoiceAction {
 
     /** Run a named [PatternEngine] pattern at the caller's intensity. */
     data class Pattern(val name: String, val intensity: Int = 100) : VoiceAction()
+
+    /** Run a randomly-chosen [PatternEngine] pattern at the caller's intensity. */
+    data class RandomPattern(val intensity: Int = 100) : VoiceAction()
 }
