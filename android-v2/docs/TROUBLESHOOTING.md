@@ -216,6 +216,10 @@ If you still see listening die on screen-off, check: (1) the app actually starte
 
 By design. After the idle window (default 10 min) with no voice command **and** no screen touch, the app stops the Handy and stops listening — it assumes you've walked away. Tap the mic to resume (this works in always-on mode too). The timer resets on every voice match and every touch, so it won't fire while you're actually using either the voice or Manual controls. Change the window in **Settings → Idle auto-stop (minutes)** (1–30 min). Note: the screen still stays on as long as the app is in the foreground (that's the always-on keep-awake) — the idle stop halts the device and frees the mic, it no longer puts the screen to sleep.
 
+### A setting I changed didn't take effect
+
+Fixed. Settings used to apply only when you tapped a **Save** button, and leaving via **← Home** or the back gesture discarded any unsaved changes (so a tweaked global limit, threshold, or stroke band would silently revert). Now every control auto-applies the instant you change it: sliders persist on release, the listening-mode radio and invert switch on toggle, and the connection key on focus-loss (with `onPause` as a backstop). There is no Save button. The value is written immediately and `ControlActivity.onResume` re-reads it and pushes it to the device, so the change is in effect as soon as you return to the control screen.
+
 ## Runtime: dispatch
 
 ### Device starts at low speed and nothing changes when I say `faster`
