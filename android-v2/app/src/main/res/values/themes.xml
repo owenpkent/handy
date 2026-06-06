@@ -20,4 +20,17 @@
     <style name="Theme.HandyVoiceV2.Splash" parent="Theme.HandyVoiceV2">
         <item name="android:windowBackground">@color/background_dark</item>
     </style>
+
+    <!-- Card section header on the Settings screen: small, bold, accent,
+         letter-spaced caps so each group reads as a distinct section. -->
+    <style name="SettingsSectionHeader">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">14dp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/accent_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
 </resources>
