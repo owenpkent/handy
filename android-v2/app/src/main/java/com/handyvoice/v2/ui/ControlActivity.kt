@@ -402,7 +402,7 @@ class ControlActivity : AppCompatActivity() {
             }
 
             // Load templates into the matcher (may be empty if user bailed onboarding).
-            val loaded = withContext(Dispatchers.IO) { store.loadAll() }
+            val loaded = withContext(Dispatchers.IO) { loadKnownTemplates() }
             engine.loadInto(loaded)
             updateLastMatchForTemplates()
             appLog("Engine ready (${loaded.size} labels: ${loaded.keys.joinToString(",")})")
@@ -442,7 +442,7 @@ class ControlActivity : AppCompatActivity() {
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
 
-            val reloaded = withContext(Dispatchers.IO) { store.loadAll() }
+            val reloaded = withContext(Dispatchers.IO) { loadKnownTemplates() }
             engine.loadInto(reloaded)
             updateLastMatchForTemplates()
 
@@ -485,6 +485,18 @@ class ControlActivity : AppCompatActivity() {
             }
         }
     }
+
+    /**
+     * Load on-disk templates, dropping any folder whose label isn't in the
+     * current vocabulary. A prior build's words (ripple / pulse / thunder, or
+     * the old "start" before it became "begin") otherwise linger on disk and
+     * keep winning matches even though nothing dispatches them, polluting the
+     * match space. Filtering here (rather than in TemplateStore) keeps the
+     * store free of a dispatch-layer dependency. The stale folders stay on
+     * disk but are simply ignored; "Clear all recordings" removes them.
+     */
+    private fun loadKnownTemplates(): Map<String, List<Array<DoubleArray>>> =
+        store.loadAll().filterKeys { it in Dispatch.LABELS }
 
     /** Show a hint in the match area that reflects current template state. */
     private fun updateLastMatchForTemplates() {
