@@ -7,20 +7,28 @@
     android:id="@+id/splashRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark">
+    android:background="@color/background_dark"
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:gravity="center_horizontal"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical">
 
-        <!-- Logo + the rings that radiate behind it. Fixed-size frame so the
-             rings have room to expand without nudging the layout. -->
+        <!-- Logo + the rings that radiate behind it. Fixed-size frame keeps the
+             layout from being nudged as the rings expand; clipChildren="false"
+             lets a ring grow past this 220dp box (it scales to ~2.4x) instead
+             of being clipped into a square. -->
         <FrameLayout
             android:layout_width="220dp"
-            android:layout_height="220dp">
+            android:layout_height="220dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
             <View
                 android:id="@+id/splashRing1"
