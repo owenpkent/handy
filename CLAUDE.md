@@ -255,11 +255,11 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space (different syll
 | `stop` | `Stop` — immediate stop. Also cancels any running pattern. |
 | `faster` | `AdjustSpeed(+25)` — design-space step (`Dispatch.DEFAULT_STEP`), scaled by globalMaxSpeed. |
 | `slower` | `AdjustSpeed(-25)` |
-| `deeper` | `AdjustStrokeMin(-15)` — lengthen the stroke by lowering the minimum (top of range), max held fixed. Clamped to the global floor. |
-| `shallow` | `AdjustStrokeMin(+15)` — shorten the stroke by raising the minimum. Clamped to just below the current max-stroke setting, so it can never cross it. Chosen over "lower" (which collides with "slower"). |
+| `deeper` | `AdjustDepth(deeper = true)`: two-phase. Phase 1 lengthens the stroke toward the base (lowers the min, max held fixed) until the min hits the global floor; phase 2 then pulls the max down too, concentrating the motion into short strokes at the base. |
+| `shallow` | `AdjustDepth(deeper = false)`: the mirror image toward the tip. Phase 1 re-extends the top toward the global ceiling (raises the max); phase 2 then raises the min, concentrating into short strokes at the tip. Chosen over "lower" (which collides with "slower"). |
 | `random` | `RandomPattern` — fires a randomly-chosen `PatternEngine` envelope. |
 
-`deeper` / `shallow` adjust the stroke minimum live, the same way `faster` / `slower` adjust speed. The min floor is `globalMinStroke`; the ceiling is `currentMax - 1`, so the stroke minimum can never reach or cross the max-stroke setting. Both read/write through `api.strokeMin` / `api.strokeMax` (user coords; invert is applied inside the client).
+`deeper` / `shallow` step the stroke live, the same way `faster` / `slower` step speed, and the per-press point size is **band-scaled**: `DEFAULT_STROKE_STEP` (15) is design-space (0-100) and scaled to the configured band (`globalMaxStroke - globalMinStroke`) at dispatch time, so a narrow band moves proportionally less (band 100 reproduces the old flat 15). The concentration phase is floored by `MIN_STROKE_WIDTH` (20, also band-scaled) so the stroke can never collapse to a zero-width range (which would stop the motion). All clamps stay within `[globalMinStroke, globalMaxStroke]`. Both read/write through `api.strokeMin` / `api.strokeMax` (user coords; invert is applied inside the client).
 
 The Voice tab carries tap-shortcut buttons for all seven so the user has a one-tap fallback when speech isn't an option (or templates aren't trained yet). Tap shortcuts call `Dispatch.dispatch(label)` directly — same code path the voice match takes, same caps applied.
 

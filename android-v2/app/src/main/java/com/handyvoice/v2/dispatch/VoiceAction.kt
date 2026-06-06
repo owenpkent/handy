@@ -21,12 +21,17 @@ sealed class VoiceAction {
     data class AdjustSpeed(val delta: Int) : VoiceAction()
 
     /**
-     * Adjust the stroke *minimum* (the top of the range) by [delta] points,
-     * keeping the current max fixed. Negative = lengthen the stroke (min
-     * moves down); positive = shorten it (min moves up). Clamped so the min
-     * can never cross above the current max or below the global floor.
+     * Step the stroke one notch deeper ([deeper] = true) or shallower. The
+     * point size is computed at dispatch time from the configured stroke
+     * band, so a narrow band moves in proportionally smaller steps, the same
+     * way [AdjustSpeed] scales its step to the speed cap. Two-phase:
+     *  - deeper: first lengthen the stroke toward the base (lower the min);
+     *    once the min reaches the floor, pull the max down too so the motion
+     *    concentrates into short strokes at the base.
+     *  - shallow: the mirror image heading toward the tip (raise the max to
+     *    the ceiling, then raise the min to concentrate at the tip).
      */
-    data class AdjustStrokeMin(val delta: Int) : VoiceAction()
+    data class AdjustDepth(val deeper: Boolean) : VoiceAction()
 
     /** Set stroke range (each 0-100). */
     data class SetRange(val min: Int, val max: Int) : VoiceAction()
