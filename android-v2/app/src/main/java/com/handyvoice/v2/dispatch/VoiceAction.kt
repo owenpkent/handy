@@ -21,15 +21,14 @@ sealed class VoiceAction {
     data class AdjustSpeed(val delta: Int) : VoiceAction()
 
     /**
-     * Step the stroke one notch deeper ([deeper] = true) or shallower. The
-     * point size is computed at dispatch time from the configured stroke
-     * band, so a narrow band moves in proportionally smaller steps, the same
-     * way [AdjustSpeed] scales its step to the speed cap. Two-phase:
-     *  - deeper: first lengthen the stroke toward the base (lower the min);
-     *    once the min reaches the floor, pull the max down too so the motion
-     *    concentrates into short strokes at the base.
-     *  - shallow: the mirror image heading toward the tip (raise the max to
-     *    the ceiling, then raise the min to concentrate at the tip).
+     * Slide the stroke window one notch deeper ([deeper] = true, toward the
+     * base) or shallower (toward the tip). The window's *length* is held
+     * constant — only its position moves — so depth never changes the cycle
+     * rate / felt speed (a longer stroke completes slower at the same
+     * velocity, which used to make "deeper" then "slower" crawl). The step is
+     * computed at dispatch time from the configured stroke band, so a narrow
+     * band moves in proportionally smaller steps, the same way [AdjustSpeed]
+     * scales its step to the speed cap. The window clamps at the band edges.
      */
     data class AdjustDepth(val deeper: Boolean) : VoiceAction()
 
