@@ -3,6 +3,7 @@ package com.handyvoice.v2.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -48,6 +49,10 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        // Keep the screen on while the app is in the foreground, same as
+        // ControlActivity and TrainingActivity. Honored only while visible,
+        // so it costs nothing once the user navigates away.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         prefs = PreferencesManager(applicationContext)
         store = TemplateStore(applicationContext.filesDir)
 
