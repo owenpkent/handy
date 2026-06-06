@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -616,7 +617,7 @@ class ControlActivity : AppCompatActivity() {
         } else {
             voiceModeLabel.text = "Tap mic to listen"
         }
-        micButton.text = "MIC"
+        setMicListening(false)
     }
 
     private fun onConnectTapped() {
@@ -660,14 +661,29 @@ class ControlActivity : AppCompatActivity() {
         when (listeningMode) {
             PreferencesManager.MODE_ALWAYS_ON -> {
                 voiceModeLabel.text = "Always listening"
-                micButton.text = "ON"
+                setMicListening(true)
                 ensureMicThenRun { startAlwaysOn() }
             }
             else -> {
                 voiceModeLabel.text = "Tap mic to listen"
-                micButton.text = "MIC"
+                setMicListening(false)
             }
         }
+    }
+
+    /**
+     * Reflect the listening state on the mic button: red ("ON") while the
+     * loop is live, brand blue ("MIC") when idle. Centralized so every
+     * call site flips both the label and the colour together — a red button
+     * with "MIC" on it (or vice-versa) can't happen.
+     */
+    private fun setMicListening(listening: Boolean) {
+        micButton.text = if (listening) "ON" else "MIC"
+        val tint = ContextCompat.getColor(
+            this,
+            if (listening) R.color.emergency_red else R.color.primary,
+        )
+        micButton.backgroundTintList = ColorStateList.valueOf(tint)
     }
 
     /**
@@ -682,7 +698,7 @@ class ControlActivity : AppCompatActivity() {
             if (alwaysOnJob?.isActive != true) {
                 ensureMicThenRun {
                     voiceModeLabel.text = "Always listening"
-                    micButton.text = "ON"
+                    setMicListening(true)
                     startAlwaysOn()
                 }
             }
@@ -691,12 +707,12 @@ class ControlActivity : AppCompatActivity() {
         if (alwaysOnJob?.isActive == true) {
             stopAlwaysOn()
             voiceModeLabel.text = "Tap mic to listen"
-            micButton.text = "MIC"
+            setMicListening(false)
             return
         }
         ensureMicThenRun {
             voiceModeLabel.text = "Listening — tap to stop"
-            micButton.text = "ON"
+            setMicListening(true)
             startAlwaysOn()
         }
     }
