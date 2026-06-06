@@ -36,6 +36,7 @@ import com.handyvoice.v2.audio.Vad
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.Dispatch
 import com.handyvoice.v2.dispatch.PatternEngine
+import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.MfccDtwEngine
 import com.handyvoice.v2.voice.TemplateEngine
 import com.handyvoice.v2.voice.TemplateStore
@@ -91,6 +92,12 @@ class ControlActivity : AppCompatActivity() {
          * only one label trained, runnerUp is +inf and the gate is a no-op.
          */
         private const val MIN_RELATIVE_MARGIN = 0.05
+
+        // Once-per-process guard so the quiet launch-time update check fires
+        // only on the first ControlActivity creation, not on every rotation
+        // or return from Settings.
+        @Volatile
+        private var launchUpdateChecked = false
     }
 
     private lateinit var prefs: PreferencesManager
@@ -230,6 +237,13 @@ class ControlActivity : AppCompatActivity() {
         bindViews()
         observeApi()
         bootstrap()
+
+        // Quiet check against the public releases repo; prompts only if a
+        // newer build is published. Once per process so it can't nag.
+        if (!launchUpdateChecked) {
+            launchUpdateChecked = true
+            Updater(this).check(manual = false)
+        }
     }
 
     private fun bindViews() {

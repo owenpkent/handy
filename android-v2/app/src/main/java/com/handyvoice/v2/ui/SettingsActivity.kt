@@ -14,8 +14,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.handyvoice.v2.BuildConfig
 import com.handyvoice.v2.R
 import com.handyvoice.v2.data.PreferencesManager
+import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.TemplateStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -138,6 +140,11 @@ class SettingsActivity : AppCompatActivity() {
 
         retrainButton.setOnClickListener { onRetrain() }
         clearRecordingsButton.setOnClickListener { confirmClearAll() }
+
+        findViewById<TextView>(R.id.versionText).text = "Version ${BuildConfig.VERSION_NAME}"
+        findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
+            Updater(this).check(manual = true)
+        }
 
         lifecycleScope.launch { populate() }
     }
