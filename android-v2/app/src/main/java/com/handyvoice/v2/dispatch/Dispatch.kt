@@ -18,8 +18,20 @@ object Dispatch {
     // subtle (only ~4 points/press). Bump here if it still feels small.
     const val DEFAULT_STEP: Int = 25
 
-    /** Per-press stroke-minimum nudge (user-coord points) for deeper/shallow. */
+    /**
+     * Per-press deeper/shallow nudge in *design space* (0-100), scaled to the
+     * configured stroke band at dispatch time (band 100 => 15 user points,
+     * matching the old flat step; a narrower band steps proportionally less).
+     * Mirrors how [DEFAULT_STEP] is design-space and scaled to globalMaxSpeed.
+     */
     const val DEFAULT_STROKE_STEP: Int = 15
+
+    /**
+     * Floor on stroke width (design space, scaled to the band) so the
+     * base/tip concentration phase can never collapse the stroke to a
+     * zero-width range, which would stop the motion entirely.
+     */
+    const val MIN_STROKE_WIDTH: Int = 20
 
     /**
      * Voice labels. Picked for acoustic distinctness in MFCC+DTW space:
@@ -56,10 +68,10 @@ object Dispatch {
         "stop"    to VoiceAction.Stop,
         "faster"  to VoiceAction.AdjustSpeed(DEFAULT_STEP),
         "slower"  to VoiceAction.AdjustSpeed(-DEFAULT_STEP),
-        // Lengthen / shorten the stroke by moving the minimum (top of range).
-        // Negative delta lowers the min (longer stroke); positive raises it.
-        "deeper"  to VoiceAction.AdjustStrokeMin(-DEFAULT_STROKE_STEP),
-        "shallow" to VoiceAction.AdjustStrokeMin(DEFAULT_STROKE_STEP),
+        // Step deeper / shallower. deeper lengthens toward the base, then
+        // concentrates the stroke at the base; shallow mirrors toward the tip.
+        "deeper"  to VoiceAction.AdjustDepth(deeper = true),
+        "shallow" to VoiceAction.AdjustDepth(deeper = false),
         // Surprise envelope — picks a random pattern each time.
         "random"  to VoiceAction.RandomPattern(),
     )
@@ -128,17 +140,39 @@ object Dispatch {
                 api.setSpeed(target)
             }
 
-            is VoiceAction.AdjustStrokeMin -> {
-                // Move the stroke minimum (top of the range), keeping max fixed.
-                // Negative delta = deeper (longer stroke); positive = shallower.
-                // The min can rise to just below the current max and drop to
-                // the global floor — so it never crosses the max-stroke setting.
-                val curMin = api.strokeMin.value
-                val curMax = api.strokeMax.value
+            is VoiceAction.AdjustDepth -> {
+                // Step size + minimum width scaled to the configured band, the
+                // same way AdjustSpeed scales its step to globalMaxSpeed, so the
+                // feel is consistent whatever band the user has set.
                 val floor = globalMinStroke.coerceIn(0, 100)
-                val ceil = (curMax - 1).coerceAtLeast(floor)
-                val newMin = (curMin + action.delta).coerceIn(floor, ceil)
-                api.setStrokeRange(newMin, curMax)
+                val ceil = globalMaxStroke.coerceIn(floor, 100)
+                val band = (ceil - floor).coerceAtLeast(1)
+                val step = (DEFAULT_STROKE_STEP * band / 100).coerceAtLeast(1)
+                val minWidth = (MIN_STROKE_WIDTH * band / 100).coerceAtLeast(1)
+                val curMin = api.strokeMin.value.coerceIn(floor, ceil)
+                val curMax = api.strokeMax.value.coerceIn(floor, ceil)
+
+                if (action.deeper) {
+                    if (curMin > floor) {
+                        // Phase 1: lengthen the stroke toward the base (lower min).
+                        api.setStrokeRange((curMin - step).coerceAtLeast(floor), curMax)
+                    } else {
+                        // Phase 2: min is on the floor — pull the top down so the
+                        // motion concentrates into short strokes at the base.
+                        val newMax = (curMax - step).coerceAtLeast(floor + minWidth)
+                        if (newMax < curMax) api.setStrokeRange(floor, newMax) else true
+                    }
+                } else {
+                    if (curMax < ceil) {
+                        // Phase 1 (mirror): re-extend the top toward the tip (raise max).
+                        api.setStrokeRange(curMin, (curMax + step).coerceAtMost(ceil))
+                    } else {
+                        // Phase 2 (mirror): max is at the ceiling — raise the floor
+                        // so the motion concentrates into short strokes at the tip.
+                        val newMin = (curMin + step).coerceAtMost(ceil - minWidth)
+                        if (newMin > curMin) api.setStrokeRange(newMin, ceil) else true
+                    }
+                }
             }
 
             is VoiceAction.SetRange -> {
