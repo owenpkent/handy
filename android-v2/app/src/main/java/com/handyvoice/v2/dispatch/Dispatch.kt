@@ -20,18 +20,15 @@ object Dispatch {
 
     /**
      * Per-press deeper/shallow nudge in *design space* (0-100), scaled to the
-     * configured stroke band at dispatch time (band 100 => 15 user points,
-     * matching the old flat step; a narrower band steps proportionally less).
-     * Mirrors how [DEFAULT_STEP] is design-space and scaled to globalMaxSpeed.
+     * configured stroke band at dispatch time (band 100 => 15 user points;
+     * a narrower band steps proportionally less). Mirrors how [DEFAULT_STEP]
+     * is design-space and scaled to globalMaxSpeed.
+     *
+     * This is how far the stroke *window slides* per press. The window's
+     * length is held constant (see [VoiceAction.AdjustDepth]), so depth never
+     * changes the cycle rate / felt speed.
      */
     const val DEFAULT_STROKE_STEP: Int = 15
-
-    /**
-     * Floor on stroke width (design space, scaled to the band) so the
-     * base/tip concentration phase can never collapse the stroke to a
-     * zero-width range, which would stop the motion entirely.
-     */
-    const val MIN_STROKE_WIDTH: Int = 20
 
     /**
      * Voice labels. Picked for acoustic distinctness in MFCC+DTW space:
@@ -68,8 +65,9 @@ object Dispatch {
         "stop"    to VoiceAction.Stop,
         "faster"  to VoiceAction.AdjustSpeed(DEFAULT_STEP),
         "slower"  to VoiceAction.AdjustSpeed(-DEFAULT_STEP),
-        // Step deeper / shallower. deeper lengthens toward the base, then
-        // concentrates the stroke at the base; shallow mirrors toward the tip.
+        // Step deeper / shallower. Slides the stroke window toward the base
+        // (deeper) or the tip (shallow) at a fixed length, so depth doesn't
+        // change the felt speed.
         "deeper"  to VoiceAction.AdjustDepth(deeper = true),
         "shallow" to VoiceAction.AdjustDepth(deeper = false),
         // Surprise envelope — picks a random pattern each time.
@@ -141,37 +139,36 @@ object Dispatch {
             }
 
             is VoiceAction.AdjustDepth -> {
-                // Step size + minimum width scaled to the configured band, the
-                // same way AdjustSpeed scales its step to globalMaxSpeed, so the
-                // feel is consistent whatever band the user has set.
+                // Slide the stroke *window* deeper (toward the base) or
+                // shallower (toward the tip) while holding its length fixed.
+                // Keeping the width constant keeps the cycle rate constant, so
+                // depth never changes the felt speed — the same way faster /
+                // slower never touch the range. Step is scaled to the band the
+                // same way AdjustSpeed scales its step to globalMaxSpeed.
+                //
+                // (Earlier this *lengthened* then concentrated the stroke. A
+                // longer stroke completes slower at the same velocity, so
+                // "deeper" dropped the felt pace and a following "slower" then
+                // crawled. Sliding a fixed-length window avoids that coupling.)
                 val floor = globalMinStroke.coerceIn(0, 100)
                 val ceil = globalMaxStroke.coerceIn(floor, 100)
                 val band = (ceil - floor).coerceAtLeast(1)
                 val step = (DEFAULT_STROKE_STEP * band / 100).coerceAtLeast(1)
-                val minWidth = (MIN_STROKE_WIDTH * band / 100).coerceAtLeast(1)
                 val curMin = api.strokeMin.value.coerceIn(floor, ceil)
                 val curMax = api.strokeMax.value.coerceIn(floor, ceil)
 
                 if (action.deeper) {
-                    if (curMin > floor) {
-                        // Phase 1: lengthen the stroke toward the base (lower min).
-                        api.setStrokeRange((curMin - step).coerceAtLeast(floor), curMax)
-                    } else {
-                        // Phase 2: min is on the floor — pull the top down so the
-                        // motion concentrates into short strokes at the base.
-                        val newMax = (curMax - step).coerceAtLeast(floor + minWidth)
-                        if (newMax < curMax) api.setStrokeRange(floor, newMax) else true
-                    }
+                    // Move toward the base; clamp at the floor, then shift the
+                    // top down by the same amount so the length is preserved.
+                    val newMin = (curMin - step).coerceAtLeast(floor)
+                    val shift = curMin - newMin
+                    if (shift > 0) api.setStrokeRange(newMin, curMax - shift) else true
                 } else {
-                    if (curMax < ceil) {
-                        // Phase 1 (mirror): re-extend the top toward the tip (raise max).
-                        api.setStrokeRange(curMin, (curMax + step).coerceAtMost(ceil))
-                    } else {
-                        // Phase 2 (mirror): max is at the ceiling — raise the floor
-                        // so the motion concentrates into short strokes at the tip.
-                        val newMin = (curMin + step).coerceAtMost(ceil - minWidth)
-                        if (newMin > curMin) api.setStrokeRange(newMin, ceil) else true
-                    }
+                    // Mirror toward the tip; clamp at the ceiling, shift the
+                    // bottom up by the same amount.
+                    val newMax = (curMax + step).coerceAtMost(ceil)
+                    val shift = newMax - curMax
+                    if (shift > 0) api.setStrokeRange(curMin + shift, newMax) else true
                 }
             }
 

@@ -12,8 +12,8 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. `start → beg
 | `stop` | `Stop` | Immediate stop. Cancels any running pattern envelope as well. |
 | `faster` | `AdjustSpeed(+15)` | Add 15 design points to current speed. Scaled by global max; clamped to `[0, globalMaxSpeed]`. |
 | `slower` | `AdjustSpeed(-15)` | Subtract 15. Same scaling + clamp. |
-| `deeper` | `AdjustDepth(deeper = true)` | Two-phase, band-scaled step. Phase 1 lengthens the stroke toward the base (lower the min, max held) until the min reaches `globalMinStroke`; phase 2 then pulls the max down too, concentrating into short strokes at the base (floored by `MIN_STROKE_WIDTH`). |
-| `shallow` | `AdjustDepth(deeper = false)` | Mirror image toward the tip. Phase 1 re-extends the top toward `globalMaxStroke` (raise the max); phase 2 then raises the min, concentrating into short strokes at the tip. |
+| `deeper` | `AdjustDepth(deeper = true)` | Slides the stroke window toward the base (lowers min and max by the same band-scaled step), holding the stroke *length* fixed so the felt speed doesn't change. Clamps at `globalMinStroke`. |
+| `shallow` | `AdjustDepth(deeper = false)` | Mirror image: slides the window toward the tip (raises min and max together), length held. Clamps at `globalMaxStroke`. |
 | `random` | `RandomPattern` | Fires a randomly-chosen `PatternEngine` envelope. See [PatternEngine](#pattern-engine). |
 
 ## VoiceAction sealed class
@@ -38,7 +38,7 @@ sealed class VoiceAction {
 | `Stop` | Cancel any running `PatternEngine` job, then `api.stop()` (`PUT /hamp/stop`). Clears `isRunning`. |
 | `SetSpeed(percent)` | If `percent == 0`, calls `api.stop()`. Otherwise: ensure the device is started, then `api.setSpeed(scaled)`. `scaled = percent × globalMaxSpeed / 100`. |
 | `AdjustSpeed(delta)` | Compute the target as `api.currentSpeed + (delta × globalMaxSpeed / 100)`, clamp to `[0, globalMaxSpeed]`, then `api.setSpeed(target)`. The clamp ensures repeated "faster" can't sneak past the cap. |
-| `AdjustDepth(deeper)` | Two-phase stroke step, band-scaled like `AdjustSpeed`. `step = DEFAULT_STROKE_STEP × band / 100` and `minWidth = MIN_STROKE_WIDTH × band / 100`, where `band = globalMaxStroke - globalMinStroke`. **deeper:** if `strokeMin > floor`, lower the min by `step` (phase 1, lengthen toward base); else lower the max by `step` down to `floor + minWidth` (phase 2, concentrate at base). **shallow:** if `strokeMax < ceiling`, raise the max by `step` (phase 1, re-extend toward tip); else raise the min up to `ceiling - minWidth` (phase 2, concentrate at tip). All clamps stay within `[globalMinStroke, globalMaxStroke]`. |
+| `AdjustDepth(deeper)` | Slides the stroke window at a fixed length, band-scaled like `AdjustSpeed`. `step = DEFAULT_STROKE_STEP × band / 100`, where `band = globalMaxStroke - globalMinStroke`. **deeper:** lower min by `step` (clamped to `floor`), then lower max by the same actual shift so the length is preserved. **shallow:** raise max by `step` (clamped to `ceiling`), then raise min by the same shift. Holding the length constant keeps the cycle rate constant, so depth never changes the felt speed; a window already against a band edge is a no-op. |
 | `SetRange(min, max)` | Range is squashed into `[globalMinStroke, globalMaxStroke]`, then `api.setStrokeRange(squashedMin, squashedMax)`. The client also applies the invert flip if enabled. |
 | `Preset(rangeMin, rangeMax, speed)` | One-shot static preset for the tap-only Manual buttons. Cancels any running pattern, squashes the range into the global band, then slide → start → velocity in that order. The Handy API resets velocity if it's written before `start`. |
 | `Pattern(name, intensity)` | Opens the stroke range to the full global band, then calls `patternEngine.start(name, scaleSpeed(intensity))`. The engine launches a looping coroutine that emits `(envelope, durationMs)` pairs into `api.setSpeed`. |
