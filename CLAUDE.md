@@ -84,6 +84,7 @@ New Android client that recognizes voice commands by matching against **prerecor
 | `dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / SetRange / Preset / Pattern`. |
 | `dispatch/Dispatch.kt` | `Map<label, VoiceAction>` + `dispatch(label, api, globalMaxSpeed, ..., patternEngine)` suspending function. Mirrors `vega/commands.py`'s DISPATCH, with `Pattern` actions delegating to the engine. |
 | `dispatch/PatternEngine.kt` | Time-based envelope engine. 12 named patterns; each is a `suspend fun(api, intensity)` looping `(envelope, durationMs)` pairs into `api.setSpeed`. Ported from `homeassistant/.../patterns.py`. Cancellable; only one pattern runs at a time. |
+| `update/Updater.kt` | In-app self-update. Polls the public releases repo's `/releases/latest`, compares the tag to `BuildConfig.VERSION_NAME`, downloads the `.apk` to `cacheDir/updates`, and hands it to the system installer via `FileProvider`. Quiet check on launch + manual button in Settings. See the Auto-update section below. |
 | `data/PreferencesManager.kt` | DataStore prefs — connection key, listening mode, global max speed, match threshold, onboarded flag. |
 
 ### Layout Files (`android/app/src/main/res/layout/`)
@@ -525,6 +526,18 @@ python -m http.server 8000   # Serve v2-web/ locally
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.
 - No models to download. Templates are user-recorded; nothing leaves the device.
 - Reset everything: `adb shell pm clear com.handyvoice.v2` wipes prefs + templates.
+
+### Auto-update (Android V2)
+
+The app self-updates from a **public releases repo** so the source repo can stay private. Built APKs are published as GitHub Releases to **`owenpkent/handy-releases`** (`Updater.RELEASES_REPO`); the app polls that repo's `/releases/latest` and never needs an embedded token.
+
+- **Code:** `update/Updater.kt`. Flow: GET `/releases/latest` → compare `tag_name` to `BuildConfig.VERSION_NAME` (`Updater.isNewer`, integer-component compare so `0.10 > 0.9`) → if newer, download the `.apk` asset to `cacheDir/updates/update.apk` → hand to the system installer via `FileProvider` (authority `${applicationId}.fileprovider`, see `res/xml/file_paths.xml`).
+- **Triggers:** a quiet check in `ControlActivity.onCreate` (once per process; prompts only if a newer build exists) and a manual **Settings → About → Check for updates** button (`manual = true`, which also reports "up to date" / errors).
+- **Permissions:** `REQUEST_INSTALL_PACKAGES` in the manifest; on first use the app routes the user to *install unknown apps* for itself if not yet granted. `buildConfig = true` is enabled so `BuildConfig.VERSION_NAME/CODE` exist.
+- **Not silent.** Android always shows its own one-tap installer for a sideloaded app; truly silent install needs Play / device-owner. This is the closest possible.
+- **Signing constraint.** Android only applies an update whose APK is signed with the **same key** as the installed build. Builds are debug-signed (`~/.android/debug.keystore`, stable per machine), so **always publish from the same machine**. Switching to a release keystore later forces a one-time uninstall/reinstall (different signature).
+- **Publishing:** bump `versionName` + `versionCode` in `app/build.gradle.kts`, then run `android-v2/publish-release.ps1` (optionally `-Notes "..."`). It builds the APK, creates the public repo on first run (`--add-readme` so a release tag has a commit to point at), and cuts/updates the `v<versionName>` release. Tests: `UpdaterTest` covers the version-compare gate.
+- **Bootstrap:** v0.11 is the first build containing the updater. It must be sideloaded manually once; from v0.12 onward the in-app updater takes over.
 
 ### Browser Requirements (Web)
 - Chrome 25+ (best voice support)
