@@ -202,15 +202,19 @@ VAD energy threshold is too high for your voice. Two paths:
 
 In Settings, the threshold slider only changes the match threshold, not the VAD threshold. Exposing VAD sensitivity as a setting is a Phase 2 item.
 
+### The phone screen sleeps while the app is open
+
+Fixed. `ControlActivity` (and `SettingsActivity` / `TrainingActivity`) set `FLAG_KEEP_SCREEN_ON` in `onCreate`, so the screen stays on the **whole time the app is in the foreground** — whether or not you're listening. The flag is only honored while the window is visible, so backgrounding the app or navigating away lets the screen sleep normally.
+
 ### Listening stops when the phone screen sleeps
 
-Fixed. While the listening loop is active, `ControlActivity.keepAwake(true)` holds `FLAG_KEEP_SCREEN_ON` plus a `PARTIAL_WAKE_LOCK`, so the screen won't idle out and the CPU won't suspend mid-capture. If you deliberately press the power button, `onStop` sees a non-interactive screen and **keeps the loop running** on the wake lock — commands still fire with the screen dark. Navigating away (Home / Settings) tears the loop down and drops the lock; coming back re-arms always-on automatically.
+Fixed. The always-on screen flag above keeps the screen lit while the app is foreground. Separately, while the listening loop is active `ControlActivity.keepAwake(true)` also holds a `PARTIAL_WAKE_LOCK`, so even if you deliberately press the power button to darken the screen, the CPU won't suspend mid-capture: `onStop` sees a non-interactive screen and **keeps the loop running** on the wake lock — commands still fire with the screen dark. Navigating away (Home / Settings) tears the loop down and drops the lock; coming back re-arms always-on automatically.
 
 If you still see listening die on screen-off, check: (1) the app actually started listening (Always-on mode, or you tapped the mic in button mode — the peak bar should be live); (2) the device isn't force-stopping the app under aggressive OEM battery management (some Android skins ignore wake locks for "optimized" apps — exclude the app from battery optimization in system settings). Note that `android:keepScreenOn` on an `<activity>` in the manifest does nothing; the working flag is set in code.
 
 ### Listening stopped and the device stopped after a while of not using it
 
-By design. After the idle window (default 10 min) with no voice command **and** no screen touch, the app stops the Handy and stops listening so the phone can sleep — it assumes you've walked away. Tap the mic to resume (this works in always-on mode too). The timer resets on every voice match and every touch, so it won't fire while you're actually using either the voice or Manual controls. Change the window in **Settings → Idle auto-stop (minutes)** (1–30 min).
+By design. After the idle window (default 10 min) with no voice command **and** no screen touch, the app stops the Handy and stops listening — it assumes you've walked away. Tap the mic to resume (this works in always-on mode too). The timer resets on every voice match and every touch, so it won't fire while you're actually using either the voice or Manual controls. Change the window in **Settings → Idle auto-stop (minutes)** (1–30 min). Note: the screen still stays on as long as the app is in the foreground (that's the always-on keep-awake) — the idle stop halts the device and frees the mic, it no longer puts the screen to sleep.
 
 ## Runtime: dispatch
 

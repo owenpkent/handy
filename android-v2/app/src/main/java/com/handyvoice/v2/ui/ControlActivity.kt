@@ -106,11 +106,13 @@ class ControlActivity : AppCompatActivity() {
 
     /**
      * Held only while the listening loop is running so a sleeping screen
-     * can't suspend the CPU mid-utterance. Paired with FLAG_KEEP_SCREEN_ON
-     * (which stops the screen sleeping in the first place); the lock is the
-     * belt-and-suspenders for a deliberate power-button press. Released the
-     * moment listening stops and again in onDestroy. Reference counting is
-     * off so acquire/release stay idempotent against the isHeld guard.
+     * can't suspend the CPU mid-utterance. The screen is kept on for the
+     * whole foreground lifetime by FLAG_KEEP_SCREEN_ON (set in onCreate);
+     * this lock is the belt-and-suspenders for a deliberate power-button
+     * press that darkens the screen while voice control is still wanted.
+     * Released the moment listening stops and again in onDestroy. Reference
+     * counting is off so acquire/release stay idempotent against the isHeld
+     * guard.
      */
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -207,6 +209,15 @@ class ControlActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_control)
+
+        // Keep the screen on the whole time this screen is in the foreground,
+        // not just while listening. The OS only honors this flag while the
+        // window is visible, so it costs nothing when the app is backgrounded
+        // and navigating away (Home / Settings) lets the screen sleep
+        // normally. This is the "keep the phone awake while the app is
+        // running" behavior; the partial wake lock (keepAwake) is a separate,
+        // listening-only concern for when the screen is deliberately off.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         prefs = PreferencesManager(applicationContext)
         store = TemplateStore(applicationContext.filesDir)
@@ -508,14 +519,14 @@ class ControlActivity : AppCompatActivity() {
     }
 
     /**
-     * Hold the device awake while the listening loop runs. Keeps the screen
-     * on (so it never idles out from under an active listen) and grabs a
-     * partial wake lock (so a deliberate power-off doesn't suspend the CPU
-     * and kill capture). Both are dropped the instant listening stops.
+     * Hold a partial wake lock while the listening loop runs so a
+     * deliberately darkened screen (power button) can't suspend the CPU and
+     * kill capture mid-utterance. The screen itself is kept on for the whole
+     * foreground lifetime by the FLAG_KEEP_SCREEN_ON set in onCreate, so this
+     * only manages the CPU lock; it's dropped the instant listening stops.
      */
     private fun keepAwake(on: Boolean) {
         if (on) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             if (wakeLock == null) {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 wakeLock = pm.newWakeLock(
@@ -525,7 +536,6 @@ class ControlActivity : AppCompatActivity() {
             }
             if (wakeLock?.isHeld != true) wakeLock?.acquire()
         } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             if (wakeLock?.isHeld == true) wakeLock?.release()
         }
     }
