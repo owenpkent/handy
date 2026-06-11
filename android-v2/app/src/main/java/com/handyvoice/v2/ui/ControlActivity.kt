@@ -388,7 +388,8 @@ class ControlActivity : AppCompatActivity() {
         val cap = globalMaxSpeed.coerceIn(1, 100)
         val scaledDelta = designDelta * cap / 100
         val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
-        api.setSpeed(target)
+        // Smooth glide to the new speed (same ramp the voice path uses).
+        api.rampSpeed(target)
     }
 
     private fun bootstrap() {

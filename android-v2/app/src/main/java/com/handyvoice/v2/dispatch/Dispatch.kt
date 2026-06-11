@@ -135,7 +135,9 @@ object Dispatch {
                 val cap = globalMaxSpeed.coerceIn(1, 100)
                 val scaledDelta = action.delta * cap / 100
                 val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
-                api.setSpeed(target)
+                // Glide to the new speed instead of jumping — the device is
+                // stepped through intermediate velocities (see rampSpeed).
+                api.rampSpeed(target)
             }
 
             is VoiceAction.AdjustDepth -> {
