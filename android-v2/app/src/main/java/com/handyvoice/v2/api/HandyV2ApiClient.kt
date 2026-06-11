@@ -22,6 +22,17 @@ class HandyV2ApiClient {
     companion object {
         private const val BASE_URL = "https://www.handyfeeling.com/api/handy/v2/"
         private const val MAX_LOG_LINES = 50
+
+        // Smooth-ramp tuning for rampSpeed (faster / slower). The transition
+        // is broken into several PUT /hamp/velocity legs so the change is
+        // felt as a glide instead of a hard jump. Duration scales with how
+        // far we're moving (a bigger change takes a little longer), clamped
+        // to a sane window. Interval is floored so we never hammer the API.
+        private const val RAMP_MS_PER_POINT = 45      // velocity point → ms
+        private const val RAMP_MIN_MS = 250L
+        private const val RAMP_MAX_MS = 900L
+        private const val MAX_RAMP_STEPS = 12
+        private const val MIN_RAMP_INTERVAL_MS = 55L
     }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -209,9 +220,56 @@ class HandyV2ApiClient {
         }
 
         val velocity = percent.coerceIn(0, 100)
+        log("Setting speed to $velocity%")
+        return putVelocity(velocity)
+    }
 
+    /**
+     * Glide device velocity from its current value to [target], emitting a
+     * handful of intermediate velocities so the change is felt as a smooth
+     * ramp instead of a hard jump. Backs the faster / slower commands.
+     *
+     * The ramp duration scales with the distance travelled (a bigger jump
+     * takes a little longer) and is clamped to [RAMP_MIN_MS]..[RAMP_MAX_MS].
+     * Each leg moves ~1 velocity point (capped at [MAX_RAMP_STEPS] legs so a
+     * large jump doesn't flood the API). Suspends for the full ramp; the
+     * caller's dispatch cooldown (1.5 s) comfortably covers it.
+     *
+     * NB: overlapping ramps (e.g. very rapid taps) aren't serialized — the
+     * last one to write wins, which is fine for a monotonic faster/slower
+     * gesture.
+     */
+    suspend fun rampSpeed(target: Int): Boolean {
+        if (_connectionState.value != ConnectionState.CONNECTED) {
+            _lastError.value = "Not connected"
+            return false
+        }
+        val from = _currentSpeed.value
+        val to = target.coerceIn(0, 100)
+        val distance = kotlin.math.abs(to - from)
+        if (distance == 0) return true
+
+        val steps = distance.coerceIn(2, MAX_RAMP_STEPS)
+        val durationMs = (distance.toLong() * RAMP_MS_PER_POINT)
+            .coerceIn(RAMP_MIN_MS, RAMP_MAX_MS)
+        val interval = (durationMs / steps).coerceAtLeast(MIN_RAMP_INTERVAL_MS)
+        log("Ramping speed $from% → $to% over ~${durationMs}ms ($steps steps)")
+
+        var ok = true
+        for (i in 1..steps) {
+            val v = from + (to - from) * i / steps
+            ok = putVelocity(v) && ok
+            if (i < steps) delay(interval)
+        }
+        return ok
+    }
+
+    /**
+     * Single PUT /hamp/velocity. Updates [currentSpeed] on success. Shared by
+     * [setSpeed] (logs the intent) and [rampSpeed] (logs once, then steps).
+     */
+    private suspend fun putVelocity(velocity: Int): Boolean {
         return try {
-            log("Setting speed to $velocity%")
             val response = api.setVelocity(connectionKey, VelocityRequest(velocity.toDouble()))
             if (response.isSuccessful) {
                 _currentSpeed.value = velocity
