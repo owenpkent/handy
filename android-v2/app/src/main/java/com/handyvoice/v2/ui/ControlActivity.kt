@@ -368,17 +368,38 @@ class ControlActivity : AppCompatActivity() {
                 setupPanel.visibility = View.GONE
                 controlPanel.visibility = View.VISIBLE
                 statusText.setText(R.string.status_connected)
+                statusText.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
                 applyListeningMode()
             }
             ConnectionState.CONNECTING -> {
                 statusText.text = "Connecting..."
+                // Clear any red failure color from a previous attempt.
+                statusText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 showConnecting(true)
             }
             ConnectionState.DISCONNECTED -> {
                 showConnecting(false)
                 controlPanel.visibility = View.GONE
                 setupPanel.visibility = View.VISIBLE
-                statusText.setText(R.string.status_disconnected)
+                // If we landed here because an attempt failed, show *why*
+                // (e.g. "Device not connected. Make sure your Handy is
+                // online.") in red rather than a bare "Disconnected". This
+                // covers both the manual Connect tap and the splash-time
+                // auto-connect, since both end in DISCONNECTED with the
+                // reason cached on the client. A clean disconnect clears
+                // lastError, so it falls back to the generic label.
+                val reason = api.lastError.value
+                if (reason != null) {
+                    statusText.text = reason
+                    statusText.setTextColor(
+                        ContextCompat.getColor(this, R.color.status_disconnected)
+                    )
+                } else {
+                    statusText.setText(R.string.status_disconnected)
+                    statusText.setTextColor(
+                        ContextCompat.getColor(this, R.color.text_secondary)
+                    )
+                }
                 stopAlwaysOn()
             }
         }
@@ -648,7 +669,13 @@ class ControlActivity : AppCompatActivity() {
         lifecycleScope.launch {
             prefs.setConnectionKey(key)
             api.setConnectionKey(key)
-            api.connect()
+            val ok = api.connect()
+            if (!ok) {
+                // The DISCONNECTED state already paints the reason on the
+                // status line; a toast makes the failure unmissable right
+                // after the tap.
+                toast(api.lastError.value ?: "Connection failed.")
+            }
         }
     }
 
