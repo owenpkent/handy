@@ -116,6 +116,8 @@ If media volume is up and Play is still silent, the take captured but is silent 
 
 ## Runtime: connection
 
+When a connect attempt fails, the app shows the reason on the status line in red (and a toast right after a manual Connect tap) instead of a bare "Disconnected", so the messages below appear in the UI directly, not just the debug log. The same reasons are also in `lastError` / the debug panel.
+
 ### `Device not connected. Make sure your Handy is online.`
 
 Your connection key is valid but the device isn't currently online. The Handy needs to be powered on and connected to your account at handyfeeling.com. Check:

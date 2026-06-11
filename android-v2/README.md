@@ -95,8 +95,8 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. The vega set h
 | --- | --- |
 | `begin` | Set speed to 25 design points (scaled by global max). Renamed from `start` because `start`/`stop` collide for slower speech. |
 | `stop` | Stop the device + cancel any running pattern. |
-| `faster` | Adjust speed by +15 design points, clamped to `globalMaxSpeed`. |
-| `slower` | Adjust speed by -15 design points, clamped to `[0, globalMaxSpeed]`. |
+| `faster` | Adjust speed by +25 design points, clamped to `globalMaxSpeed`. Glides to the new speed (`rampSpeed`) instead of jumping. |
+| `slower` | Adjust speed by -25 design points, clamped to `[0, globalMaxSpeed]`. Same glide. |
 | `thunder` | Run the **thunder** envelope (random walk; was `storm`). |
 | `ripple` | Run the **ripple** envelope (sine 0..1..0, 8 s cycle; was `wave`). |
 | `pulse` | Run the **pulse** envelope (lub-dub-rest; was `heartbeat`). |
@@ -186,7 +186,7 @@ Both modes use a **post-VAD wait** (~1.8 s) before snapshotting the rolling buff
 
 ## Safety caps
 
-- **Global max speed** *(default 30%)*. Every speed sent to the device is scaled by this percentage. `Dispatch.dispatch()` applies it before `setSpeed`; pattern envelopes scale their peak by it; "faster" / "slower" deltas are clamped to `[0, globalMaxSpeed]` so repeated taps can't sneak past the cap. Configurable in Settings.
+- **Global max speed** *(default 30%)*. Every speed sent to the device is scaled by this percentage. `Dispatch.dispatch()` applies it before `setSpeed`; pattern envelopes scale their peak by it; "faster" / "slower" deltas are clamped to `[0, globalMaxSpeed]` so repeated taps can't sneak past the cap, and glide to the clamped target via `rampSpeed` rather than jumping. Configurable in Settings.
 - **Global stroke band** *(default 0–100)*. Hard floor and ceiling on stroke position. Manual sliders are physically bounded to this band; pattern range fields are squashed into it. Configurable in Settings.
 - **Invert stroke**. Toggle in Settings flips user-coord 0 to device-coord 100 (and vice versa) at the API client boundary. All callers think in user coords; the flip happens once in `setStrokeRange` and `parkAtRetracted`.
 - **Connect-time park**. After a successful connect, the client switches to HDSP, sends a single `xpt` command to position 0 (or 100 inverted, clamped by the global band), and switches back to HAMP. Slow controlled slide instead of a stroke.
