@@ -198,7 +198,7 @@ ackTone.beep()
 Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine)
   │   ┌─ Stop          → patternEngine.cancel() ; api.stop()
   │   ├─ SetSpeed      → ensure running, then api.setSpeed(scaled by globalMaxSpeed)
-  │   ├─ AdjustSpeed   → api.setSpeed(current + scaled-delta), clamped to [0, globalMaxSpeed]
+  │   ├─ AdjustSpeed   → api.rampSpeed(current + scaled-delta), clamped to [0, globalMaxSpeed]; glides in steps
   │   ├─ SetRange      → api.setStrokeRange(squashed-into-band)
   │   ├─ Preset        → patternEngine.cancel() ; setStrokeRange(squashed) → start → setSpeed(scaled)
   │   └─ Pattern       → setStrokeRange(squashed full band) → patternEngine.start(name, scaleSpeed(intensity))
@@ -257,7 +257,7 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 ## Things deliberately missing
 
 - **No background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
-- **No automatic reconnection retries.** If `api.connect()` fails, the user must tap Connect again. The API client surfaces errors in `lastError` and `debugLog`. Retries belong in user-driven UI, not silently in the background.
+- **No automatic reconnection retries.** If `api.connect()` fails, the user must tap Connect again. The API client surfaces errors in `lastError` and `debugLog`, and `ControlActivity` shows the reason on the status line in red (plus a toast on a manual Connect tap) so the failure is visible rather than a silent "Disconnected". This covers both the manual tap and the splash-time auto-connect, since both end in `DISCONNECTED` with the reason cached. Retries belong in user-driven UI, not silently in the background.
 - **No template versioning beyond `format: 1`.** A future migration script can read `format` and adapt; for now there is one shape.
 - **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for seven labels.
 - **No analytics, telemetry, or crash reporting.** This is a personal accessibility tool; everything stays on-device.
