@@ -16,7 +16,7 @@ SmartDongV2-v<versionName>-debug.apk
 So a normal build refreshes it:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; cd C:\Users\Owen\dev\handy-v1\android-v2; .\gradlew.bat :app:assembleDebug
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; cd C:\Users\Owen\dev\handy\android-v2; .\gradlew.bat :app:assembleDebug
 ```
 
 ## Versioning
