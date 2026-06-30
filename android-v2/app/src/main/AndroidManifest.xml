@@ -33,7 +33,9 @@
         <activity
             android:name=".ui.ControlActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="portrait"
+            android:supportsPictureInPicture="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden" />
 
         <activity
             android:name=".ui.TrainingActivity"

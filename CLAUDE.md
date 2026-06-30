@@ -24,52 +24,33 @@ I'm Owen — a wheelchair user with muscular dystrophy.
 
 ### Apps
 
+**`android-v2/` is the only active app.** Everything else moved to `legacy/` (reference only, not maintained) — see `legacy/README.md`.
+
 | App | Status | Description |
 |-----|--------|-------------|
-| `v2-web/` | ✅ Working | Handy V2 web app — preset grid, sliders, debug panel |
-| `android/` | ✅ Working | Android app — Vosk voice control, preset grid, debug panel |
-| `android-v2/` | 🟢 Scaffold | New Android app using **prerecorded voice samples** (MFCC + DTW). Inspired by `../vega`. See `android-v2/README.md`. |
-| `v1-web/` | 🗄️ Legacy | Handy V1 web app with Deepgram voice (reference only) |
+| `android-v2/` | 🟢 Active | The app. Android client using **prerecorded voice samples** (MFCC + DTW). Inspired by `../vega`. See `android-v2/README.md`. |
+| `legacy/android/` | 🗄️ Frozen | Old Android app — Vosk offline ASR + constrained grammar. Superseded by `android-v2/`. |
+| `legacy/v2-web/` | 🗄️ Frozen | Handy V2 web app — preset grid, sliders, debug panel. Good V2 REST reference. |
+| `legacy/v1-web/` | 🗄️ Legacy | Handy V1 web app with Deepgram voice. |
+| `legacy/alexa/` | 🗄️ Shelved | Alexa skill, blocked by Amazon content filter. |
+| `legacy/homeassistant/` | 🗄️ Reference | HA component; its pattern envelopes were ported into android-v2's `PatternEngine`. |
 
 ---
 
 ## Key Files
 
-### Web App (`v2-web/`)
-
-| File | Purpose |
-|------|---------|
-| `index.html` | V2 web app interface — preset grid, sliders, debug panel |
-| `style.css` | Dark theme, accessible styling |
-| `app.js` | App logic — presets, sliders, global limits, speed multiplier |
-| `handy-v2-api.js` | Handy REST API v2 client (single `HandyV2API` class) |
-
-### Android App (`android/app/src/main/java/com/handyvoice/app/`)
-
-| File | Purpose |
-|------|---------|
-| `ControlActivity.kt` | Main control screen — sliders, presets, mic, debug panel, voice command execution |
-| `SettingsActivity.kt` | Settings — API keys, voice engine selection (Vosk/Android STT/Deepgram) |
-| `MainActivity.kt` | Legacy main activity (voice commands handled here too, keep `when` exhaustive) |
-| `api/HandyV2ApiClient.kt` | Handy V2 REST API client (Retrofit) — connect, start/stop, speed, stroke |
-| `api/HandyApiClient.kt` | Legacy V1 API client |
-| `api/HandyApiService.kt` | Legacy V1 Retrofit interface |
-| `voice/VoskVoiceEngine.kt` | **Primary voice engine** — Vosk offline with constrained JSGF grammar |
-| `voice/VoiceCommand.kt` | Sealed class + parser — fuzzy matching with Levenshtein distance |
-| `voice/VoiceEngine.kt` | Common interface for all voice engines |
-| `voice/DeepgramVoiceEngine.kt` | Deepgram WebSocket engine (requires API key) |
-| `voice/VoiceRecognitionService.kt` | Android STT engine (poor accuracy for Owen) |
-| `data/PreferencesManager.kt` | DataStore preferences — keys, voice engine selection |
+> **Legacy apps live under `legacy/`** (`legacy/android/` Vosk app, `legacy/v2-web/`, `legacy/v1-web/`, `legacy/alexa/`, `legacy/homeassistant/`). They're frozen and not covered in detail here — see `legacy/README.md`. Everything below is `android-v2/`.
 
 ### Android App V2 (`android-v2/app/src/main/java/com/handyvoice/v2/`)
 
-New Android client that recognizes voice commands by matching against **prerecorded samples of the user's own voice**. Speaker-locked template matching with MFCC + DTW. Inspired by `../vega`. Co-exists with `android/`; both apps can be installed at once. See `android-v2/README.md` and `android-v2/docs/`.
+The active app. Recognizes voice commands by matching against **prerecorded samples of the user's own voice**. Speaker-locked template matching with MFCC + DTW. Inspired by `../vega`. See `android-v2/README.md` and `android-v2/docs/`.
 
 | File | Purpose |
 |------|---------|
 | `HandyVoiceApp.kt` | `Application` subclass. Holds the process-shared `HandyV2ApiClient` (`api`) used by both Splash and Control, plus an `appScope` (`SupervisorJob` + `Dispatchers.Main`) for work that must outlive a single activity — notably the splash-time connect. |
 | `ui/SplashActivity.kt` | Animated launch screen and the app's `LAUNCHER` entry point (replaced ControlActivity as launcher). Pure property animation (no AnimatedVectorDrawable) so it animates the same on every API level / the emulator: logo fades + scales in with overshoot, two rings pulse outward behind it like sound waves, the title fades up, then the screen fades out and hands off to `ControlActivity` (~1.7 s, hard-capped). Uses `Theme.HandyVoiceV2.Splash` (window background = `background_dark`) so there's no flash before the layout draws. While animating it also kicks off the device connection on the **shared** `HandyV2ApiClient` (held on `HandyVoiceApp`, along with an `appScope` so the connect outlives the splash finish), so Control comes up already connecting/connected and never flashes the Connect button. |
-| `ui/ControlActivity.kt` | Single-screen home for both control modes. While a connection attempt is in flight the setup panel swaps the Connect button for a spinner + "Connecting…" row and disables the button + key field (`showConnecting`), so an impatient user can't fire a second connect; driven by both the tap handler and the `connectionState` observer (covers the auto-connect-on-launch path too). **On a failed connect the reason is shown, not swallowed:** the status line paints `api.lastError` (e.g. "Device not connected. Make sure your Handy is online.") in red instead of a bare "Disconnected", and a manual Connect tap also fires a toast. Both the manual tap and the splash-time auto-connect surface this, since both land in `DISCONNECTED` with the reason cached; a clean disconnect clears `lastError` and falls back to the plain label. The connecting/connected states reset the status color so a prior red reason doesn't bleed through. **Material `TabLayout`** at the top switches between **Voice** and **Manual** panels; the big START / STOP row shows on the **Manual** tab only (the Voice tab has its own Begin / Stop shortcut buttons, so the pair would be redundant there). The header gear (`settingsButton`) opens `SettingsActivity` directly. Voice panel: mic toggle, live peak meter, "Heard:" readout, and tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) routed through `Dispatch.dispatch` for parity with the spoken path. Auto-scrolling debug log below. Recording management (Re-record / Clear all) lives in Settings, not on the Voice tab. Manual panel: stroke Min/Max sliders bounded to the global band, speed slider bounded to `[0, globalMaxSpeed]`, 4×3 pattern grid (3 buttons share voice labels via `Dispatch.dispatch`, 9 are tap-only), feedback line. Templates reload in `onResume` so new recordings take effect without restart. |
+| `ui/ControlActivity.kt` | Single-screen home for both control modes. While a connection attempt is in flight the setup panel swaps the Connect button for a spinner + "Connecting…" row and disables the button + key field (`showConnecting`), so an impatient user can't fire a second connect; driven by both the tap handler and the `connectionState` observer (covers the auto-connect-on-launch path too). **On a failed connect the reason is shown, not swallowed:** the status line paints `api.lastError` (e.g. "Device not connected. Make sure your Handy is online.") in red instead of a bare "Disconnected", and a manual Connect tap also fires a toast. Both the manual tap and the splash-time auto-connect surface this, since both land in `DISCONNECTED` with the reason cached; a clean disconnect clears `lastError` and falls back to the plain label. The connecting/connected states reset the status color so a prior red reason doesn't bleed through. **Material `TabLayout`** at the top switches between **Voice** and **Manual** panels; the big START / STOP row shows on the **Manual** tab only (the Voice tab has its own Begin / Stop shortcut buttons, so the pair would be redundant there). The header gear (`settingsButton`) opens `SettingsActivity` directly. Voice panel: mic toggle, live peak meter, "Heard:" readout, and tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) routed through `Dispatch.dispatch` for parity with the spoken path. Auto-scrolling debug log below. Recording management (Re-record / Clear all) lives in Settings, not on the Voice tab. Manual panel: stroke Min/Max sliders bounded to the global band, speed slider bounded to `[0, globalMaxSpeed]`, 4×3 pattern grid (3 buttons share voice labels via `Dispatch.dispatch`, 9 are tap-only), feedback line. Templates reload in `onResume` so new recordings take effect without restart. **Picture-in-Picture:** a header float button (`pipButton`, shown once connected on PiP-capable devices) and `onUserLeaveHint` (auto-float on Home **while running**) both call `pip.enter()`. `onPictureInPictureModeChanged` swaps the full UI (`mainScroll`) for a compact `pipOverlay` status readout. PiP control taps arrive as broadcasts (`onPipControl`) and route through `Dispatch.dispatch`, noting activity + beeping since they don't reach `onUserInteraction`. The `PipController` receiver is registered for the activity's whole lifetime. |
+| `ui/PipController.kt` | Owns Picture-in-Picture for ControlActivity: feature detection (`FEATURE_PICTURE_IN_PICTURE`), building the system **RemoteAction** control bar, the not-exported broadcast receiver the buttons fire, and entering PiP. A PiP window can't take touches on app views, so controls are RemoteActions; most phones cap them at 3 (`getMaxNumPictureInPictureActions`), some allow 5. Shows all five (Slower/Faster/Stop/Deeper/Shallow) where allowed, else the Slower/**Stop**/Faster trio (Stop always present, built explicitly rather than relying on truncation). Each control value is a `Dispatch` label; distinct PendingIntent request codes per control (extras don't disambiguate PendingIntents). |
 | `ui/TrainingActivity.kt` | First-run onboarding and re-recording. Single Record tap runs an auto-advance session through every (label, take) needing audio, with a pre-roll → "Listening, speak now" UI and a brief breathing pause between takes. Cross-validation flags outlier takes per label and offers an inline re-record. Build templates sets onboarded=true and returns to Control. Skip / Prev / Next stay enabled between captures so the user can navigate without canceling. Ack tone on every saved take. |
 | `ui/SettingsActivity.kt` | Settings, grouped into four cards in order: **Connection** (connection key), **Motion limits** (global max speed, global stroke band min + max, invert-stroke switch), **Voice recognition** (listening mode button vs always-on, match threshold, idle auto-stop, plus the Re-record / Clear-all recording buttons), and **About** (version + Check-for-updates button, see Auto-update). **Every control auto-applies the moment it changes**: sliders persist on release (`onStopTrackingTouch`, so a drag doesn't spam DataStore), radio / switch on toggle, and the connection key on focus-loss + `onPause`. There is no Save button; the **←  Home** button just returns to `ControlActivity`, which re-reads prefs in `onResume` and pushes them to the device. A `ready` flag gates the listeners so the initial `populate()` doesn't write the loaded values straight back. **Re-record voice samples** opens Training without touching saved takes (earlier this button silently wiped everything, a footgun). **Clear all recordings** wipes templates with a confirmation dialog and then routes to Training. |
 | `api/HandyV2ApiClient.kt` | Handy V2 REST API client (Retrofit). Self-contained models (no V1 import). Single `PUT /slide` for stroke range. `setSpeed` does one velocity PUT; `rampSpeed(target)` **glides** to a target through several intermediate `PUT /hamp/velocity` legs (duration scales with distance, ~250–900 ms, ~1 point per leg, capped at 12 legs) so faster/slower feel smooth instead of jumping. Both share a private `putVelocity` so the ramp logs once. |
@@ -87,20 +68,13 @@ New Android client that recognizes voice commands by matching against **prerecor
 | `update/Updater.kt` | In-app self-update. Polls the public releases repo's `/releases/latest`, compares the tag to `BuildConfig.VERSION_NAME`, downloads the `.apk` to `cacheDir/updates`, and hands it to the system installer via `FileProvider`. Quiet check on launch + manual button in Settings. See the Auto-update section below. |
 | `data/PreferencesManager.kt` | DataStore prefs — connection key, listening mode, global max speed, match threshold, onboarded flag. |
 
-### Layout Files (`android/app/src/main/res/layout/`)
-
-| File | Purpose |
-|------|---------|
-| `activity_control.xml` | Control screen — 4×3 orange preset grid, sliders, mic, debug panel |
-| `activity_settings.xml` | Settings — 3 radio buttons (Vosk/Android STT/Deepgram), API key inputs |
-
 ### Layout Files (`android-v2/app/src/main/res/layout/`)
 
 | File | Purpose |
 |------|---------|
 | `activity_splash.xml` | Animated launch screen. Centered logo (`ic_splash_logo`, the mic glyph), two `splash_ring` views that pulse outward behind it, app name + tagline. All animation is driven in `SplashActivity`. |
 | `activity_training.xml` | Euphonia-style card per command. Big record button (Record electric-blue → Cancel indigo → Re-record sage), take dots, play button, prev/next/skip, Build templates CTA. |
-| `activity_control.xml` | Setup panel ↔ control panel split. Setup panel has the connection-key field, Connect button, and a `connectProgressRow` (spinner + "Connecting…") shown only mid-connect. Voice card with mic toggle + last-match readout. Tap-shortcut rows below the mic: Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse — one button per voice label. Debug panel auto-scrolls to newest on update. Recording management buttons (Re-record, Clear all) live in Settings, not here. |
+| `activity_control.xml` | Root is a `FrameLayout`: a `mainScroll` ScrollView (the full UI) plus a `pipOverlay` (GONE; the compact status shown while floating in PiP). Header has a `pipButton` (float-to-PiP, GONE until connected) and the Settings gear. Setup panel has the connection-key field, Connect button, and a `connectProgressRow` (spinner + "Connecting…") shown only mid-connect. Voice card with mic toggle + last-match readout. Tap-shortcut rows below the mic: Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse — one button per voice label. Debug panel auto-scrolls to newest on update. Recording management buttons (Re-record, Clear all) live in Settings, not here. |
 | `activity_manual.xml` | Manual control screen. Stroke min/max sliders + speed slider, 4×3 pattern grid (gold outlined), START/STOP. |
 | `activity_settings.xml` | Four `MaterialCardView` sections in order (Connection / Motion limits / Voice recognition / About), each titled with the `SettingsSectionHeader` style. Connection key input; global-max-speed slider; global-stroke-band sliders (min + max); invert-stroke MaterialSwitch; listening-mode radio group; match-threshold slider; idle-auto-stop slider; Re-record + Clear-all-recordings buttons; version text + Check-for-updates button. No Save button (controls auto-apply on change). |
 
@@ -131,7 +105,7 @@ New Android client that recognizes voice commands by matching against **prerecor
 | Component | Technology |
 |-----------|------------|
 | Web | Vanilla HTML/CSS/JS (ES6+) |
-| Android (v1, `android/`) | Kotlin, Android SDK, Material Design |
+| Android (v1, `legacy/android/`) | Kotlin, Android SDK, Material Design |
 | Android (v2, `android-v2/`) | Kotlin, Android SDK, Material 3 |
 | Voice (Android v1) | **Vosk** offline (default), Deepgram WebSocket, Android STT |
 | Voice (Android v2) | **MFCC + DTW** on user's own recordings (hand-rolled in Kotlin, no ML deps). TFLite embedding engine reserved for Phase 3. |
@@ -217,7 +191,7 @@ All phrases Vosk can output (anything else → `[unk]`):
 
 ## Voice Control Architecture (Android V2)
 
-Completely different approach from `android/`. No ASR, no grammar parsing, no transcripts. The matcher compares incoming audio against the user's own pre-recorded samples and dispatches the best match (if it beats the threshold).
+Completely different approach from the legacy Vosk app (`legacy/android/`). No ASR, no grammar parsing, no transcripts. The matcher compares incoming audio against the user's own pre-recorded samples and dispatches the best match (if it beats the threshold).
 
 ### Why a second app
 
@@ -282,6 +256,23 @@ Set in `Settings → Listening mode`:
 Both modes use a **post-VAD delay** (~1.8 s) before snapshotting the rolling buffer. The VAD trigger fires ~120 ms into a word, so a same-instant snapshot would mostly be the silence preceding the utterance. The delay lets the buffer slide forward until the full word is inside the 2.5 s window — matching where words sit in the training takes.
 
 A 1.5 s cooldown after each dispatch prevents same-utterance double-fire.
+
+### Picture-in-Picture
+
+ControlActivity can float into a PiP window so the device stays controllable while the user is in another app. Lives in `ui/PipController.kt`; ControlActivity owns one and wires the lifecycle.
+
+**Why RemoteActions, not buttons.** A PiP window does **not** deliver touches to the activity's own views — the only controls Android allows are system `RemoteAction`s (icon buttons in the window's control overlay), each backed by a `PendingIntent`. So the floating control bar is built from RemoteActions, not the on-screen layout. (In PiP, `onPictureInPictureModeChanged` hides `mainScroll` and shows the compact `pipOverlay` status text — purely informational, since it can't be tapped.)
+
+**The 3-vs-5 cap.** `getMaxNumPictureInPictureActions()` (API 26+) returns at least 3; some phones allow 5, and the action list is silently truncated past the cap. The user wants five controls (Slower / Faster / Stop / Deeper / Shallow). So `buildActions()` decides explicitly: `>= 5` → all five; otherwise the **Slower / Stop / Faster** trio. We build the trio by hand rather than letting the OS truncate a five-item list, so **Stop is guaranteed present** on a 3-slot phone (truncation would keep whichever three came first). On a 3-slot phone, deeper/shallow are reached by expanding back to the full app.
+
+**Entry points.** The header `pipButton` (visible once connected, only where `FEATURE_PICTURE_IN_PICTURE` exists) calls `pip.enter()`. `onUserLeaveHint` also auto-enters **when connected AND `isRunning`** — pressing Home while the device moves floats it so Stop stays reachable; pressing Home while idle just backgrounds normally. `onUserLeaveHint` does **not** fire for in-app `startActivity` (Settings / Training), so those don't auto-float.
+
+**Dispatch parity.** A PiP control tap arrives as a broadcast to a `RECEIVER_NOT_EXPORTED` receiver, handled by `onPipControl(label)`, which routes through the same `Dispatch.dispatch` as voice + tap shortcuts (same caps, ramp, stop-cancels-pattern). Because a broadcast never reaches `onUserInteraction`, `onPipControl` calls `noteActivity()` itself (so a PiP tap pushes back the idle auto-stop) and `playAck()` (audible confirmation, since the icons are silent).
+
+**Gotchas.**
+- **Distinct PendingIntent request codes per control.** `PendingIntent` equality ignores `Intent` extras, so five buttons built with the same request code collapse onto one action. Each control gets its own request code (1–5).
+- **Manifest.** ControlActivity needs `android:supportsPictureInPicture="true"` and `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` so the PiP resize doesn't recreate the activity. Icons are `ic_pip_{slower,faster,stop,deeper,shallow}` + `ic_pip_enter` (vector drawables).
+- The listening loop is **not** torn down on entering PiP (the activity stays STARTED while the PiP window is visible), so voice + the receiver keep working there.
 
 ### Onboarding flow
 
@@ -469,7 +460,7 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 5. **Always-on capture loop is gated by a `Job.isActive` check**, not a separate flag. Cancelling the job lets the unbounded loop drain and `AudioRecord.release()` run.
 6. **Template format is versioned in JSON.** Even though Phase 1 only has `format: 1`, the field exists so future migrations are mechanical. Reads silently skip mismatched takes rather than crash.
 7. **`TemplateStore.sanitize()` lowercases and replaces non-alphanumerics.** Dispatch labels are already clean, but this is defence-in-depth — a misconfigured label can never break the filesystem.
-8. **The gradle wrapper jar in this repo's `android/gradle/wrapper/` is the wrong file** (it's the launcher jar). `android-v2/` has a correct wrapper regenerated from gradle 9.2.1. If you copy the v1 wrapper, `gradlew.bat` will fail with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`.
+8. **The gradle wrapper jar in the legacy v1 app's `legacy/android/gradle/wrapper/` is the wrong file** (it's the launcher jar). `android-v2/` has a correct wrapper regenerated from gradle 9.2.1. If you copy the v1 wrapper, `gradlew.bat` will fail with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`.
 
 ### Engine math (Android V2 specific)
 
@@ -503,23 +494,14 @@ git add -A; git commit -m "feat: description"; git push
 
 ## Development Workflow
 
-### Web App
-```powershell
-python -m http.server 8000   # Serve v2-web/ locally
-```
-
-### Android App (`android/`)
-- Open `android/` in Android Studio
-- Build: `./gradlew assembleDebug` from `android/` directory
-- Key dependency: `com.alphacephei:vosk-android:0.3.47`
-- Vosk model (~40MB) auto-downloads on first run to app's internal storage
+> Legacy apps (`legacy/v2-web/`, `legacy/android/`, etc.) are frozen — build instructions for them, if needed, live in their own folders. Only `android-v2/` is active.
 
 ### Android App V2 (`android-v2/`)
 - Open `android-v2/` in Android Studio (lets it sync, generates wrapper).
 - Or from the command line:
   ```powershell
   $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-  cd C:\Users\Owen\dev\handy-v1\android-v2
+  cd C:\Users\Owen\dev\handy\android-v2
   .\gradlew.bat :app:assembleDebug
   ```
 - Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 14 tests, ~30 ms.

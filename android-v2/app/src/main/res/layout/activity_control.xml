@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark"
-    android:fillViewport="true">
+    android:background="@color/background_dark">
+
+    <ScrollView
+        android:id="@+id/mainScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -46,12 +51,27 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
+            <!-- Float into a Picture-in-Picture window. Hidden until connected
+                 and only on devices that support PiP (toggled in code). -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pipButton"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/content_desc_pip"
+                android:visibility="gone"
+                app:icon="@drawable/ic_pip_enter"
+                app:iconSize="22dp"
+                app:iconTint="@color/text_primary"
+                tools:visibility="visible" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/settingsButton"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="4dp"
                 android:contentDescription="@string/content_desc_settings"
                 android:text="⚙"
                 android:textColor="@color/text_primary"
@@ -717,4 +737,43 @@
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
+    </ScrollView>
+
+    <!-- Picture-in-Picture overlay. Hidden during normal full-screen use;
+         swapped in by onPictureInPictureModeChanged so the tiny floating
+         window shows a clean, readable status instead of the shrunk-down full
+         UI. The actual controls in PiP are the system RemoteAction bar built
+         in PipController, not these views (a PiP window can't take touches on
+         its own content). -->
+    <LinearLayout
+        android:id="@+id/pipOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/background_dark"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:visibility="gone"
+        tools:visibility="gone">
+
+        <TextView
+            android:id="@+id/pipStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/text_primary"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            tools:text="▶ 45%" />
+
+        <TextView
+            android:id="@+id/pipHintText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            tools:text="Tap to open" />
+    </LinearLayout>
+</FrameLayout>

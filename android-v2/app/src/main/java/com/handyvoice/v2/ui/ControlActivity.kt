@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -109,6 +110,9 @@ class ControlActivity : AppCompatActivity() {
     // the splash started while animating carries over here intact.
     private val api: HandyV2ApiClient by lazy { (application as HandyVoiceApp).api }
     private val patternEngine: PatternEngine by lazy { PatternEngine(api, lifecycleScope) }
+    /** Picture-in-Picture: builds the floating control bar and routes its
+     *  taps back through the same dispatch path as voice / tap shortcuts. */
+    private val pip: PipController by lazy { PipController(this) { label -> onPipControl(label) } }
     /** Short ack beep on a successful voice match. Released in onDestroy. */
     private var ackTone: ToneGenerator? = null
 
@@ -154,6 +158,11 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var connectButton: MaterialButton
     private lateinit var connectProgressRow: View
     private lateinit var settingsButton: MaterialButton
+    private lateinit var pipButton: MaterialButton
+    private lateinit var mainScroll: View
+    private lateinit var pipOverlay: View
+    private lateinit var pipStatusText: TextView
+    private lateinit var pipHintText: TextView
     private lateinit var statusText: TextView
     private lateinit var statusDot: View
     private lateinit var voiceModeLabel: TextView
@@ -238,6 +247,11 @@ class ControlActivity : AppCompatActivity() {
         observeApi()
         bootstrap()
 
+        // Start listening for PiP control-bar taps. Kept registered for the
+        // whole activity lifetime (the receiver only fires from our own
+        // not-exported PendingIntents), so it works while the PiP window is up.
+        pip.register()
+
         // Quiet check against the public releases repo; prompts only if a
         // newer build is published. Once per process so it can't nag.
         if (!launchUpdateChecked) {
@@ -256,6 +270,11 @@ class ControlActivity : AppCompatActivity() {
         connectButton = findViewById(R.id.connectButton)
         connectProgressRow = findViewById(R.id.connectProgressRow)
         settingsButton = findViewById(R.id.settingsButton)
+        pipButton = findViewById(R.id.pipButton)
+        mainScroll = findViewById(R.id.mainScroll)
+        pipOverlay = findViewById(R.id.pipOverlay)
+        pipStatusText = findViewById(R.id.pipStatusText)
+        pipHintText = findViewById(R.id.pipHintText)
         statusText = findViewById(R.id.statusText)
         statusDot = findViewById(R.id.statusDot)
         voiceModeLabel = findViewById(R.id.voiceModeLabel)
@@ -298,6 +317,9 @@ class ControlActivity : AppCompatActivity() {
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        // Float into a PiP window on demand. (Pressing Home while running also
+        // auto-floats; see onUserLeaveHint.)
+        pipButton.setOnClickListener { pip.enter() }
         micButton.setOnClickListener { onMicTapped() }
         startButton.setOnClickListener { lifecycleScope.launch { api.start() } }
         stopButton.setOnClickListener {
@@ -356,6 +378,15 @@ class ControlActivity : AppCompatActivity() {
                 renderDebugLog(merged.joinToString("\n"))
             }
         }
+        // Keep the PiP status readout (speed + running/stopped) live. Cheap;
+        // only visible while floating, but always kept current so the window
+        // is correct the instant it appears.
+        lifecycleScope.launch {
+            api.isRunning.collectLatest { updatePipStatus() }
+        }
+        lifecycleScope.launch {
+            api.currentSpeed.collectLatest { updatePipStatus() }
+        }
     }
 
     /** Drive the setup/control panels and the connecting spinner off one
@@ -369,18 +400,23 @@ class ControlActivity : AppCompatActivity() {
                 controlPanel.visibility = View.VISIBLE
                 statusText.setText(R.string.status_connected)
                 statusText.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
+                // Offer the float button only once connected (and only where
+                // the device actually supports PiP).
+                pipButton.visibility = if (pip.isSupported) View.VISIBLE else View.GONE
                 applyListeningMode()
             }
             ConnectionState.CONNECTING -> {
                 statusText.text = "Connecting..."
                 // Clear any red failure color from a previous attempt.
                 statusText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+                pipButton.visibility = View.GONE
                 showConnecting(true)
             }
             ConnectionState.DISCONNECTED -> {
                 showConnecting(false)
                 controlPanel.visibility = View.GONE
                 setupPanel.visibility = View.VISIBLE
+                pipButton.visibility = View.GONE
                 // If we landed here because an attempt failed, show *why*
                 // (e.g. "Device not connected. Make sure your Handy is
                 // online.") in red rather than a bare "Disconnected". This
@@ -563,8 +599,50 @@ class ControlActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         keepAwake(false)
+        pip.unregister()
         ackTone?.release()
         ackTone = null
+    }
+
+    /**
+     * Pressing Home / Recents while the device is actively running auto-floats
+     * the app into a PiP window, so Stop and the speed controls stay one tap
+     * away in the system overlay while the user is in another app. We gate on
+     * `isRunning` deliberately: if nothing is moving, Home should just send the
+     * app to the background normally. The header float button covers the
+     * explicit, while-idle case. Not called when opening Settings / Training
+     * (those are in-app startActivity transitions, not a user-leave).
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pip.isSupported &&
+            !isInPictureInPictureMode &&
+            api.connectionState.value == ConnectionState.CONNECTED &&
+            api.isRunning.value) {
+            pip.enter()
+        }
+    }
+
+    /**
+     * Swap between the full UI and a clean PiP status readout. The floating
+     * window is too small for the real layout, and its controls are the system
+     * RemoteAction bar (see PipController) rather than on-screen buttons, so we
+     * hide the scroll view and show just speed + running state.
+     */
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            mainScroll.visibility = View.GONE
+            pipOverlay.visibility = View.VISIBLE
+            pipHintText.text = "Tap to open"
+            updatePipStatus()
+        } else {
+            pipOverlay.visibility = View.GONE
+            mainScroll.visibility = View.VISIBLE
+        }
     }
 
     /**
@@ -933,6 +1011,50 @@ class ControlActivity : AppCompatActivity() {
                 )
             }.onFailure { appLog("Shortcut $label error: ${it.message}") }
         }
+    }
+
+    /**
+     * Handle a tap on a PiP control-bar button. Arrives as a broadcast (PiP
+     * windows can't deliver touches to our views), so unlike a screen tap it
+     * never reaches onUserInteraction — we note activity here ourselves so a
+     * PiP tap still pushes back the idle auto-stop. Routes through the same
+     * Dispatch path as voice and the in-app shortcuts, so caps / ramp / pattern
+     * cancellation all match. Beeps for the same audible confirmation the voice
+     * path gives, since the icons are silent.
+     */
+    private fun onPipControl(label: String) {
+        appLog("PiP control: $label")
+        noteActivity()
+        playAck()
+        lifecycleScope.launch {
+            runCatching {
+                Dispatch.dispatch(
+                    label = label,
+                    api = api,
+                    globalMaxSpeed = globalMaxSpeed,
+                    globalMinStroke = globalMinStroke,
+                    globalMaxStroke = globalMaxStroke,
+                    patternEngine = patternEngine,
+                )
+            }.onFailure { appLog("PiP $label error: ${it.message}") }
+        }
+    }
+
+    /** Repaint the floating-window status line (speed + running/stopped). Safe
+     *  to call before the views exist (early state emissions) and when not in
+     *  PiP — it just writes to a hidden TextView. */
+    private fun updatePipStatus() {
+        if (!::pipStatusText.isInitialized) return
+        val connected = api.connectionState.value == ConnectionState.CONNECTED
+        val running = api.isRunning.value
+        val speed = api.currentSpeed.value
+        val (text, colorRes) = when {
+            !connected -> "Disconnected" to R.color.text_secondary
+            running -> "▶ $speed%" to R.color.status_connected
+            else -> "■ Stopped" to R.color.emergency_red
+        }
+        pipStatusText.text = text
+        pipStatusText.setTextColor(ContextCompat.getColor(this, colorRes))
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

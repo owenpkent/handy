@@ -27,6 +27,14 @@
     <string name="btn_disconnect">Disconnect</string>
     <string name="btn_mic">Mic</string>
     <string name="content_desc_settings">Settings</string>
+    <string name="content_desc_pip">Float controls in a small window</string>
+
+    <!-- Picture-in-Picture control labels (shown under each PiP action icon) -->
+    <string name="pip_slower">Slower</string>
+    <string name="pip_faster">Faster</string>
+    <string name="pip_stop">Stop</string>
+    <string name="pip_deeper">Deeper</string>
+    <string name="pip_shallow">Shallow</string>
 
     <!-- Manual screen -->
     <string name="manual_title">Manual controls</string>
