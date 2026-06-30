@@ -4,7 +4,7 @@ An Android client for The Handy that recognises voice commands by matching again
 
 ## Status
 
-🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, and an HDSP-driven connect-time park are all live.
+🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live.
 
 ## Why a second Android app
 
@@ -109,7 +109,7 @@ One activity (`ControlActivity`) hosts both control surfaces via a `TabLayout`:
 
 ```
 ┌──────────────────────────────────────────┐
-│ Smart Dong v2           ● Connected  ⚙   │   header (status + Settings cog)
+│ Smart Dong v2        ● Connected  ⧉  ⚙   │   header (status + float-to-PiP + Settings cog)
 ├──────────────────────────────────────────┤
 │  [ Voice ]   Manual                      │   modeTabs (Material TabLayout)
 ├──────────────────────────────────────────┤
@@ -141,6 +141,7 @@ One activity (`ControlActivity`) hosts both control surfaces via a `TabLayout`:
 └──────────────────────────────────────────┘
 ```
 
+- **Float button** (⧉, top right, shown once connected) drops the app into a **Picture-in-Picture** window with a control bar. See [Picture-in-Picture](#picture-in-picture).
 - **Settings cog** (top right) opens Settings directly. On Settings there's a **← Home** button, which goes straight back to this screen.
 - **Voice-tab shortcut buttons** (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) all route through `Dispatch.dispatch(label)` — same code path as the voice match — so taps and voice produce identical device state.
 - **Recording management** (Re-record voice samples, Clear all recordings) lives in Settings, not on the Voice tab.
@@ -184,6 +185,26 @@ Pick in **Settings → Listening mode**.
 
 Both modes use a **post-VAD wait** (~1.8 s) before snapshotting the rolling buffer, so the full word is in the 2.5 s window — without this, the snapshot would be mostly silence followed by the first ~120 ms of speech, and matches would land on whichever template happened to be closest by accident.
 
+## Picture-in-Picture
+
+Float the app into a small always-on-top window so you can keep controlling the device while using another app (browser, video, anything).
+
+**How to enter:**
+
+- Tap the **⧉ float button** in the header (appears once connected), or
+- Press **Home / Recents while the device is running** — the app auto-floats so Stop stays reachable. (If nothing is moving, Home just backgrounds the app normally.)
+
+**Controls in the window.** A PiP window can't take touches on the app's own views, so the controls are the system **RemoteAction** bar (icon buttons in the window's control overlay). Android caps that bar at **3 actions on most phones**, though some allow 5. So:
+
+| Phone allows | Bar shows |
+| --- | --- |
+| 5 actions | ⏪ Slower · ⏩ Faster · ⏹ **Stop** · ▽ Deeper · △ Shallow |
+| 3 actions | ⏪ Slower · ⏹ **Stop** · ⏩ Faster |
+
+On a 3-slot phone, **Stop is always present**; Deeper / Shallow are reached by tapping the window to expand back to the full app. The window itself shows a clean readout — `▶ <speed>%` (green) while running, `■ Stopped` (red) otherwise.
+
+Each button routes through the same `Dispatch.dispatch(label)` path as voice and the in-app tap shortcuts, so caps, the faster/slower glide, and stop-cancels-pattern all behave identically. A PiP tap also notes activity (pushing back the idle auto-stop) and plays the ack beep, since the icons are silent. Implemented in [`ui/PipController.kt`](app/src/main/java/com/handyvoice/v2/ui/PipController.kt); the activity declares `supportsPictureInPicture` + the PiP `configChanges` in the manifest.
+
 ## Safety caps
 
 - **Global max speed** *(default 30%)*. Every speed sent to the device is scaled by this percentage. `Dispatch.dispatch()` applies it before `setSpeed`; pattern envelopes scale their peak by it; "faster" / "slower" deltas are clamped to `[0, globalMaxSpeed]` so repeated taps can't sneak past the cap, and glide to the clamped target via `rampSpeed` rather than jumping. Configurable in Settings.
@@ -210,7 +231,8 @@ Both modes use a **post-VAD wait** (~1.8 s) before snapshotting the rolling buff
 | `app/src/main/java/com/handyvoice/v2/dispatch/PatternEngine.kt` | 12-pattern looping envelope engine. Ported from `homeassistant/.../patterns.py`. |
 | `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, global stroke band, invert toggle, match threshold, onboarded flag. |
 | `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding + re-recording. Auto-advance session, per-label cross-validation gate (offers inline re-record of an outlier take). Build templates sets `onboarded=true` and returns to Control. Ack tone on every saved take. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine` for the activity. Ack tone on voice match. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine` and the `PipController` for the activity. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
+| `app/src/main/java/com/handyvoice/v2/ui/PipController.kt` | Picture-in-Picture: feature detection, building the system RemoteAction control bar (5 controls where the phone allows, else the Slower/Stop/Faster trio with Stop always present), registering the not-exported broadcast receiver the buttons fire, and entering PiP. Each control is a `Dispatch` label, routed back through the same dispatch path as voice. |
 | `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Re-record voice samples (opens Training, preserves takes) and Clear all recordings (wipes with confirmation, then opens Training) live here. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests covering MFCC, DTW, and engine behaviour. |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots (3), peak bar, record button. |

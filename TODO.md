@@ -33,8 +33,12 @@
 - [x] Android v2: SettingsActivity (connection key, listening mode, global max speed, threshold, retrain)
 - [x] Android v2: Dispatch table mirroring `vega/commands.py` (9 labels: start/stop/faster/slower + 5 pattern stand-ins)
 - [x] Android v2: thorough documentation (README, ARCHITECTURE, VOICE_ENGINE, COMMANDS, TRAINING, TROUBLESHOOTING)
+- [x] **Reorganize repo around android-v2** — moved android (v1), v2-web, v1-web, alexa, homeassistant into `legacy/`; android-v2 is the only active app
+- [x] **Android v2: Picture-in-Picture control bar** — float into a PiP window with stop / faster / slower (and deeper / shallow where the phone allows 5 actions); auto-floats on Home while running
 
 ## Next Up
+
+- [ ] **Android v2: validate Picture-in-Picture on Owen's phone** — confirm the per-app PiP permission is on, check how many actions the device's bar shows (3 vs 5), and verify auto-float-on-Home and each control
 
 - [ ] **Home Assistant integration** — primary path forward for hands-free voice control. See [docs/HOME_ASSISTANT_GUIDE.md](docs/HOME_ASSISTANT_GUIDE.md). Stages:
   - [ ] Stand up HA + Whisper + Piper + openWakeWord + satellite stack via Docker Compose on the Beelink GTR5 (Ubuntu 24)

@@ -244,6 +244,22 @@ The matcher fired (good); the dispatch went through (look at the log for `Speed:
 - The device is already at max within the cap. `faster` clamps at 100 design = `globalMaxSpeed%` device.
 - The device is connected but in `HSSP` mode (script playback), not `HAMP`. The Phase 1 `connect()` flow sets HAMP; if you switched modes externally, reconnect.
 
+## Runtime: Picture-in-Picture
+
+### Nothing happens when I tap the float button (⧉) or press Home while running
+
+The system refused the PiP transition. Most common cause: the per-app PiP permission is off. Go to **Settings → Apps → Smart Dong v2 → Picture-in-picture** and turn it on (some OEMs default it off). `enterPictureInPictureMode` fails silently when it's not allowed, so there's no error toast.
+
+If the float button never appears at all, the device doesn't report `FEATURE_PICTURE_IN_PICTURE` (rare; some Android TV / Go devices). The button is hidden in that case by design.
+
+### Only 3 controls show in the floating window, not 5
+
+Expected on most phones — Android caps the PiP control bar at `getMaxNumPictureInPictureActions()`, which is 3 on the majority of devices (some allow 5). On a 3-slot phone the bar shows **Slower · Stop · Faster** (Stop always present). Reach Deeper / Shallow by tapping the window to expand back to the full app, where all the controls live.
+
+### The floating window shows the shrunk-down full UI instead of a clean status
+
+`onPictureInPictureModeChanged` should swap `mainScroll` for the `pipOverlay` status text. If you see the full layout, the activity was likely recreated on the PiP resize — confirm `ControlActivity` still has `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` in the manifest.
+
 ## Diagnostics
 
 ### How to capture a debug log
