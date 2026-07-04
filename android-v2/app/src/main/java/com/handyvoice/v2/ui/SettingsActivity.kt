@@ -34,6 +34,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var modeAlwaysOn: RadioButton
     private lateinit var globalMaxSlider: SeekBar
     private lateinit var globalMaxValue: TextView
+    private lateinit var humanizeSlider: SeekBar
+    private lateinit var humanizeValue: TextView
     private lateinit var globalMinStrokeSlider: SeekBar
     private lateinit var globalMinStrokeValue: TextView
     private lateinit var globalMaxStrokeSlider: SeekBar
@@ -69,6 +71,8 @@ class SettingsActivity : AppCompatActivity() {
         modeAlwaysOn = findViewById(R.id.modeAlwaysOn)
         globalMaxSlider = findViewById(R.id.globalMaxSlider)
         globalMaxValue = findViewById(R.id.globalMaxValue)
+        humanizeSlider = findViewById(R.id.humanizeSlider)
+        humanizeValue = findViewById(R.id.humanizeValue)
         globalMinStrokeSlider = findViewById(R.id.globalMinStrokeSlider)
         globalMinStrokeValue = findViewById(R.id.globalMinStrokeValue)
         globalMaxStrokeSlider = findViewById(R.id.globalMaxStrokeSlider)
@@ -86,6 +90,10 @@ class SettingsActivity : AppCompatActivity() {
         globalMaxSlider.setOnSeekBarChangeListener(sliderListener(
             onProgress = { p -> globalMaxValue.text = p.coerceAtLeast(1).toString() },
             onCommit = { persist { prefs.setGlobalMaxSpeed(globalMaxSlider.progress.coerceAtLeast(1)) } },
+        ))
+        humanizeSlider.setOnSeekBarChangeListener(sliderListener(
+            onProgress = { p -> humanizeValue.text = p.toString() },
+            onCommit = { persist { prefs.setHumanizeStrength(humanizeSlider.progress) } },
         ))
         // Stroke band: keep min <= max as the user drags either thumb, and
         // persist both on release since adjusting one thumb can move the other.
@@ -163,6 +171,8 @@ class SettingsActivity : AppCompatActivity() {
         else modeButton.isChecked = true
         globalMaxSlider.progress = snap.globalMaxSpeed
         globalMaxValue.text = snap.globalMaxSpeed.toString()
+        humanizeSlider.progress = snap.humanizeStrength
+        humanizeValue.text = snap.humanizeStrength.toString()
         globalMinStrokeSlider.progress = snap.globalMinStroke
         globalMinStrokeValue.text = snap.globalMinStroke.toString()
         globalMaxStrokeSlider.progress = snap.globalMaxStroke

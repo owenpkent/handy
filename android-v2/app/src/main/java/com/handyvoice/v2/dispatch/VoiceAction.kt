@@ -11,7 +11,8 @@ package com.handyvoice.v2.dispatch
  * voice labels currently use it.
  */
 sealed class VoiceAction {
-    /** Stop the device. Sends hamp/stop and clears running state. */
+    /** Stop the device. Eases velocity down to 0 (see rampStop) then sends
+     *  hamp/stop and clears running state. */
     data object Stop : VoiceAction()
 
     /** Set absolute speed (0-100). Triggers the start sequence if needed. */

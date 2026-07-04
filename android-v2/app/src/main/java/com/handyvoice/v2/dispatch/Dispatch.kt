@@ -97,6 +97,7 @@ object Dispatch {
         globalMinStroke: Int = 0,
         globalMaxStroke: Int = 100,
         patternEngine: PatternEngine? = null,
+        humanizeEngine: HumanizeEngine? = null,
     ): Boolean {
         val action = TABLE[label] ?: return false
 
@@ -114,14 +115,22 @@ object Dispatch {
 
         return when (action) {
             is VoiceAction.Stop -> {
+                // Cancel any modulation/pattern first (their loops keep writing
+                // velocity), then ease the device down to 0 instead of a hard stop.
+                humanizeEngine?.cancel()
                 patternEngine?.cancel()
-                api.stop()
+                api.rampStop()
             }
 
             is VoiceAction.SetSpeed -> {
                 val device = scaleSpeed(action.percent)
                 if (device == 0) {
+                    humanizeEngine?.cancel()
                     api.stop()
+                } else if (humanizeEngine?.enabled == true) {
+                    // Hand the base speed to the humanize loop, which owns the
+                    // device velocity (and depth) while it runs.
+                    humanizeEngine.start(device)
                 } else {
                     // mode/start handled by client.connect(); just (start then) velocity.
                     val started = if (!api.isRunning.value) api.start() else true
@@ -134,10 +143,18 @@ object Dispatch {
                 // the configured cap so "faster" can't push past globalMaxSpeed.
                 val cap = globalMaxSpeed.coerceIn(1, 100)
                 val scaledDelta = action.delta * cap / 100
-                val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
-                // Glide to the new speed instead of jumping — the device is
-                // stepped through intermediate velocities (see rampSpeed).
-                api.rampSpeed(target)
+                if (humanizeEngine?.isRunning == true) {
+                    // Nudge the humanize loop's base target (stable value, not
+                    // the wobbling device velocity); it eases to the new speed.
+                    val target = (humanizeEngine.currentTarget + scaledDelta).coerceIn(0, cap)
+                    humanizeEngine.setTarget(target)
+                    true
+                } else {
+                    val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
+                    // Glide to the new speed instead of jumping — the device is
+                    // stepped through intermediate velocities (see rampSpeed).
+                    api.rampSpeed(target)
+                }
             }
 
             is VoiceAction.AdjustDepth -> {
@@ -181,6 +198,7 @@ object Dispatch {
 
             is VoiceAction.Preset -> {
                 // Operation order: slide -> start -> velocity. See HANDY_API_NOTES.
+                humanizeEngine?.cancel()
                 patternEngine?.cancel()
                 val (min, max) = squashRange(action.rangeMin, action.rangeMax)
                 val rangeOk = api.setStrokeRange(min, max)
@@ -192,6 +210,8 @@ object Dispatch {
 
             is VoiceAction.Pattern -> {
                 val engine = patternEngine ?: return false
+                // A pattern owns the device from here; stop humanize modulating.
+                humanizeEngine?.cancel()
                 // Open the stroke range to the configured band so the pattern
                 // can use its full envelope. Peak velocity = globalMaxSpeed
                 // (intensity is scaled the same way SetSpeed/AdjustSpeed are).
@@ -204,6 +224,8 @@ object Dispatch {
 
             is VoiceAction.RandomPattern -> {
                 val engine = patternEngine ?: return false
+                // A pattern owns the device from here; stop humanize modulating.
+                humanizeEngine?.cancel()
                 // Same setup as Pattern, but the engine picks the envelope.
                 val (min, max) = squashRange(0, 100)
                 val rangeOk = api.setStrokeRange(min, max)

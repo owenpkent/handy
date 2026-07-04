@@ -29,6 +29,7 @@ class PreferencesManager(private val context: Context) {
         private val KEY_MANUAL_STROKE_MIN = intPreferencesKey("manual_stroke_min")
         private val KEY_MANUAL_STROKE_MAX = intPreferencesKey("manual_stroke_max")
         private val KEY_MANUAL_SPEED = intPreferencesKey("manual_speed_design")
+        private val KEY_HUMANIZE_STRENGTH = intPreferencesKey("humanize_strength")
 
         const val MODE_BUTTON = "button"
         const val MODE_ALWAYS_ON = "always_on"
@@ -44,6 +45,11 @@ class PreferencesManager(private val context: Context) {
         const val DEFAULT_MANUAL_STROKE_MIN = 0          // last position of the Manual tab's stroke-min slider.
         const val DEFAULT_MANUAL_STROKE_MAX = 100        // last position of the Manual tab's stroke-max slider.
         const val DEFAULT_MANUAL_SPEED = 0               // last position of the Manual tab's speed slider (design space).
+        // Humanize amount for regular (non-pattern) motion: 0 = off (pure
+        // constant speed), 100 = strongest organic drift. Default is a gentle
+        // on so steady motion doesn't feel robotic out of the box; tune in
+        // Settings. See HumanizeEngine for how it maps to speed/depth swing.
+        const val DEFAULT_HUMANIZE_STRENGTH = 30
     }
 
     val connectionKey: Flow<String> = context.dataStore.data
@@ -82,6 +88,9 @@ class PreferencesManager(private val context: Context) {
     val manualSpeed: Flow<Int> = context.dataStore.data
         .map { it[KEY_MANUAL_SPEED] ?: DEFAULT_MANUAL_SPEED }
 
+    val humanizeStrength: Flow<Int> = context.dataStore.data
+        .map { it[KEY_HUMANIZE_STRENGTH] ?: DEFAULT_HUMANIZE_STRENGTH }
+
     suspend fun setConnectionKey(value: String) = edit { it[KEY_CONNECTION_KEY] = value }
     suspend fun setListeningMode(value: String) = edit { it[KEY_LISTENING_MODE] = value }
     suspend fun setGlobalMaxSpeed(value: Int) = edit { it[KEY_GLOBAL_MAX_SPEED] = value.coerceIn(1, 100) }
@@ -96,6 +105,7 @@ class PreferencesManager(private val context: Context) {
     suspend fun setManualStrokeMin(value: Int) = edit { it[KEY_MANUAL_STROKE_MIN] = value.coerceIn(0, 100) }
     suspend fun setManualStrokeMax(value: Int) = edit { it[KEY_MANUAL_STROKE_MAX] = value.coerceIn(0, 100) }
     suspend fun setManualSpeed(value: Int) = edit { it[KEY_MANUAL_SPEED] = value.coerceIn(0, 100) }
+    suspend fun setHumanizeStrength(value: Int) = edit { it[KEY_HUMANIZE_STRENGTH] = value.coerceIn(0, 100) }
 
     suspend fun snapshot(): Snapshot = context.dataStore.data.first().let {
         Snapshot(
@@ -111,6 +121,7 @@ class PreferencesManager(private val context: Context) {
             manualStrokeMin = it[KEY_MANUAL_STROKE_MIN] ?: DEFAULT_MANUAL_STROKE_MIN,
             manualStrokeMax = it[KEY_MANUAL_STROKE_MAX] ?: DEFAULT_MANUAL_STROKE_MAX,
             manualSpeed = it[KEY_MANUAL_SPEED] ?: DEFAULT_MANUAL_SPEED,
+            humanizeStrength = it[KEY_HUMANIZE_STRENGTH] ?: DEFAULT_HUMANIZE_STRENGTH,
         )
     }
 
@@ -131,5 +142,6 @@ class PreferencesManager(private val context: Context) {
         val manualStrokeMin: Int,
         val manualStrokeMax: Int,
         val manualSpeed: Int,
+        val humanizeStrength: Int,
     )
 }

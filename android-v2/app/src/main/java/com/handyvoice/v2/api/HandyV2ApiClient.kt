@@ -33,6 +33,15 @@ class HandyV2ApiClient {
         private const val RAMP_MAX_MS = 900L
         private const val MAX_RAMP_STEPS = 12
         private const val MIN_RAMP_INTERVAL_MS = 55L
+
+        // Stop wind-down (rampStop). A "stop" eases velocity to 0 over a
+        // *fixed* window rather than slamming hamp/stop, so it feels like a
+        // wind-down. Fixed-duration (not distance-scaled like rampSpeed) so
+        // the glide is still felt at the low device velocities Owen's speed
+        // cap produces — e.g. from a device velocity of 7, distance-scaling
+        // would give a ~300 ms ramp that reads as instant.
+        private const val STOP_RAMP_MS = 1500L
+        private const val STOP_RAMP_STEPS = 12
     }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -262,6 +271,86 @@ class HandyV2ApiClient {
             if (i < steps) delay(interval)
         }
         return ok
+    }
+
+    /**
+     * Ease the device to a stop instead of halting instantly: glide velocity
+     * from its current value down to 0 over ~[STOP_RAMP_MS], then send
+     * hamp/stop to fully halt. Backs every "stop" affordance (voice, tap
+     * shortcut, PiP, the Manual STOP button) so a stop feels like a
+     * wind-down, not a slam.
+     *
+     * Unlike [rampSpeed] the duration is fixed, not distance-scaled, so the
+     * glide is felt even at the low device velocities Owen's speed cap
+     * produces. Callers cancel any running pattern first (its loop would
+     * otherwise keep writing velocity over the ramp); after cancel the
+     * device is still moving at its last velocity, which is exactly what we
+     * ramp down from. No-ops the glide (still sends hamp/stop) if already
+     * stopped or not connected.
+     *
+     * Runs in the caller's coroutine; the always-on capture loop dispatches
+     * this off-thread so the ~1.5 s suspend never blocks listening.
+     */
+    suspend fun rampStop(): Boolean {
+        val from = _currentSpeed.value
+        if (_connectionState.value == ConnectionState.CONNECTED && from > 0) {
+            val interval = STOP_RAMP_MS / STOP_RAMP_STEPS
+            log("Easing to stop from $from% over ~${STOP_RAMP_MS}ms.")
+            for (i in 1..STOP_RAMP_STEPS) {
+                val v = from - from * i / STOP_RAMP_STEPS  // reaches 0 at final leg
+                putVelocity(v)
+                if (i < STOP_RAMP_STEPS) delay(interval)
+            }
+        }
+        return stop()
+    }
+
+    /**
+     * Quiet velocity write for continuous modulation ([HumanizeEngine]): fires
+     * a single PUT /hamp/velocity WITHOUT logging or touching [currentSpeed].
+     * The modulation loop writes ~5×/s, so logging each one would flood the
+     * debug panel, and the momentary modulated value isn't the number to show
+     * the user — [reflectBaseSpeed] keeps the readout on the steady base while
+     * the device velocity itself wanders around it.
+     */
+    suspend fun setSpeedModulated(velocity: Int): Boolean {
+        if (_connectionState.value != ConnectionState.CONNECTED) return false
+        return try {
+            api.setVelocity(connectionKey, VelocityRequest(velocity.coerceIn(0, 100).toDouble()))
+                .isSuccessful
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Reflect an intended *base* speed in [currentSpeed] for the UI, with no
+     * device call. [HumanizeEngine] calls this when the user changes the base
+     * (begin / faster / slower) so the speed readout shows the steady target
+     * rather than jittering with the modulated device velocity.
+     */
+    fun reflectBaseSpeed(percent: Int) {
+        _currentSpeed.value = percent.coerceIn(0, 100)
+    }
+
+    /**
+     * Quiet stroke-range write for continuous depth drift ([HumanizeEngine]):
+     * PUTs /slide (same invert transform as [setStrokeRange]) but does NOT
+     * update the cached [strokeMin]/[strokeMax] and does not log. The cache
+     * keeps reflecting the user's chosen band, so the Manual sliders stay put
+     * while the device window breathes within it.
+     */
+    suspend fun setStrokeRangeTransient(min: Int, max: Int): Boolean {
+        if (_connectionState.value != ConnectionState.CONNECTED) return false
+        val userMin = min.coerceIn(0, 100)
+        val userMax = max.coerceIn(userMin, 100)
+        val devMin = if (invertStroke) 100 - userMax else userMin
+        val devMax = if (invertStroke) 100 - userMin else userMax
+        return try {
+            api.setSlide(connectionKey, SlideRangeRequest(devMin, devMax)).isSuccessful
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**

@@ -199,15 +199,16 @@ match: TemplateEngine.Match
 ackTone.beep()
   │
   ▼
-Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine)
-  │   ┌─ Stop          → patternEngine.cancel() ; api.stop()
-  │   ├─ SetSpeed      → ensure running, then api.setSpeed(scaled by globalMaxSpeed)
-  │   ├─ AdjustSpeed   → api.rampSpeed(current + scaled-delta), clamped to [0, globalMaxSpeed]; glides in steps
+Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, patternEngine, humanizeEngine)
+  │   ┌─ Stop          → humanizeEngine.cancel() ; patternEngine.cancel() ; api.rampStop() (ease to 0, then hamp/stop)
+  │   ├─ SetSpeed      → humanize on: humanizeEngine.start(scaled) ; else ensure running, api.setSpeed(scaled)
+  │   ├─ AdjustSpeed   → humanize running: retarget the loop ; else api.rampSpeed(current + scaled-delta), clamped; glides
+  │   ├─ AdjustDepth   → slide the fixed-length stroke window deeper/shallower within the band
   │   ├─ SetRange      → api.setStrokeRange(squashed-into-band)
-  │   ├─ Preset        → patternEngine.cancel() ; setStrokeRange(squashed) → start → setSpeed(scaled)
-  │   └─ Pattern       → setStrokeRange(squashed full band) → patternEngine.start(name, scaleSpeed(intensity))
+  │   ├─ Preset        → humanize/pattern cancel ; setStrokeRange(squashed) → start → setSpeed(scaled)
+  │   └─ Pattern       → humanize cancel ; setStrokeRange(squashed full band) → patternEngine.start(name, scaleSpeed(intensity))
   ▼
-HandyV2ApiClient            PatternEngine (background coroutine, looped)
+HandyV2ApiClient   PatternEngine (looped)   HumanizeEngine (looped: modulates speed + depth around the base)
   │                              │
   │                              ▼  every (envelope, durationMs):
   │                              api.setSpeed((env × intensity).toInt())
