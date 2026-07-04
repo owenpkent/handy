@@ -36,6 +36,7 @@ import com.handyvoice.v2.audio.AudioCapture
 import com.handyvoice.v2.audio.Vad
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.Dispatch
+import com.handyvoice.v2.dispatch.HumanizeEngine
 import com.handyvoice.v2.dispatch.PatternEngine
 import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.MfccDtwEngine
@@ -110,6 +111,9 @@ class ControlActivity : AppCompatActivity() {
     // the splash started while animating carries over here intact.
     private val api: HandyV2ApiClient by lazy { (application as HandyVoiceApp).api }
     private val patternEngine: PatternEngine by lazy { PatternEngine(api, lifecycleScope) }
+    /** Adds organic speed + depth drift to regular (non-pattern) motion so a
+     *  steady speed doesn't feel robotic. Strength (0 = off) comes from prefs. */
+    private val humanizeEngine: HumanizeEngine by lazy { HumanizeEngine(api, lifecycleScope) }
     /** Picture-in-Picture: builds the floating control bar and routes its
      *  taps back through the same dispatch path as voice / tap shortcuts. */
     private val pip: PipController by lazy { PipController(this) { label -> onPipControl(label) } }
@@ -214,6 +218,7 @@ class ControlActivity : AppCompatActivity() {
     private var manualStrokeMin: Int = PreferencesManager.DEFAULT_MANUAL_STROKE_MIN
     private var manualStrokeMax: Int = PreferencesManager.DEFAULT_MANUAL_STROKE_MAX
     private var manualSpeed: Int = PreferencesManager.DEFAULT_MANUAL_SPEED
+    private var humanizeStrength: Int = PreferencesManager.DEFAULT_HUMANIZE_STRENGTH
 
     private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -321,14 +326,26 @@ class ControlActivity : AppCompatActivity() {
         // auto-floats; see onUserLeaveHint.)
         pipButton.setOnClickListener { pip.enter() }
         micButton.setOnClickListener { onMicTapped() }
-        startButton.setOnClickListener { lifecycleScope.launch { api.start() } }
+        startButton.setOnClickListener {
+            lifecycleScope.launch {
+                // When humanize is on, START brings up modulated motion at the
+                // current Manual speed (parity with the slider / voice path);
+                // at speed 0 there's nothing to modulate, so just start.
+                val device = (manualSpeed * globalMaxSpeed.coerceIn(1, 100) / 100).coerceIn(0, 100)
+                if (humanizeEngine.enabled && device > 0) humanizeEngine.start(device)
+                else api.start()
+            }
+        }
         stopButton.setOnClickListener {
             lifecycleScope.launch {
-                // STOP cancels any running pattern as well as the device — the
-                // pattern engine would otherwise resume sending velocity on its
-                // next tick.
+                // STOP cancels any running pattern / humanize modulation as
+                // well as the device — either loop would otherwise resume
+                // sending velocity on its next tick. rampStop then eases
+                // velocity to 0 rather than slamming to a halt (same wind-down
+                // as the voice "stop").
+                humanizeEngine.cancel()
                 patternEngine.cancel()
-                api.stop()
+                api.rampStop()
             }
         }
         slowerButton.setOnClickListener {
@@ -444,9 +461,16 @@ class ControlActivity : AppCompatActivity() {
     private suspend fun adjustSpeedRespectingLimits(designDelta: Int) {
         val cap = globalMaxSpeed.coerceIn(1, 100)
         val scaledDelta = designDelta * cap / 100
-        val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
-        // Smooth glide to the new speed (same ramp the voice path uses).
-        api.rampSpeed(target)
+        if (humanizeEngine.isRunning) {
+            // Retarget the humanize loop's stable base (mirrors Dispatch's
+            // AdjustSpeed path so tap and voice faster/slower behave the same).
+            val target = (humanizeEngine.currentTarget + scaledDelta).coerceIn(0, cap)
+            humanizeEngine.setTarget(target)
+        } else {
+            val target = (api.currentSpeed.value + scaledDelta).coerceIn(0, cap)
+            // Smooth glide to the new speed (same ramp the voice path uses).
+            api.rampSpeed(target)
+        }
     }
 
     private fun bootstrap() {
@@ -461,6 +485,8 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
             invertStroke = snap.invertStroke
+            humanizeStrength = snap.humanizeStrength
+            humanizeEngine.setStrength(snap.humanizeStrength)
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -511,6 +537,12 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
             invertStroke = snap.invertStroke
+            humanizeStrength = snap.humanizeStrength
+            // Live-apply a strength change from Settings. If the user turned
+            // humanize off mid-motion, cancel the loop so the device settles
+            // back onto the plain constant speed / user band.
+            humanizeEngine.setStrength(snap.humanizeStrength)
+            if (snap.humanizeStrength == 0 && humanizeEngine.isRunning) humanizeEngine.cancel()
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -722,6 +754,7 @@ class ControlActivity : AppCompatActivity() {
                     globalMinStroke = globalMinStroke,
                     globalMaxStroke = globalMaxStroke,
                     patternEngine = patternEngine,
+                    humanizeEngine = humanizeEngine,
                 )
             }.onFailure { appLog("Idle-stop dispatch error: ${it.message}") }
         }
@@ -877,6 +910,7 @@ class ControlActivity : AppCompatActivity() {
                     globalMinStroke = globalMinStroke,
                     globalMaxStroke = globalMaxStroke,
                     patternEngine = patternEngine,
+                    humanizeEngine = humanizeEngine,
                 )
             }.onFailure { appLog("Dispatch error: ${it.message}") }
         }
@@ -1008,6 +1042,7 @@ class ControlActivity : AppCompatActivity() {
                     globalMinStroke = globalMinStroke,
                     globalMaxStroke = globalMaxStroke,
                     patternEngine = patternEngine,
+                    humanizeEngine = humanizeEngine,
                 )
             }.onFailure { appLog("Shortcut $label error: ${it.message}") }
         }
@@ -1035,6 +1070,7 @@ class ControlActivity : AppCompatActivity() {
                     globalMinStroke = globalMinStroke,
                     globalMaxStroke = globalMaxStroke,
                     patternEngine = patternEngine,
+                    humanizeEngine = humanizeEngine,
                 )
             }.onFailure { appLog("PiP $label error: ${it.message}") }
         }
@@ -1160,7 +1196,14 @@ class ControlActivity : AppCompatActivity() {
             val device = (design * globalMaxSpeed.coerceIn(1, 100) / 100).coerceIn(0, 100)
             lifecycleScope.launch {
                 prefs.setManualSpeed(design)
-                val ok = api.setSpeed(device)
+                // Route through the humanize loop when it's on (same as the
+                // voice path) so the Manual slider drives the drift centre; a
+                // slide to 0 tears the loop down and stops.
+                val ok = when {
+                    device == 0 && humanizeEngine.isRunning -> { humanizeEngine.cancel(); api.stop() }
+                    humanizeEngine.enabled && device > 0 -> humanizeEngine.start(device)
+                    else -> api.setSpeed(device)
+                }
                 if (ok) manualFeedbackText.text = "Speed: $device% (design $design)"
             }
         }
@@ -1251,6 +1294,7 @@ class ControlActivity : AppCompatActivity() {
                     globalMinStroke = globalMinStroke,
                     globalMaxStroke = globalMaxStroke,
                     patternEngine = patternEngine,
+                    humanizeEngine = humanizeEngine,
                 )
             }
             val ok = result.getOrDefault(false)
@@ -1275,6 +1319,9 @@ class ControlActivity : AppCompatActivity() {
                 manualFeedbackText.text = "Not connected"
                 return@launch
             }
+            // A pattern owns the device; stop humanize modulating first so it
+            // doesn't fight the pattern's velocity / range writes.
+            humanizeEngine.cancel()
             val strokeOk = api.setStrokeRange(sMin, sMax)
             if (!strokeOk) {
                 manualFeedbackText.text = "Pattern ${spec.displayName}: stroke set failed"
