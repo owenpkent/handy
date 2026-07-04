@@ -13,6 +13,9 @@ A hands-free Android client that recognizes spoken commands by matching against 
 - Records 3 takes of each command on first launch; matches against the user's voice on-device, fully offline.
 - Voice vocabulary: `begin` / `stop` / `faster` / `slower` / `deeper` / `shallow` / `random`.
 - Tap-shortcut buttons mirror every voice command, plus a Manual tab with sliders and a 4×3 pattern grid.
+- **Humanized motion** — a steady speed drifts organically (speed *and* stroke depth) so it never feels robotic. Strength is a Settings slider (0 = off).
+- **Gentle stop** — every stop eases the speed down to 0 over ~1.5 s instead of a hard halt.
+- **Ignores its own motor noise** — record the running device's sound once and it's added to a reject class, so the motor is never misheard as a command (it was false-firing "stop").
 - **Picture-in-Picture** — float a compact control bar (stop / slower / faster, and deeper / shallow where the phone allows) over other apps.
 - In-app self-update from GitHub Releases.
 
@@ -74,7 +77,8 @@ API findings and gotchas: [docs/HANDY_API_NOTES.md](docs/HANDY_API_NOTES.md).
 ## Safety
 
 - **Global max speed + stroke band** — the device never exceeds the configured limits.
-- **Emergency stop** — always one tap away (including in the Picture-in-Picture bar).
+- **Stop** — always one tap (or word) away, including in the Picture-in-Picture bar. Eases the speed down to 0 over ~1.5 s rather than slamming to a halt.
+- **Ignores the device's own sound** — a trained reject class stops the motor noise from false-triggering commands.
 - **Visual + audible feedback** — every action is confirmed on screen and with an ack tone.
 
 ## License

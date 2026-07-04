@@ -4,7 +4,7 @@ An Android client for The Handy that recognises voice commands by matching again
 
 ## Status
 
-🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live.
+🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live. Recent additions: **humanized regular motion** (organic speed + depth drift), a **wind-down stop** (eases to 0 instead of a hard halt), and a **reject/noise class** that stops the device's own motor sound from false-firing commands.
 
 ## Why a second Android app
 
@@ -38,10 +38,15 @@ mic ─► AudioCapture (16 kHz mono int16, AudioSource.MIC)
        │
        ├─► score ≤ threshold  AND  margin ≥ score × 0.05
        ▼
-       Dispatch.dispatch(label, ..., patternEngine) ─► HandyV2ApiClient ─► REST v2
+       (drop the match if label == __noise__ reject class)
+       │
+       ▼
+       Dispatch.dispatch(label, ..., patternEngine, humanizeEngine) ─► HandyV2ApiClient ─► REST v2
                                   │
-                                  └─► VoiceAction.Pattern → PatternEngine.start(name, peak)
-                                                              loop (envelope, duration) → api.setSpeed
+                                  ├─► VoiceAction.Pattern → PatternEngine.start(name, peak)
+                                  │                           loop (envelope, duration) → api.setSpeed
+                                  └─► SetSpeed/AdjustSpeed (humanize on) → HumanizeEngine
+                                                              loop: speed + depth drift around the base
 ```
 
 Each piece is documented in detail in [docs/](docs/):
@@ -94,7 +99,7 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. The vega set h
 | Label | Action |
 | --- | --- |
 | `begin` | Set speed to 25 design points (scaled by global max). Renamed from `start` because `start`/`stop` collide for slower speech. |
-| `stop` | Stop the device + cancel any running pattern. |
+| `stop` | Stop the device + cancel any running pattern / humanize loop. Eases the speed down to 0 over ~1.5 s (`rampStop`) rather than a hard halt. |
 | `faster` | Adjust speed by +25 design points, clamped to `globalMaxSpeed`. Glides to the new speed (`rampSpeed`) instead of jumping. |
 | `slower` | Adjust speed by -25 design points, clamped to `[0, globalMaxSpeed]`. Same glide. |
 | `thunder` | Run the **thunder** envelope (random walk; was `storm`). |
@@ -102,6 +107,10 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. The vega set h
 | `pulse` | Run the **pulse** envelope (lub-dub-rest; was `heartbeat`). |
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for envelope definitions and the full pattern engine. The Voice tab carries a tap-shortcut button for every voice label so the user has a one-tap fallback when speech isn't an option.
+
+**Reject/noise class.** A reserved non-command label `__noise__` holds recordings of the device's own motor sound (trained from **Settings → Record device sound to ignore**). When incoming audio matches it best, the match is dropped instead of dispatched — the fix for the running device being misheard as "stop". Absent those recordings, behaviour is unchanged.
+
+**Humanized regular motion.** By default a steady speed isn't a flat velocity — `HumanizeEngine` drifts both the speed (layered slow sines + a random walk) and the stroke depth (the window breathes within your band) so it doesn't feel robotic. Strength is a **Settings → Motion limits → Humanize** slider (0 = off, default 30); it scales the swing and respects every cap. Turn it to 0 for the old constant-speed behaviour.
 
 ## UI layout
 
@@ -211,6 +220,7 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 - **Global stroke band** *(default 0–100)*. Hard floor and ceiling on stroke position. Manual sliders are physically bounded to this band; pattern range fields are squashed into it. Configurable in Settings.
 - **Invert stroke**. Toggle in Settings flips user-coord 0 to device-coord 100 (and vice versa) at the API client boundary. All callers think in user coords; the flip happens once in `setStrokeRange` and `parkAtRetracted`.
 - **Connect-time park**. After a successful connect, the client switches to HDSP, sends a single `xpt` command to position 0 (or 100 inverted, clamped by the global band), and switches back to HAMP. Slow controlled slide instead of a stroke.
+- **Stop winds down**. Every stop (voice, tap, PiP, idle auto-stop, Manual STOP) eases velocity to 0 over a fixed ~1.5 s via `rampStop` before `hamp/stop`, so a stop is a controlled ease-off rather than a slam.
 
 ## Layout (file inventory)
 
@@ -226,14 +236,15 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 | `app/src/main/java/com/handyvoice/v2/voice/MfccDtwEngine.kt` | Current implementation. Holds per-label `List<MFCC>` in memory; `match()` returns `(label, score, runnerUp)`. |
 | `app/src/main/java/com/handyvoice/v2/voice/TemplateStore.kt` | JSON persistence under `filesDir/templates/<label>/take_N.json`. Schema version 3 (post-CMN); older takes auto-filter on load. |
 | `app/src/main/java/com/handyvoice/v2/voice/TfliteEmbeddingEngine.kt` | Phase-3 stub for a Resnet50 embedding + cosine-similarity engine. |
-| `app/src/main/java/com/handyvoice/v2/dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / SetRange / Preset / Pattern`. |
-| `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | `LABELS`, `PROMPTS`, `TABLE`, and a suspending `dispatch(label, api, ..., patternEngine)`. |
+| `app/src/main/java/com/handyvoice/v2/dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / AdjustDepth / SetRange / Preset / Pattern / RandomPattern`. `Stop` eases to 0 before halting. |
+| `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | `LABELS`, `PROMPTS`, `TABLE`, the reserved `NOISE_LABEL` reject class, and a suspending `dispatch(label, api, ..., patternEngine, humanizeEngine)`. Routes regular motion through the humanize engine when it's enabled. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/PatternEngine.kt` | 12-pattern looping envelope engine. Ported from `homeassistant/.../patterns.py`. |
-| `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, global stroke band, invert toggle, match threshold, onboarded flag. |
+| `app/src/main/java/com/handyvoice/v2/dispatch/HumanizeEngine.kt` | Organic drift for regular (non-pattern) motion: modulates speed + stroke depth around the base while running. Strength-scaled (0 = off). Sibling to `PatternEngine`. |
+| `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, humanize strength, global stroke band, invert toggle, match threshold, onboarded flag. |
 | `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding + re-recording. Auto-advance session, per-label cross-validation gate (offers inline re-record of an outlier take). Build templates sets `onboarded=true` and returns to Control. Ack tone on every saved take. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine` and the `PipController` for the activity. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine`, the `HumanizeEngine` (strength from prefs, passed to every dispatch), and the `PipController`. Drops matches on the `__noise__` reject class before dispatching. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
 | `app/src/main/java/com/handyvoice/v2/ui/PipController.kt` | Picture-in-Picture: feature detection, building the system RemoteAction control bar (5 controls where the phone allows, else the Slower/Stop/Faster trio with Stop always present), registering the not-exported broadcast receiver the buttons fire, and entering PiP. Each control is a `Dispatch` label, routed back through the same dispatch path as voice. |
-| `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Re-record voice samples (opens Training, preserves takes) and Clear all recordings (wipes with confirmation, then opens Training) live here. |
+| `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Humanize-strength slider under Motion limits. Re-record voice samples (opens Training, preserves takes), Record device sound to ignore (trains just the `__noise__` reject class), and Clear all recordings (wipes with confirmation, then opens Training) live here. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests covering MFCC, DTW, and engine behaviour. |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots (3), peak bar, record button. |
 | `app/src/main/res/layout/activity_control.xml` | Combined voice + manual UI with TabLayout. `startStopRow` (Manual tab only) holds the big START/STOP pair. |
