@@ -601,14 +601,15 @@ class ControlActivity : AppCompatActivity() {
      * disk but are simply ignored; "Clear all recordings" removes them.
      */
     private fun loadKnownTemplates(): Map<String, List<Array<DoubleArray>>> =
-        store.loadAll().filterKeys { it in Dispatch.LABELS }
+        store.loadAll().filterKeys { it in Dispatch.LABELS || it == Dispatch.NOISE_LABEL }
 
-    /** Show a hint in the match area that reflects current template state. */
+    /** Show a hint in the match area that reflects current template state.
+     *  Counts command labels only — the reject/noise class isn't a command. */
     private fun updateLastMatchForTemplates() {
-        val labels = engine.labels()
+        val cmdCount = engine.labels().count { it in Dispatch.LABELS }
         lastMatchText.text = when {
-            labels.isEmpty() -> "No voice samples yet — tap Re-record below."
-            labels.size < Dispatch.LABELS.size -> "Trained: ${labels.size}/${Dispatch.LABELS.size} commands"
+            cmdCount == 0 -> "No voice samples yet — tap Re-record below."
+            cmdCount < Dispatch.LABELS.size -> "Trained: $cmdCount/${Dispatch.LABELS.size} commands"
             else -> ""
         }
     }
@@ -887,6 +888,15 @@ class ControlActivity : AppCompatActivity() {
         val passesMargin = match.runnerUp == Double.POSITIVE_INFINITY ||
             match.margin >= requiredMargin
         val passes = passesScore && passesMargin
+        // Reject class: the winning template is the device's own motor sound /
+        // background noise, not a command. Drop it (no dispatch, no beep, no
+        // idle-timer reset) so the device can't false-trigger itself — this is
+        // the fix for the motor noise being heard as "stop".
+        if (passes && match.label == Dispatch.NOISE_LABEL) {
+            appLog("Ignored: matched noise class (score ${"%.2f".format(match.score)}).")
+            lastMatchText.text = "· ignored (background noise)"
+            return
+        }
         val reason = when {
             !passesScore -> "below threshold"
             !passesMargin -> "low confidence (margin ${"%.1f".format(match.margin)})"
