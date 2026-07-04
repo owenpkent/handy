@@ -17,6 +17,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.handyvoice.v2.BuildConfig
 import com.handyvoice.v2.R
 import com.handyvoice.v2.data.PreferencesManager
+import com.handyvoice.v2.dispatch.Dispatch
 import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.TemplateStore
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var idleTimeoutSlider: SeekBar
     private lateinit var idleTimeoutValue: TextView
     private lateinit var retrainButton: MaterialButton
+    private lateinit var recordNoiseButton: MaterialButton
     private lateinit var clearRecordingsButton: MaterialButton
 
     // Guards the change-listeners so the initial populate() (which sets radio
@@ -83,6 +85,7 @@ class SettingsActivity : AppCompatActivity() {
         idleTimeoutSlider = findViewById(R.id.idleTimeoutSlider)
         idleTimeoutValue = findViewById(R.id.idleTimeoutValue)
         retrainButton = findViewById(R.id.retrainButton)
+        recordNoiseButton = findViewById(R.id.recordNoiseButton)
         clearRecordingsButton = findViewById(R.id.clearRecordingsButton)
         // Each control auto-applies on change: sliders persist on release
         // (onStopTrackingTouch) so a drag doesn't spam DataStore; radio and
@@ -147,6 +150,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         retrainButton.setOnClickListener { onRetrain() }
+        recordNoiseButton.setOnClickListener { onRecordNoise() }
         clearRecordingsButton.setOnClickListener { confirmClearAll() }
 
         findViewById<TextView>(R.id.versionText).text = "Version ${BuildConfig.VERSION_NAME}"
@@ -210,6 +214,22 @@ class SettingsActivity : AppCompatActivity() {
      */
     private fun onRetrain() {
         startActivity(Intent(this, TrainingActivity::class.java))
+        finish()
+    }
+
+    /**
+     * Train only the reject/noise class: launch Training scoped to
+     * [Dispatch.NOISE_LABEL] so the user records the device's running sound.
+     * Any later window that matches this class best is dropped instead of
+     * dispatched — the fix for the motor noise being heard as "stop". Best
+     * done with the device already running so the captured takes are the real
+     * noise (see the hint under the button).
+     */
+    private fun onRecordNoise() {
+        startActivity(
+            Intent(this, TrainingActivity::class.java)
+                .putExtra(TrainingActivity.EXTRA_LABELS, arrayOf(Dispatch.NOISE_LABEL))
+        )
         finish()
     }
 

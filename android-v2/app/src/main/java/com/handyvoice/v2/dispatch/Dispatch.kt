@@ -49,6 +49,17 @@ object Dispatch {
         "deeper", "shallow", "random",
     )
 
+    /**
+     * Reserved "reject" label. NOT a command (no dispatch action, no tap
+     * button) — it holds templates of the *device's own motor sound* (and
+     * other background noise). When an incoming window matches this label
+     * best, the caller drops it instead of dispatching, so the device's noise
+     * can't false-trigger a command (notably "stop" halting itself). Trained
+     * from Settings → "Record device sound to ignore" while the device runs.
+     * Underscored so it can never collide with a real spoken label.
+     */
+    const val NOISE_LABEL: String = "__noise__"
+
     /** Human-readable prompt shown on the training card for each label. */
     val PROMPTS: Map<String, String> = mapOf(
         "begin"   to "begin",
@@ -58,6 +69,9 @@ object Dispatch {
         "deeper"  to "deeper",
         "shallow" to "shallow",
         "random"  to "random",
+        // Shown on the training card for the reject class. Not a word to say —
+        // the user stays quiet and lets the device run so we capture its noise.
+        NOISE_LABEL to "device sound — let it run, stay quiet",
     )
 
     private val TABLE: Map<String, VoiceAction> = mapOf(

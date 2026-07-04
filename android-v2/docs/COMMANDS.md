@@ -111,6 +111,8 @@ private val TABLE: Map<String, VoiceAction> = mapOf(
 
 Order in `LABELS` is the order the user sees during training.
 
+> **Reject/noise class.** `Dispatch.NOISE_LABEL` (`"__noise__"`) is a reserved label that is deliberately *not* in `LABELS` and has no `TABLE` entry, so it never dispatches. It holds templates of the device's own motor sound (trained from Settings → "Record device sound to ignore"). When an incoming window matches it best, `ControlActivity.handleAudio` drops the match — the fix for the motor noise being heard as "stop". See TROUBLESHOOTING.md.
+
 ### 3. Record templates
 
 Re-record. From **Settings → Re-record voice samples** (opens Training without wiping existing takes) or **Settings → Clear all recordings** (wipes everything with confirmation, then opens Training). Tap **Build templates** when done. There's no post-Build verification pass anymore: the per-label cross-validation gate runs inline after each label's 3 takes (catches inconsistent takes when the audio is freshest), and the Voice tab gives instant feedback on the first real use — so a collision shows up the first time you try the new word, not after another forced 9-prompt gauntlet.

@@ -56,6 +56,10 @@ import kotlin.coroutines.resume
 class TrainingActivity : AppCompatActivity() {
 
     companion object {
+        /** Optional intent extra (String[]): the exact labels to train this
+         *  session. Absent/empty → the full command vocabulary. */
+        const val EXTRA_LABELS = "com.handyvoice.v2.EXTRA_LABELS"
+
         private const val TAKES_PER_LABEL = 3
         // Capture window — must match ControlActivity.WINDOW_SECONDS so the
         // recognition path produces MFCC sequences the templates can align
@@ -100,9 +104,13 @@ class TrainingActivity : AppCompatActivity() {
      *  Released in onDestroy. */
     private var ackTone: ToneGenerator? = null
 
-    private val labels = Dispatch.LABELS
+    // Labels to train this session. Defaults to the full command vocabulary
+    // (first-run onboarding / general re-record); Settings can launch us with
+    // EXTRA_LABELS to train just a subset — e.g. only the reject/noise class.
+    // Set in onCreate before loadProgress().
+    private var labels: List<String> = Dispatch.LABELS
     private var labelIndex = 0
-    private val takeCounts: IntArray = IntArray(labels.size)
+    private var takeCounts: IntArray = IntArray(labels.size)
     private var lastTake: ShortArray? = null
     private var isRecording = false
     /**
@@ -145,6 +153,13 @@ class TrainingActivity : AppCompatActivity() {
         // <activity> is silently ignored — this is the flag that works.)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_training)
+
+        // Optional label subset (e.g. just the reject/noise class). Fall back
+        // to the full command set when the extra is absent or empty.
+        intent.getStringArrayExtra(EXTRA_LABELS)?.toList()?.takeIf { it.isNotEmpty() }?.let {
+            labels = it
+            takeCounts = IntArray(labels.size)
+        }
 
         prefs = PreferencesManager(applicationContext)
         store = TemplateStore(applicationContext.filesDir)
