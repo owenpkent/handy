@@ -35,6 +35,9 @@
 - [x] Android v2: thorough documentation (README, ARCHITECTURE, VOICE_ENGINE, COMMANDS, TRAINING, TROUBLESHOOTING)
 - [x] **Reorganize repo around android-v2** — moved android (v1), v2-web, v1-web, alexa, homeassistant into `legacy/`; android-v2 is the only active app
 - [x] **Android v2: Picture-in-Picture control bar** — float into a PiP window with stop / faster / slower (and deeper / shallow where the phone allows 5 actions); auto-floats on Home while running
+- [x] **Android v2: stop winds down** — `rampStop()` eases velocity to 0 over a fixed ~1.5 s before `hamp/stop`, on every stop path (voice, tap, PiP, idle auto-stop, Manual STOP)
+- [x] **Android v2: humanized regular motion** — `HumanizeEngine` drifts speed (layered sines + random walk) and stroke depth around the base so steady motion isn't robotic; strength slider in Settings (0 = off)
+- [x] **Android v2: reject/noise class** — record the device's own motor sound (Settings → "Record device sound to ignore") into a non-command class so it stops false-firing "stop"
 
 ## Next Up
 
