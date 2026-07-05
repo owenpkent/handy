@@ -17,13 +17,43 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Permanent shared signing key. Committed so every machine (and cloud
+    // build) signs with the SAME certificate. Android only installs an in-app
+    // update over the top when the new APK's signature matches the installed
+    // one; a per-machine debug key breaks that ("App not installed as package
+    // conflicts with an existing package"). This IS a standard Android *debug*
+    // keystore (well-known creds android / androiddebugkey / android) — it is
+    // an identity, not a security secret, so committing it is intentional.
+    // Drop the keystore that signed your currently-installed build in at
+    // app/signing/handy.keystore (see app/signing/README.md). If the file is
+    // absent the build silently falls back to the per-machine debug key.
+    val sharedKeystore = file("signing/handy.keystore")
+    signingConfigs {
+        if (sharedKeystore.exists()) {
+            create("shared") {
+                storeFile = sharedKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
+        getByName("debug") {
+            if (sharedKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("shared")
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (sharedKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("shared")
+            }
         }
     }
     compileOptions {
