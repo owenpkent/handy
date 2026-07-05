@@ -14,9 +14,12 @@
     /releases/latest. Bump versionName + versionCode in app/build.gradle.kts
     before running so the new release is detected as newer.
 
-    Signing note: the APK is debug-signed with your machine's
-    ~/.android/debug.keystore. Android only applies an update signed with the
-    SAME key as the installed build, so always publish from the same machine.
+    Signing note: if app/signing/handy.keystore exists, every build (any
+    machine) signs with that one committed key, so in-app updates always
+    install over the top. If it's absent the APK is debug-signed with this
+    machine's ~/.android/debug.keystore, and Android only applies an update
+    signed with the SAME key as the installed build (publish from one machine).
+    See app/signing/README.md.
 
 .PARAMETER Notes
     Release notes shown in the in-app "Update available" dialog. Defaults to a
