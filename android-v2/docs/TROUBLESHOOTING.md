@@ -199,7 +199,7 @@ Energy + zero-crossing-rate VAD has false positives. Mitigations:
 
 The mic hears the device running, the matcher decides that noise is closest to a command template (most often **stop**), and the device halts itself.
 
-Fix: **teach it to ignore the device sound.** Start the device so it's actually running, then go to **Settings → Record device sound to ignore** and record ~3 takes of just the running noise (stay quiet). Those takes go into a reserved reject class (`__noise__`) that isn't a command — any window that matches it best is dropped instead of dispatched, so the motor noise stops false-firing. It doesn't make your real commands any harder to trigger (speech is acoustically very different from the mechanical noise). Re-record it if you change devices or your setup's acoustics change. Watch the debug log: a suppressed match shows `Ignored: matched noise class`.
+Fix *(optional — only if you hit this; it's not a setup step)*: **teach it to ignore the device sound.** Start the device so it's actually running, then go to **Settings → Record device sound to ignore** and record ~3 takes of just the running noise (stay quiet). Those takes go into a reserved reject class (`__noise__`) that isn't a command — any window that matches it best is dropped instead of dispatched, so the motor noise stops false-firing. It doesn't make your real commands any harder to trigger (speech is acoustically very different from the mechanical noise). Re-record it if you change devices or your setup's acoustics change. Watch the debug log: a suppressed match shows `Ignored: matched noise class`.
 
 ### Always-on never fires when I speak
 

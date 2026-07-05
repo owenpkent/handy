@@ -149,10 +149,23 @@ Open the debug panel on the Voice tab (**Show Debug** below the buttons). Every 
 
 Always-on mode runs a voice-activity detector on every block of mic input. When the VAD thinks you spoke, it waits about 1.8 seconds (so the rolling 2.5 s buffer ends up containing the *full* word, not just its first ~120 ms) and then hands the buffer to the matcher. Two failure modes:
 
-- **Background noise triggers it.** Coughs, TV, room HVAC. The default VAD thresholds in `audio/Vad.kt` reject most non-speech, but they're not perfect. **Workaround:** switch to button mode in noisy environments (tap mic to start a continuous listening session, tap again to stop). **Long-term fix:** tighten VAD thresholds, or train a wake-word label.
+- **Background noise triggers it.** Coughs, TV, room HVAC, or the device's own motor. The default VAD thresholds in `audio/Vad.kt` reject most non-speech, but they're not perfect. **Workaround:** switch to button mode in noisy environments (tap mic to start a continuous listening session, tap again to stop). **If it's the device's own sound being misheard as a command** (usually "stop"), use the optional "ignore device sound" recording — see [Optional: teach it to ignore the device's own sound](#optional-teach-it-to-ignore-the-devices-own-sound) below.
 - **Your speech triggers it before you finish, and the match fires on a partial word.** Less of a problem now that we wait 1.8 s after the trigger before snapshotting, but possible for unusually long words. **Workaround:** speak the command in one breath. If you have a word that genuinely takes more than 2 seconds to say, bump `WINDOW_SECONDS` in both Training and Control (they must match).
 
 If always-on mode never fires when you speak, watch the live peak meter on the Voice tab. If it's flat-zero, the mic isn't reaching the app (see [TROUBLESHOOTING](TROUBLESHOOTING.md#mic-not-picking-anything-up)). If the meter moves but no match fires, your speech may be below the VAD energy threshold — speak a bit louder or move closer to the mic.
+
+## Optional: teach it to ignore the device's own sound
+
+**This is optional and not part of setup — skip it entirely unless you actually hit the problem.** Normal training is just the seven commands above; you never have to record anything else for the app to work.
+
+If the device's own motor noise gets misheard as a command (most often it halts itself by triggering "stop"), you can teach the app to tune that sound out:
+
+1. Connect and **start the device so it's actually running.**
+2. Go to **Settings → Record device sound to ignore.**
+3. Record three short takes of just the running noise — **stay quiet**, don't speak.
+4. Done. It takes effect right away.
+
+Those takes go into a separate "ignore" class that is never treated as a command — any sound closest to it is dropped instead of acted on. It doesn't make your real commands any harder to trigger (your voice and the mechanical noise look very different to the matcher). Re-record it if you change devices or your setup's acoustics change. In the debug log a suppressed sound shows as `Ignored: matched noise class`.
 
 ## Glossary
 

@@ -108,7 +108,7 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. The vega set h
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for envelope definitions and the full pattern engine. The Voice tab carries a tap-shortcut button for every voice label so the user has a one-tap fallback when speech isn't an option.
 
-**Reject/noise class.** A reserved non-command label `__noise__` holds recordings of the device's own motor sound (trained from **Settings → Record device sound to ignore**). When incoming audio matches it best, the match is dropped instead of dispatched — the fix for the running device being misheard as "stop". Absent those recordings, behaviour is unchanged.
+**Reject/noise class** *(optional)*. A reserved non-command label `__noise__` holds recordings of the device's own motor sound (trained from **Settings → Record device sound to ignore**). When incoming audio matches it best, the match is dropped instead of dispatched — the fix for the running device being misheard as "stop". **Entirely opt-in: it is never part of first-run onboarding, and with no noise takes recorded behaviour is unchanged** — so nothing about normal use requires it.
 
 **Humanized regular motion.** By default a steady speed isn't a flat velocity — `HumanizeEngine` drifts both the speed (layered slow sines + a random walk) and the stroke depth (the window breathes within your band) so it doesn't feel robotic. Strength is a **Settings → Motion limits → Humanize** slider (0 = off, default 30); it scales the swing and respects every cap. Turn it to 0 for the old constant-speed behaviour.
 
