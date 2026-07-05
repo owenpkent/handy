@@ -266,6 +266,26 @@ Expected on most phones — Android caps the PiP control bar at `getMaxNumPictur
 
 `onPictureInPictureModeChanged` should swap `mainScroll` for the `pipOverlay` status text. If you see the full layout, the activity was likely recreated on the PiP resize — confirm `ControlActivity` still has `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` in the manifest.
 
+## Updating the app
+
+### `App not installed as package conflicts with an existing package`
+
+The update APK is signed with a **different key** than the copy on the phone, so
+Android refuses to install it over the top. Debug builds sign per-machine, so
+this appears whenever an APK is built/published from a different machine than the
+one that produced the installed build.
+
+The build already signs with a committed shared keystore
+(`app/signing/handy.keystore`) when present, which fixes this going forward. The
+one-time step is to **seed that keystore with the key that signed the installed
+app**, then publish — the update then installs over the top with **no uninstall
+and recordings preserved**. Full runbook (run it on your main build machine):
+[SIGNING.md](SIGNING.md).
+
+If the file is seeded from the wrong machine, the first update still conflicts
+and needs one uninstall/reinstall; after that, every future update is clean. See
+[SIGNING.md § If step 4 still says "conflicts"](SIGNING.md#if-step-4-still-says-conflicts).
+
 ## Diagnostics
 
 ### How to capture a debug log
