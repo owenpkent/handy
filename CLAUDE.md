@@ -97,7 +97,8 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 | `VOICE_ENGINE.md` | MFCC pipeline parameter-by-parameter, FFT details, DTW + banded path + normalization, threshold tuning loop, storage format, swappable-engine contract. |
 | `COMMANDS.md` | Vocabulary table, dispatch table, VoiceAction semantics, how to add a new command end-to-end, pattern stand-ins + Phase 2 port. |
 | `TRAINING.md` | User-facing recording guide. Recording habits, peak meter, retraining paths, reading match scores. |
-| `TROUBLESHOOTING.md` | Build issues (JAVA_HOME, SDK path, wrapper jar), runtime (mic permission, no match, false fires, threshold), dispatch (global max cap surprises). |
+| `TROUBLESHOOTING.md` | Build issues (JAVA_HOME, SDK path, wrapper jar), runtime (mic permission, no match, false fires, threshold), dispatch (global max cap surprises), updates ("package conflicts" signing error). |
+| `SIGNING.md` | App signing & the "App not installed as package conflicts with an existing package" update error. Why per-machine debug keys break updates, the committed shared keystore, and the original-machine runbook to seed it and publish without an uninstall. |
 
 ---
 
