@@ -11,6 +11,10 @@ signatures differ, and Android refuses the update with:
 
 > App not installed as package conflicts with an existing package.
 
+**Status:** `handy.keystore` is seeded and committed (as of **v0.17**) with the
+key that signed the build on Owen's phone. The steps below are the reference for
+how it was seeded, and what to do if it ever needs re-seeding.
+
 ## Install-over-the-top WITHOUT uninstalling (keep your recordings)
 
 Android only accepts an update whose signature matches the **currently installed**
