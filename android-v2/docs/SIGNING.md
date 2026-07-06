@@ -26,13 +26,18 @@ updates always install over the top, from any machine or a cloud build. If the
 file is absent the build falls back to the per-machine debug key (old
 behaviour), so nothing breaks before it's seeded.
 
-The remaining step is to seed that keystore **with the key that signed the app
-currently on the phone** — otherwise the *first* update after this change still
-mismatches and still needs a one-time uninstall.
+That keystore must be seeded **with the key that signed the app currently on the
+phone**, or the *first* update after this change still mismatches and needs a
+one-time uninstall.
+
+**Status: done.** The keystore was seeded from Owen's main PC's debug key and
+committed in **v0.17** — the first build signed with it — so updates now install
+over the top from any machine with no uninstall. The runbook below records how it
+was done and is the reference if the key ever needs re-seeding.
 
 ---
 
-## Runbook — do this on the ORIGINAL build machine
+## Runbook — how it was seeded (ORIGINAL build machine)
 
 "Original machine" = the PC whose `~/.android/debug.keystore` signed the build
 that's installed on the phone right now. For this project that's Owen's main
