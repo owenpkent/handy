@@ -35,9 +35,10 @@ The app self-updates from the public releases repo **`owenpkent/handy-releases`*
 
 It builds the APK, creates the public repo on first run, and publishes a
 `v<versionName>` GitHub Release with the APK attached. Installed apps poll
-`/releases/latest` and prompt to update. Always publish from the same machine
-so the debug signing key stays consistent (Android rejects a differently-signed
-update). See the Auto-update section in the root `CLAUDE.md`.
+`/releases/latest` and prompt to update. Every build signs with the committed
+shared keystore (`android-v2/app/signing/handy.keystore`), so updates install
+over the top from any machine. See the Auto-update section in the root
+`CLAUDE.md` and `android-v2/docs/SIGNING.md`.
 
 ## Git
 
