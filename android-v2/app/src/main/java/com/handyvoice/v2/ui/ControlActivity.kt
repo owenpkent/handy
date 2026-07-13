@@ -74,7 +74,18 @@ class ControlActivity : AppCompatActivity() {
         private const val WINDOW_SECONDS = 2.5
         private const val VAD_BLOCK_MS = 30
         private const val VAD_SPEECH_FRAMES_TO_TRIGGER = 4   // ~120 ms of voiced audio
-        private const val COOLDOWN_MS = 1500L
+        /**
+         * Minimum gap between two captures. Kept short so a "begin" spoken
+         * right after a "stop" isn't swallowed: the stamp is set at snapshot
+         * time regardless of whether the match passed, so this window is dead
+         * air with no capture and no feedback. It used to be 1500 ms, which —
+         * stacked on the 1.8 s post-VAD wait and the ~1.5 s stop wind-down —
+         * left a ~3.3 s hole after every stop where a restart word was lost.
+         * It no longer has to cover the wind-down: a fresh command now
+         * supersedes an in-flight ramp at the client (velocityEpoch), so this
+         * is just a light debounce against a single utterance double-firing.
+         */
+        private const val COOLDOWN_MS = 600L
         /**
          * After VAD detects the start of speech, we wait this long before
          * snapshotting the rolling buffer. The trigger fires only ~120 ms

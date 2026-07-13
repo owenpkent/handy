@@ -14,6 +14,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PUT
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 enum class ConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
 
@@ -83,6 +84,24 @@ class HandyV2ApiClient {
      */
     private var globalStrokeMin: Int = 0
     private var globalStrokeMax: Int = 100
+
+    /**
+     * Monotonic token bumped by every single-shot velocity write
+     * (start / stop / setSpeed / setSpeedModulated) and captured by the
+     * looping ramps (rampSpeed / rampStop). A ramp abandons its remaining
+     * legs — and skips its terminal hamp/stop — the instant a newer command
+     * bumps the token. This is what lets a "begin" spoken while a "stop" is
+     * still winding down win, instead of being stomped back to 0 by the
+     * draining stop ramp a beat later. (A running ramp spends nearly all its
+     * time in delay() between legs, so the check-then-write window is a few
+     * instructions wide; at worst one stale leg lands, never the full drain.)
+     */
+    private val velocityEpoch = AtomicLong(0L)
+
+    /** Invalidate any in-flight ramp and return the new epoch. Single-shot
+     *  writes call this so a fresh command supersedes a running wind-down /
+     *  glide; the ramps call it to claim their own epoch. */
+    private fun bumpVelocityEpoch(): Long = velocityEpoch.incrementAndGet()
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -179,6 +198,8 @@ class HandyV2ApiClient {
             _lastError.value = "Not connected"
             return false
         }
+        // Supersede a draining stop-ramp so a "begin" mid-wind-down wins.
+        bumpVelocityEpoch()
 
         return try {
             log("Starting...")
@@ -202,6 +223,8 @@ class HandyV2ApiClient {
     }
 
     suspend fun stop(): Boolean {
+        // A plain stop also supersedes any running ramp (e.g. a slider-to-0).
+        bumpVelocityEpoch()
         return try {
             log("Stopping...")
             val response = api.hampStop(connectionKey)
@@ -228,6 +251,8 @@ class HandyV2ApiClient {
             return false
         }
 
+        // A direct speed set (e.g. begin's velocity write) supersedes a ramp.
+        bumpVelocityEpoch()
         val velocity = percent.coerceIn(0, 100)
         log("Setting speed to $velocity%")
         return putVelocity(velocity)
@@ -241,18 +266,19 @@ class HandyV2ApiClient {
      * The ramp duration scales with the distance travelled (a bigger jump
      * takes a little longer) and is clamped to [RAMP_MIN_MS]..[RAMP_MAX_MS].
      * Each leg moves ~1 velocity point (capped at [MAX_RAMP_STEPS] legs so a
-     * large jump doesn't flood the API). Suspends for the full ramp; the
-     * caller's dispatch cooldown (1.5 s) comfortably covers it.
+     * large jump doesn't flood the API). Suspends for the full ramp.
      *
-     * NB: overlapping ramps (e.g. very rapid taps) aren't serialized — the
-     * last one to write wins, which is fine for a monotonic faster/slower
-     * gesture.
+     * NB: a newer velocity command (another ramp, a stop, a begin) bumps
+     * [velocityEpoch] and this ramp abandons its remaining legs on the next
+     * check — so rapid faster/faster taps and a "begin" landing mid-ramp both
+     * resolve to the newest intent instead of interleaving writes.
      */
     suspend fun rampSpeed(target: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) {
             _lastError.value = "Not connected"
             return false
         }
+        val myEpoch = bumpVelocityEpoch()
         val from = _currentSpeed.value
         val to = target.coerceIn(0, 100)
         val distance = kotlin.math.abs(to - from)
@@ -266,6 +292,8 @@ class HandyV2ApiClient {
 
         var ok = true
         for (i in 1..steps) {
+            // A newer command (another ramp, a stop) took over — abandon this one.
+            if (velocityEpoch.get() != myEpoch) return false
             val v = from + (to - from) * i / steps
             ok = putVelocity(v) && ok
             if (i < steps) delay(interval)
@@ -292,16 +320,22 @@ class HandyV2ApiClient {
      * this off-thread so the ~1.5 s suspend never blocks listening.
      */
     suspend fun rampStop(): Boolean {
+        val myEpoch = bumpVelocityEpoch()
         val from = _currentSpeed.value
         if (_connectionState.value == ConnectionState.CONNECTED && from > 0) {
             val interval = STOP_RAMP_MS / STOP_RAMP_STEPS
             log("Easing to stop from $from% over ~${STOP_RAMP_MS}ms.")
             for (i in 1..STOP_RAMP_STEPS) {
+                // If a "begin" / faster came in mid-wind-down, abandon the
+                // drain so we don't fight it back toward 0.
+                if (velocityEpoch.get() != myEpoch) return false
                 val v = from - from * i / STOP_RAMP_STEPS  // reaches 0 at final leg
                 putVelocity(v)
                 if (i < STOP_RAMP_STEPS) delay(interval)
             }
         }
+        // Superseded after the last leg but before the halt? Skip hamp/stop.
+        if (velocityEpoch.get() != myEpoch) return false
         return stop()
     }
 
@@ -315,6 +349,10 @@ class HandyV2ApiClient {
      */
     suspend fun setSpeedModulated(velocity: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) return false
+        // The humanize loop owns velocity once running; its first write here
+        // supersedes a draining stop-ramp (begin-with-humanize doesn't call
+        // start() when the device is still flagged running mid-wind-down).
+        bumpVelocityEpoch()
         return try {
             api.setVelocity(connectionKey, VelocityRequest(velocity.coerceIn(0, 100).toDouble()))
                 .isSuccessful

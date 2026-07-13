@@ -257,7 +257,7 @@ Set in `Settings → Listening mode`:
 
 Both modes use a **post-VAD delay** (~1.8 s) before snapshotting the rolling buffer. The VAD trigger fires ~120 ms into a word, so a same-instant snapshot would mostly be the silence preceding the utterance. The delay lets the buffer slide forward until the full word is inside the 2.5 s window — matching where words sit in the training takes.
 
-A 1.5 s cooldown after each dispatch prevents same-utterance double-fire.
+A short (~0.6 s) cooldown after each dispatch debounces same-utterance double-fire. It's deliberately short: the stamp is set at snapshot time regardless of whether the match passed, so a long cooldown is dead air where a restart word is silently swallowed. It used to be 1.5 s, which — on top of the post-VAD wait and the ~1.5 s stop wind-down — left a ~3.3 s hole after every stop where "begin" wouldn't register. A fresh velocity command now supersedes an in-flight ramp at the client level (`velocityEpoch` in `HandyV2ApiClient`: `start`/`stop`/`setSpeed`/`setSpeedModulated` bump it; `rampSpeed`/`rampStop` bail when it changes), so a "begin" landing while a "stop" is still winding down wins instead of being ramped back to 0. That decoupling is what let the cooldown drop without reintroducing a begin-vs-stop race.
 
 ### Picture-in-Picture
 
