@@ -236,12 +236,22 @@ Working as intended. The global max speed cap (default 30%) scales everything. `
 
 If you want a higher ceiling, **Settings → Global max speed**. Owen's default is `30` per his preferences. Push to 50 or higher if you're confident, but the cap exists for a reason — see [README.md § Safety caps](../README.md#safety-caps).
 
-### Device doesn't start when I say `start`
+### Device doesn't start when I say `begin`
 
-The dispatch path is `start` → `SetSpeed(25)` → ensure running → `setSpeed`. If `api.start()` fails, the speed is never written. Open the debug panel — you'll see `Start failed: <code>`. Causes:
+The dispatch path is `begin` → `SetSpeed(25)` → ensure running → `setSpeed`. If `api.start()` fails, the speed is never written. Open the debug panel — you'll see `Start failed: <code>`. Causes:
 
 - Device offline (see "Device not connected" above).
 - Mode hasn't been set (was supposed to happen on `connect()`; if connect was skipped, mode is wrong). Re-tap Connect.
+
+### The device stopped and wouldn't restart for several seconds
+
+Fixed in v0.18. Previously, a `stop` left a **dead-zone** where a spoken `begin` right afterward wasn't captured at all — no match, no beep, no feedback, so the app looked like it was ignoring you.
+
+Two waits stacked up. After any command the app waits ~1.8 s before snapshotting the next utterance (so the rolling buffer contains the whole word), and it then enforced a further 1.5 s cooldown. Combined with the ~1.5 s stop wind-down, that left roughly **3.3 s after you started saying `stop`** during which a following `begin` produced nothing. The stamp that starts the cooldown is set whether or not the match passed, so it was genuinely dead air.
+
+The long cooldown existed to dodge a race: a `begin` firing while the stop wind-down (`rampStop`) was still easing velocity toward 0 would get stomped back to 0 a beat later, so the device would appear to refuse to restart. v0.18 removes that race at the API-client level — a fresh velocity command (`begin`, `faster`) bumps a token that makes any in-flight ramp abandon its remaining legs and skip its terminal `hamp/stop`, so the newest command wins. With the race gone, the cooldown dropped to 0.6 s, and `stop` → `begin` restarts on the first try.
+
+If you're on an older build: tapping the on-screen **Begin** button (Voice tab) bypasses recognition and always works, and updating to v0.18+ fixes the spoken path.
 
 ### `Heard: faster` shows but device doesn't speed up
 
