@@ -255,9 +255,11 @@ Parameters (`ControlActivity` companion object):
 
 - `VAD_BLOCK_MS = 30` — each `Vad.isSpeech` call is on a 30 ms block (480 samples).
 - `VAD_SPEECH_FRAMES_TO_TRIGGER = 4` — ~120 ms of continuous voiced audio before a match runs.
-- `COOLDOWN_MS = 1500` — minimum gap between triggers. Prevents the same utterance firing twice.
+- `COOLDOWN_MS = 600` — minimum gap between triggers; a light debounce against one utterance firing twice. The stamp is set at snapshot time regardless of whether the match passed, so this window is dead air with no capture and no feedback. It was 1500, which (stacked on the 1.8 s post-VAD wait and the ~1.5 s stop wind-down) left a ~3.3 s hole after every stop where a restart word was silently swallowed. It no longer has to cover the wind-down: a fresh velocity command supersedes an in-flight ramp at the client level (see `velocityEpoch` in `HandyV2ApiClient`), so a "begin" spoken right after a "stop" wins instead of being stomped back to 0.
 
 Match work happens on `Dispatchers.Default`; the capture loop doesn't block on the matcher. If matches stack up (the user speaks rapidly), the cooldown will throttle them.
+
+**Ramp supersession (`velocityEpoch`).** `rampSpeed`/`rampStop` write velocity across ~1.5 s in their own coroutines. A monotonic epoch, bumped by every single-shot velocity write (`start`/`stop`/`setSpeed`/`setSpeedModulated`) and captured by each ramp, lets a ramp abandon its remaining legs — and skip its terminal `hamp/stop` — the instant a newer command bumps it. Without this, a "begin" landing while a "stop" ramp was still draining would be overwritten back to 0 a beat later, so the device appeared to refuse to restart.
 
 ## Things deliberately missing
 
