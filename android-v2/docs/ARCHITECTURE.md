@@ -61,7 +61,7 @@ The Android `AudioRecord` API allows only one active recorder at a time. We resp
 | `Dispatchers.Default` | One-off `withContext(Default)` in `ControlActivity.handleAudio` | MFCC + DTW. CPU-bound, no I/O. |
 | Retrofit / OkHttp | OkHttp dispatcher pool | All HTTP. Retrofit's `suspend` functions resume on the calling coroutine. |
 
-The matcher is invoked synchronously inside a single `withContext(Default)` block per utterance. For the Phase 1 vocabulary (9 labels × 3 takes), a single match takes a few hundred microseconds, so there is no benefit from parallelizing across labels.
+The matcher is invoked synchronously inside a single `withContext(Default)` block per utterance. For the Phase 1 vocabulary (4 labels × 3 takes), a single match takes a few hundred microseconds, so there is no benefit from parallelizing across labels.
 
 In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the `alwaysOnJob?.isActive == true` check; cancelling `alwaysOnJob` (on a screen-on navigate-away, or when listening mode changes) lets the loop drain and `AudioRecord.release()` run. The loop deliberately survives a screen-off (see Lifecycle → `onStop`), held up by the partial wake lock, so commands keep working with the screen dark.
 
@@ -268,7 +268,7 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 - **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for four labels.
 - **No analytics, telemetry, or crash reporting.** This is a personal accessibility tool; everything stays on-device.
 - **No A/B between engines.** `MfccDtwEngine` is hard-wired in `ControlActivity`. When `TfliteEmbeddingEngine` ships, the switch will be a single line plus a prefs toggle.
-- **No microphone selection UI.** The default `VOICE_RECOGNITION` source is used. If the user has a Bluetooth headset and wants to record through it, that's a future setting.
+- **No microphone selection UI.** Whatever `AudioSource.MIC` routes to is what gets recorded. If the user has a Bluetooth headset and wants to record through it, that's a future setting.
 - **No noise suppression / AGC.** Android's `AcousticEchoCanceler` and `NoiseSuppressor` are available but unhooked. MFCC + DTW with personal samples is fairly robust without them; if accuracy on Owen's voice in noisy rooms is poor, this is the first knob to try.
 
 ## Diagrams in the repo

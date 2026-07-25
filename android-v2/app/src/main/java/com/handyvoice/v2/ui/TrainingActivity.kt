@@ -45,7 +45,7 @@ import kotlin.coroutines.resume
  * Stop -> Re-record, and explicit prev/next/skip controls so the user can
  * skip a label and come back.
  *
- * Per-take flow: tap Record -> 1.5 s capture -> auto-stop -> MFCC extracted
+ * Per-take flow: tap Record -> 2.5 s capture -> auto-stop -> MFCC extracted
  * and persisted -> take counter advances -> on take 3, label is complete.
  * Play button replays the most recent capture so the user can verify.
  *
@@ -282,7 +282,7 @@ class TrainingActivity : AppCompatActivity() {
             })
         )
 
-        // The only thing that has to be locked is the actual 1.5 s mic capture,
+        // The only thing that has to be locked is the actual 2.5 s mic capture,
         // so navigation and Build templates stay available between takes even
         // while a session is running. Skip during inter-take pauses jumps the
         // session forward to the next label.

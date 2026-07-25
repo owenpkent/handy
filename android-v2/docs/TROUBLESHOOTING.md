@@ -321,7 +321,7 @@ Wipes prefs and templates. Next launch is exactly like first install.
 
 ### Run unit tests
 
-The MFCC + DTW math has 14 unit tests that run on the JVM (no emulator):
+The MFCC + DTW math (plus the updater's version compare) has 21 unit tests that run on the JVM (no emulator):
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest
