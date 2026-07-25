@@ -56,8 +56,8 @@ import java.util.Locale
  * Main control screen.
  *
  * Two listening modes, picked in Settings:
- *   - "button"    (default) — tap mic, capture 1.5 s, match, dispatch.
- *   - "always_on"           — continuous capture; VAD opens a 1.5 s window
+ *   - "button"    (default) — tap mic, capture 2.5 s, match, dispatch.
+ *   - "always_on"           — continuous capture; VAD opens a 2.5 s window
  *                             when speech is detected, matcher scores it,
  *                             dispatch fires on a confident match.
  *

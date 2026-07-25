@@ -25,24 +25,28 @@
 - [x] Android settings: Vosk/Android STT/Deepgram voice engine selection
 - [x] Update LLM onboarding documentation
 - [x] **Android v2 scaffold** — new app using prerecorded voice samples (MFCC + DTW); see `android-v2/`
-- [x] Android v2: hand-rolled MFCC (radix-2 FFT, mel filterbank, DCT) with 14 JVM unit tests
+- [x] Android v2: hand-rolled MFCC (radix-2 FFT, mel filterbank, DCT) with JVM unit tests
 - [x] Android v2: Sakoe-Chiba banded DTW with path-length normalization
 - [x] Android v2: TemplateEngine interface + MfccDtwEngine + TemplateStore (JSON, format-versioned)
-- [x] Android v2: Euphonia-style TrainingActivity (9 commands × 3 takes, save-as-you-go)
+- [x] Android v2: Euphonia-style TrainingActivity (3 takes per command, save-as-you-go)
 - [x] Android v2: ControlActivity with mic-button and always-on (VAD-gated) modes
 - [x] Android v2: SettingsActivity (connection key, listening mode, global max speed, threshold, retrain)
-- [x] Android v2: Dispatch table mirroring `vega/commands.py` (9 labels: start/stop/faster/slower + 5 pattern stand-ins)
+- [x] Android v2: Dispatch table modelled on `vega/commands.py` (originally 9 labels: start/stop/faster/slower + 5 pattern stand-ins)
 - [x] Android v2: thorough documentation (README, ARCHITECTURE, VOICE_ENGINE, COMMANDS, TRAINING, TROUBLESHOOTING)
 - [x] **Reorganize repo around android-v2** — moved android (v1), v2-web, v1-web, alexa, homeassistant into `legacy/`; android-v2 is the only active app
-- [x] **Android v2: Picture-in-Picture control bar** — float into a PiP window with stop / faster / slower (and deeper / shallow where the phone allows 5 actions); auto-floats on Home while running
+- [x] **Android v2: Picture-in-Picture control bar** — float into a PiP window with slower / stop / faster; auto-floats on Home while running
 - [x] **Android v2: stop winds down** — `rampStop()` eases velocity to 0 over a fixed ~1.5 s before `hamp/stop`, on every stop path (voice, tap, PiP, idle auto-stop, Manual STOP)
 - [x] **Android v2: humanized regular motion** — `HumanizeEngine` drifts speed (layered sines + random walk) and stroke depth around the base so steady motion isn't robotic; strength slider in Settings (0 = off)
 - [x] **Android v2: reject/noise class** — record the device's own motor sound (Settings → "Record device sound to ignore") into a non-command class so it stops false-firing "stop"
 - [x] **Android v2: shared signing keystore** — committed debug keystore (`app/signing/handy.keystore`) so every build shares one signature; in-app updates install over the top from any machine with no uninstall (first in v0.17). See `docs/SIGNING.md`.
+- [x] **Android v2: pattern engine port** — `dispatch/PatternEngine.kt`, 12 looping envelopes ported from `legacy/homeassistant/.../patterns.py`. `VoiceAction.Pattern(name, intensity)` replaced the Preset stand-ins; all 12 are tap buttons on the Manual tab.
+- [x] **Android v2: stroke-range cap** — global stroke band (min + max) wired into Settings, `PreferencesManager`, and `Dispatch.dispatch()`; preset and pattern ranges are squashed into it. Invert-stroke switch alongside.
+- [x] **Android v2: per-command retrain** — Settings → "Re-record voice samples" opens Training without wiping saved takes, and Prev/Next/Skip let the user land on one command. `TrainingActivity` also accepts `EXTRA_LABELS` to scope a session to a subset (used for the reject/noise class).
+- [x] **Android v2: trim the voice vocabulary to four labels** (v0.19) — dropped `random` / `deeper` / `shallow`, leaving begin / stop / faster / slower. Depth moved to the Manual stroke sliders; the PiP bar became a fixed Slower / Stop / Faster trio.
 
 ## Next Up
 
-- [ ] **Android v2: validate Picture-in-Picture on Owen's phone** — confirm the per-app PiP permission is on, check how many actions the device's bar shows (3 vs 5), and verify auto-float-on-Home and each control
+- [ ] **Android v2: validate Picture-in-Picture on Owen's phone** — confirm the per-app PiP permission is on and verify auto-float-on-Home and each of the three controls
 
 - [ ] **Home Assistant integration** — primary path forward for hands-free voice control. See [docs/HOME_ASSISTANT_GUIDE.md](docs/HOME_ASSISTANT_GUIDE.md). Stages:
   - [ ] Stand up HA + Whisper + Piper + openWakeWord + satellite stack via Docker Compose on the Beelink GTR5 (Ubuntu 24)
@@ -56,12 +60,9 @@
 - [ ] **Custom Patterns** — Host looping funscripts for HRPP-like behavior
 - [ ] **Android UX Polish** — Better connection flow, error recovery, onboarding
 - [ ] **Android v2: on-device validation** — record real templates on Owen's phone, walk every command twice, tune `match_threshold` and `Vad.energyThreshold` defaults from observed score distributions
-- [ ] **Android v2: pattern engine port** from `vega/devices/handy.py` (looping heartbeat / wave / surge / breathe / storm envelopes). Add `VoiceAction.Pattern(name, intensity)`, replace the 5 Preset stand-ins. Recording vocabulary unchanged.
 - [ ] **Android v2: preset grid UI parity with v1** — 4×3 slow/med/fast × top/mid/bot/full + sliders. Voice-first stays primary; grid is touch fallback.
 - [ ] **Android v2: TFLite embedding engine** — extract EfficientWord-Net's Resnet50 model, port preprocessing to Kotlin, store one average embedding per label. Cosine similarity threshold. Same training UX.
 - [ ] **Android v2: wake-word label** — record one template called `wake`; always-on uses the matcher itself as the wake stage instead of VAD. Closer to vega's design.
-- [ ] **Android v2: stroke-range cap** — wire `GLOBAL_MAX_STROKE_PERCENT` (default 30 per vega) into Settings and `Dispatch.dispatch()`.
-- [ ] **Android v2: per-command retrain** — Settings → "Re-record a single command" without wiping everything.
 - [ ] **Android v2: foreground service for true background listening** — `MediaProjection`-style with persistent notification. Optional, behind a setting; useful for hands-free across screen-off.
 
 ## Shelved / Abandoned

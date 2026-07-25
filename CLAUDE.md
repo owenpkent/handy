@@ -54,7 +54,7 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 | `ui/TrainingActivity.kt` | First-run onboarding and re-recording. Single Record tap runs an auto-advance session through every (label, take) needing audio, with a pre-roll → "Listening, speak now" UI and a brief breathing pause between takes. Cross-validation flags outlier takes per label and offers an inline re-record. Build templates sets onboarded=true and returns to Control. Skip / Prev / Next stay enabled between captures so the user can navigate without canceling. Ack tone on every saved take. Trains `Dispatch.LABELS` by default, but accepts an `EXTRA_LABELS` intent extra to train a subset — Settings uses this to record just the reject/noise class (`Dispatch.NOISE_LABEL`). |
 | `ui/SettingsActivity.kt` | Settings, grouped into four cards in order: **Connection** (connection key), **Motion limits** (global max speed, **Humanize (organic drift, 0 = off)** slider, global stroke band min + max, invert-stroke switch), **Voice recognition** (listening mode button vs always-on, match threshold, idle auto-stop, plus the Re-record / Clear-all recording buttons), and **About** (version + Check-for-updates button, see Auto-update). **Every control auto-applies the moment it changes**: sliders persist on release (`onStopTrackingTouch`, so a drag doesn't spam DataStore), radio / switch on toggle, and the connection key on focus-loss + `onPause`. There is no Save button; the **←  Home** button just returns to `ControlActivity`, which re-reads prefs in `onResume` and pushes them to the device. A `ready` flag gates the listeners so the initial `populate()` doesn't write the loaded values straight back. **Re-record voice samples** opens Training without touching saved takes (earlier this button silently wiped everything, a footgun). **Record device sound to ignore** launches Training scoped to the reject/noise class (`EXTRA_LABELS = [Dispatch.NOISE_LABEL]`) so the user captures the device's running motor sound — best done with the device already running. **Clear all recordings** wipes templates with a confirmation dialog and then routes to Training. |
 | `api/HandyV2ApiClient.kt` | Handy V2 REST API client (Retrofit). Self-contained models (no V1 import). Single `PUT /slide` for stroke range. `setSpeed` does one velocity PUT; `rampSpeed(target)` **glides** to a target through several intermediate `PUT /hamp/velocity` legs (duration scales with distance, ~250–900 ms, ~1 point per leg, capped at 12 legs) so faster/slower feel smooth instead of jumping. Both share a private `putVelocity` so the ramp logs once. `rampStop()` is the **stop wind-down**: eases velocity to 0 over a *fixed* ~1.5 s (12 legs, not distance-scaled — so it's felt even at low capped speeds) then sends `hamp/stop`; backs every stop affordance. Quiet writers for the humanize loop: `setSpeedModulated` (velocity PUT, no log / no cache), `setStrokeRangeTransient` (/slide, no cache update — Manual sliders keep showing the user's band while the device drifts), and `reflectBaseSpeed` (display-only `currentSpeed` so the readout shows the steady base, not the wobble). |
-| `audio/AudioCapture.kt` | Thin AudioRecord wrapper. `readWindow(seconds)` for fixed captures, `stream(...)` for the always-on loop. Source = `MediaRecorder.AudioSource.VOICE_RECOGNITION`. |
+| `audio/AudioCapture.kt` | Thin AudioRecord wrapper. `readWindow(seconds)` for fixed captures, `stream(...)` for the always-on loop. Source = `MediaRecorder.AudioSource.MIC` (not `VOICE_RECOGNITION` — see the design decisions below). |
 | `audio/Vad.kt` | Energy + zero-crossing-rate voice activity detector. Used only by always-on mode. |
 | `voice/Mfcc.kt` | **Hand-rolled MFCC** — pre-emphasis, Hamming window, radix-2 FFT (512-pt), mel filterbank, log, DCT. 13 coeffs, 25 ms / 10 ms framing. Allocation-free per call. |
 | `voice/Dtw.kt` | **Sakoe-Chiba banded Dynamic Time Warping**. Path-length normalized so longer templates don't lose unfairly. |
@@ -209,8 +209,8 @@ For users with non-standard speech, step (1) is the brittle part. V2 cuts both s
 ```
 mic ─► AudioCapture (16 kHz mono int16)
        │
-       ├─► [button mode]   tap mic ─► 1.5 s capture
-       └─► [always-on]     VAD opens 1.5 s windows out of continuous stream
+       ├─► [button mode]   tap mic ─► 2.5 s capture
+       └─► [always-on]     VAD opens 2.5 s windows out of continuous stream
        │
        ▼
        Mfcc (13 coeffs, 25 ms frame, 10 ms hop, radix-2 FFT, mel filterbank, DCT)
@@ -351,13 +351,14 @@ applicationContext.filesDir/
 
 ### Tests (Android V2)
 
-14 JVM unit tests cover the audio math without needing Android:
+21 JVM unit tests cover the audio math and the update version-compare without needing Android:
 
 - `MfccTest` (5) — extraction shape, determinism, frequency discrimination, empty/short input handling.
 - `DtwTest` (5) — self-distance zero, symmetry, similar beats dissimilar, length invariance after normalization, empty handling.
 - `MfccDtwEngineTest` (4) — no-templates returns null, trained label wins, two-takes-per-label preserves match, clearAll works.
+- `UpdaterTest` (7) — `isNewer`: integer-component comparison (so `0.10 > 0.9`, the bug that motivates it), equal / older versions, leading `v` tolerated, differing component counts (`1.0 == 1.0.0`), and malformed versions never updating.
 
-Run: `./gradlew :app:testDebugUnitTest` from `android-v2/`. ~30 ms total runtime.
+Run: `./gradlew :app:testDebugUnitTest` from `android-v2/`. ~40 ms total runtime.
 
 ---
 
@@ -459,7 +460,7 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 
 ### Android V2
 1. **Save MFCCs after every take, not at the end of onboarding.** A crash should lose the active take, not 30 minutes of work.
-2. **`MediaRecorder.AudioSource.VOICE_RECOGNITION` is the right source** — applies the OS speech-tuning DSP chain. Mic and Camcorder sources sound worse on most phones.
+2. **`MediaRecorder.AudioSource.MIC` is the source, not `VOICE_RECOGNITION`.** `VOICE_RECOGNITION` is the textbook choice (it applies the OS speech-tuning DSP chain), but the emulator's virtual mic delivers silence to it in many configurations while routing to `MIC` reliably. Emulator parity won. See the design-decisions note above and `docs/VOICE_ENGINE.md`.
 3. **`AudioTrack.Builder` (not the deprecated constructor)** — `AudioTrack(STREAM_MUSIC, ...)` is deprecated since API 26 (our minSdk). Use the builder with `AudioAttributes.USAGE_MEDIA` + `CONTENT_TYPE_SPEECH`.
 4. **`MfccDtwEngine.match()` runs on `Dispatchers.Default`**, capture on `Dispatchers.IO`. The matcher is CPU-bound and short (~1 ms); IO blocks shouldn't compete for the same threads as filesystem writes.
 5. **Always-on capture loop is gated by a `Job.isActive` check**, not a separate flag. Cancelling the job lets the unbounded loop drain and `AudioRecord.release()` run.
@@ -469,7 +470,7 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 
 ### Engine math (Android V2 specific)
 
-1. **MFCC frame size = 400 samples (25 ms), hop = 160 samples (10 ms)**. Standard speech-feature framing. A 1.5 s capture yields ~98 frames of 13 coefficients.
+1. **MFCC frame size = 400 samples (25 ms), hop = 160 samples (10 ms)**. Standard speech-feature framing. One second of audio yields ~98 frames of 13 coefficients, so the 2.5 s capture window yields ~248.
 2. **FFT size = 512** (next power of two ≥ 400). Frame is zero-padded. Don't change this without re-running the unit tests.
 3. **Mel filterbank uses 26 triangular filters**, 20 Hz → 8 kHz (Nyquist). Build matrix is precomputed in the `Mfcc` constructor; the inner loop is one dot product per filter per frame.
 4. **DCT-II with orthogonal normalization** (`sqrt(1/N)` for c₀, `sqrt(2/N)` otherwise). Same as scipy / librosa. Precomputed 13×26 matrix.
@@ -509,7 +510,7 @@ git add -A; git commit -m "feat: description"; git push
   cd C:\Users\Owen\dev\handy\android-v2
   .\gradlew.bat :app:assembleDebug
   ```
-- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 14 tests, ~30 ms.
+- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 21 tests, ~40 ms.
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
 - Every debug build drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The task is hooked to `packageDebug` (not `assembleDebug`) so it fires for `installDebug` too. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.

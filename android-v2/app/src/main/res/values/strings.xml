@@ -5,7 +5,7 @@
 
     <!-- Training onboarding -->
     <string name="training_title">Teach Me Your Voice</string>
-    <string name="training_intro">I need to learn how you say each command. We will record 3 takes of each of the 9 commands.</string>
+    <string name="training_intro">I need to learn how you say each command. We will record 3 takes of each one.</string>
     <string name="training_command_progress">Command %1$d of %2$d</string>
     <string name="training_take_progress">Take %1$d of %2$d</string>
     <string name="training_record">Record</string>

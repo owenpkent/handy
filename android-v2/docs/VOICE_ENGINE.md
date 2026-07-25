@@ -133,10 +133,10 @@ We compute D row-by-row in two rolling buffers (`prev`, `curr`) rather than the 
 
 ### Sakoe-Chiba band
 
-`bandRatio = 0.15` means the warping path can stray at most `0.15 × max(n, m)` cells off the diagonal. For a 98-frame query against a 105-frame template that's ±16 cells. The band:
+`bandRatio = 0.15` means the warping path can stray at most `0.15 × max(n, m)` cells off the diagonal. For a 248-frame query against a 255-frame template that's ±38 cells. The band:
 
-1. Prunes obviously-bad alignments. Without it, a 1.5 s utterance can warp into matching a one-frame chunk of the template.
-2. Cuts compute by a factor of `(1 / bandRatio)`. For typical 98-frame queries this is ~6× speedup.
+1. Prunes obviously-bad alignments. Without it, a 2.5 s utterance can warp into matching a one-frame chunk of the template.
+2. Cuts compute by a factor of `(1 / bandRatio)`. For typical 248-frame queries this is ~6× speedup.
 
 The band width is clamped to at least `|n − m| + 1` so that valid diagonal paths are never excluded for templates of slightly different length.
 
@@ -253,7 +253,7 @@ The only consumer is `ControlActivity` (for matching) and `TrainingActivity` (fo
 
 1. **Model.** Extract EfficientWord-Net's `Resnet50_Arc_loss` TFLite model (about 25 MB) from `vega`'s install or fetch from upstream. Ship it under `assets/`.
 2. **Preprocessing.** Reimplement EfficientWord-Net's `audio_processing.py` in Kotlin: load PCM, resample if needed (we're already at 16 kHz), STFT, log-mel, normalise. The model expects a fixed input tensor.
-3. **Inference.** Use `org.tensorflow.lite:tensorflow-lite` (CPU is fine for one 1.5 s utterance) to produce a single embedding vector per utterance.
+3. **Inference.** Use `org.tensorflow.lite:tensorflow-lite` (CPU is fine for one 2.5 s utterance) to produce a single embedding vector per utterance.
 4. **Matching.** Store one average embedding per label (mean of 3 takes); compare query via cosine similarity. Threshold becomes "similarity > 0.7" instead of "DTW < 30".
 5. **Storage.** Same `TemplateStore`, but `mfcc` becomes a single-row matrix of the embedding. Bump `format` to 2 so old MFCC takes are not silently treated as embeddings.
 

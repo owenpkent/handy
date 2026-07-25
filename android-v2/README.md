@@ -90,7 +90,7 @@ JVM unit tests for the audio math run without the emulator:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, and engine label routing. 14 tests, ~30 ms total.
+These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, and the updater's version-compare gate. 21 tests, ~40 ms total.
 
 ## Vocabulary
 
