@@ -12,7 +12,7 @@ I'm Owen — a wheelchair user with muscular dystrophy.
 - **Offer A/B/C choices** — I can type one letter instead of explaining.
 - **PowerShell on Windows** — Use PowerShell syntax. Prefer single-line commands.
 - **Accessibility matters** — This project is a tool I actually need.
-- **Non-standard voice** — Browser Web Speech API and Android SpeechRecognizer both fail badly with my voice. We solved this with **Vosk offline + constrained grammar** on Android and **Deepgram** on web.
+- **Non-standard voice** — Browser Web Speech API and Android SpeechRecognizer both fail badly with my voice. The current answer on Android is **matching against my own prerecorded samples** (MFCC + DTW, no ASR at all) in `android-v2/`. Earlier attempts: Vosk offline + constrained grammar on Android (now `legacy/android/`), Deepgram on web.
 
 ---
 
@@ -39,7 +39,7 @@ I'm Owen — a wheelchair user with muscular dystrophy.
 
 ## Key Files
 
-> **Legacy apps live under `legacy/`** (`legacy/android/` Vosk app, `legacy/v2-web/`, `legacy/v1-web/`, `legacy/alexa/`, `legacy/homeassistant/`). They're frozen and not covered in detail here — see `legacy/README.md`. Everything below is `android-v2/`.
+> **Legacy apps live under `legacy/`** (`legacy/android/` Vosk app, `legacy/v2-web/`, `legacy/v1-web/`, `legacy/alexa/`, `legacy/homeassistant/`). They're frozen and not covered in detail here — see `legacy/README.md` for the index, and `legacy/android/README.md` for the v1 Vosk app's internals. Everything below is `android-v2/`.
 
 ### Android App V2 (`android-v2/app/src/main/java/com/handyvoice/v2/`)
 
@@ -120,74 +120,11 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 
 ---
 
-## Voice Control Architecture (Android)
+## Voice Control Architecture (legacy v1 — Vosk)
 
-### Three Voice Engines
+The frozen v1 app (`legacy/android/`) took a completely different approach: Vosk offline ASR with a constrained JSGF grammar, then a fuzzy parser over the transcript. Its engine internals, grammar phrase list, parser rules, and hard-won gotchas live in **[`legacy/android/README.md`](legacy/android/README.md)** — that's the only detailed record of them, so read it there rather than expecting them here.
 
-1. **Vosk Offline (default, recommended)** — `VoskVoiceEngine.kt`
-   - Constrained JSGF grammar: can ONLY output ~100 predefined phrases
-   - Eliminates false positives completely (no "surrounded the top" when you say "slow top")
-   - ~40MB model downloaded on first launch, cached in app files
-   - Fully offline after download
-   - **Best for Owen's voice** — constrained vocabulary compensates for recognition difficulty
-
-2. **Deepgram WebSocket** — `DeepgramVoiceEngine.kt`
-   - Cloud-based, requires API key
-   - Best raw accuracy, but unconstrained vocabulary
-   - Has keyword boosting for command words
-
-3. **Android SpeechRecognizer** — `VoiceRecognitionService.kt`
-   - Built-in, free, but unconstrained and poor accuracy for Owen
-
-### Voice Engine Selection
-- Default: `"vosk"` (in `PreferencesManager.kt`)
-- Changed in Settings → radio buttons → Save Voice Settings
-- `ControlActivity.initVoiceEngine()` reads pref and creates the right engine
-
-### Vosk Key Design Decisions
-
-**Muted/unmuted pattern (not create/destroy):**
-- `SpeechService` is created ONCE during `initialize()` and runs continuously
-- Pressing MIC toggles a `muted` flag — when muted, callbacks are ignored
-- This avoids Android AudioRecord warmup issues that caused the first 2-3 mic presses to fail
-- `stopListening()` = set `muted = true` (SpeechService keeps running)
-- `startListening()` = set `muted = false` (instant, no AudioRecord recreation)
-
-**Partial result timeout (1.2s):**
-- Vosk doesn't finalize when you repeat the same word ("faster... faster... faster")
-- It keeps it as a partial because the recognizer sees one continuous utterance
-- Fix: after 1.2s of a stable partial, auto-promote it to a final result
-- This allows sequential "faster" / "slower" commands
-
-**Duplicate detection with timestamp suffix:**
-- Kotlin `StateFlow` doesn't emit when the new value equals the old value
-- If you say "faster" twice, the finalResult would be "faster" both times → second one ignored
-- Fix: `emitFinal()` appends `" " + System.currentTimeMillis()` to force uniqueness
-- `ControlActivity` strips this suffix with regex before parsing: `rawTranscript.replace(Regex("\\s+\\d{13,}$"), "")`
-
-### Voice Command Parser (`VoiceCommand.kt`)
-
-Uses **word-based fuzzy matching** with Levenshtein distance:
-- Each word in the transcript is compared to known command words
-- Threshold: 40% edit distance ratio
-- Checks in priority order: presets → two-word commands → single-word → speed numbers → global min/max
-- Best match (lowest combined score) wins
-
-### Vosk Grammar Phrases
-
-All phrases Vosk can output (anything else → `[unk]`):
-- **Presets:** `slow/medium/med/fast` × `top/mid/middle/bot/bottom/full` (24 combos)
-- **Basic:** `start`, `stop`, `go`, `begin`, `play`, `halt`, `pause`, `end`
-- **Speed:** `faster`, `slower`, `speed up`, `slow down`, `quicker`
-- **Speed set:** `speed ten/twenty/.../hundred`
-- **Global limits:** `maximum/minimum/max/min` × `ten/twenty/.../hundred`
-
-**To add a new voice command:**
-1. Add the phrase(s) to `GRAMMAR` list in `VoskVoiceEngine.kt`
-2. Add the `VoiceCommand` subclass in `VoiceCommand.kt`
-3. Add parsing logic in `VoiceCommandParser.parse()`
-4. Add handling in `ControlActivity.executeCommand()`
-5. Add branch in `MainActivity.handleVoiceCommand()` (keep `when` exhaustive!)
+The one thing worth carrying forward: Android's built-in `SpeechRecognizer` recognizes the entire English dictionary, so "slow top" came back as "surrounded the top". Constraining the vocabulary is what made voice control usable at all, and v2 takes that idea further by dropping the transcript step entirely.
 
 ---
 
@@ -442,21 +379,14 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 ## Lessons Learned / Gotchas
 
 ### Voice Recognition
-1. **Android SpeechRecognizer** recognizes the entire English dictionary — terrible for constrained-domain commands. "Slow top" becomes "surrounded the top."
-2. **Vosk with grammar constraints** solves this perfectly — it can ONLY output phrases you define.
-3. **Don't destroy/recreate AudioRecord** on each mic toggle — Android has warmup issues. Use muted/unmuted pattern instead.
-4. **Vosk doesn't finalize repeated words** — same word said twice stays as partial. Use a timeout to auto-promote.
-5. **StateFlow ignores duplicate values** — append a timestamp to force emission of repeated commands.
+1. **Unconstrained ASR is the wrong tool for a fixed command set.** Android's `SpeechRecognizer` searches the whole English dictionary, so "slow top" came back as "surrounded the top". Constraining the vocabulary (v1, via a Vosk grammar) fixed it; removing the transcript step altogether (v2) fixed it better.
+2. The rest of the v1 Vosk lessons — AudioRecord warmup and the muted/unmuted pattern, partials that never finalize on a repeated word, `StateFlow` swallowing duplicate emissions — are specific to that frozen app and live in [`legacy/android/README.md`](legacy/android/README.md).
 
 ### API
 1. **V2 stroke range** uses single `PUT /slide` with `{min, max}`, NOT separate `/slide/min` and `/slide/max` (those 404).
 2. **Set speed AFTER start** — the web app explicitly does this and it matters.
 3. **Set HAMP mode once** on connect, not on every action.
 4. **Name collisions** — `SlideRequest` exists in both V1 (`HandyApiService.kt`, `position: Double`) and V2 clients. V2 uses `SlideRangeRequest` to avoid the collision.
-
-### Android
-1. **`when` expressions on sealed classes must be exhaustive** — when you add a new `VoiceCommand` subclass, update ALL `when` blocks in both `ControlActivity.kt` and `MainActivity.kt` or you get a compile error.
-2. **`onResume` reinitializes the voice engine** — this is intentional so settings changes take effect, but be aware it destroys and recreates the engine.
 
 ### Android V2
 1. **Save MFCCs after every take, not at the end of onboarding.** A crash should lose the active take, not 30 minutes of work.
