@@ -169,7 +169,7 @@ File names use `take_N.json` where N is the next integer after the existing coun
 
 `ControlActivity` Picture-in-Picture (`ui/PipController.kt`):
 
-- The activity can float into a PiP window (header `pipButton`, or `onUserLeaveHint` auto-floating when connected **and** `isRunning`). A PiP window can't receive touches on the app's own views, so the controls are system `RemoteAction`s — icon buttons in the window overlay, each backed by a `PendingIntent` broadcast. The bar holds at most `getMaxNumPictureInPictureActions()` actions (≥3, sometimes 5): all five controls (Slower/Faster/Stop/Deeper/Shallow) where allowed, else the Slower/**Stop**/Faster trio built explicitly so Stop is always present. Taps arrive as broadcasts on a `RECEIVER_NOT_EXPORTED` receiver and route through `Dispatch.dispatch` (`onPipControl`), which also calls `noteActivity()` + `playAck()` since a broadcast never reaches `onUserInteraction`. `onPictureInPictureModeChanged` swaps `mainScroll` for the compact `pipOverlay` status text. The listening loop is **not** torn down on entering PiP (the activity stays STARTED while the window is visible). Manifest: `supportsPictureInPicture` + PiP `configChanges`.
+- The activity can float into a PiP window (header `pipButton`, or `onUserLeaveHint` auto-floating when connected **and** `isRunning`). A PiP window can't receive touches on the app's own views, so the controls are system `RemoteAction`s — icon buttons in the window overlay, each backed by a `PendingIntent` broadcast. The bar holds at most `getMaxNumPictureInPictureActions()` actions (≥3 on every phone, sometimes 5), so it's the Slower/**Stop**/Faster trio — three fits the guaranteed floor and is never truncated. Taps arrive as broadcasts on a `RECEIVER_NOT_EXPORTED` receiver and route through `Dispatch.dispatch` (`onPipControl`), which also calls `noteActivity()` + `playAck()` since a broadcast never reaches `onUserInteraction`. `onPictureInPictureModeChanged` swaps `mainScroll` for the compact `pipOverlay` status text. The listening loop is **not** torn down on entering PiP (the activity stays STARTED while the window is visible). Manifest: `supportsPictureInPicture` + PiP `configChanges`.
 
 `TrainingActivity.onCreate`:
 
@@ -203,7 +203,6 @@ Dispatch.dispatch(label, api, globalMaxSpeed, globalMinStroke, globalMaxStroke, 
   │   ┌─ Stop          → humanizeEngine.cancel() ; patternEngine.cancel() ; api.rampStop() (ease to 0, then hamp/stop)
   │   ├─ SetSpeed      → humanize on: humanizeEngine.start(scaled) ; else ensure running, api.setSpeed(scaled)
   │   ├─ AdjustSpeed   → humanize running: retarget the loop ; else api.rampSpeed(current + scaled-delta), clamped; glides
-  │   ├─ AdjustDepth   → slide the fixed-length stroke window deeper/shallower within the band
   │   ├─ SetRange      → api.setStrokeRange(squashed-into-band)
   │   ├─ Preset        → humanize/pattern cancel ; setStrokeRange(squashed) → start → setSpeed(scaled)
   │   └─ Pattern       → humanize cancel ; setStrokeRange(squashed full band) → patternEngine.start(name, scaleSpeed(intensity))
@@ -217,7 +216,7 @@ HandyV2ApiClient   PatternEngine (looped)   HumanizeEngine (looped: modulates sp
 PUT https://www.handyfeeling.com/api/handy/v2/...
 ```
 
-The dispatch path always emits a log line (matched or below-threshold) and updates `lastMatchText`. Below-threshold matches are shown to the user as `? shallow (score 41.2)` so they can see what the engine *almost* matched.
+The dispatch path always emits a log line (matched or below-threshold) and updates `lastMatchText`. Below-threshold matches are shown to the user as `? slower (score 41.2)` so they can see what the engine *almost* matched.
 
 ## Always-on listening state machine
 
@@ -266,7 +265,7 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 - **No background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
 - **No automatic reconnection retries.** If `api.connect()` fails, the user must tap Connect again. The API client surfaces errors in `lastError` and `debugLog`, and `ControlActivity` shows the reason on the status line in red (plus a toast on a manual Connect tap) so the failure is visible rather than a silent "Disconnected". This covers both the manual tap and the splash-time auto-connect, since both end in `DISCONNECTED` with the reason cached. Retries belong in user-driven UI, not silently in the background.
 - **No template versioning beyond `format: 1`.** A future migration script can read `format` and adapt; for now there is one shape.
-- **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for seven labels.
+- **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for four labels.
 - **No analytics, telemetry, or crash reporting.** This is a personal accessibility tool; everything stays on-device.
 - **No A/B between engines.** `MfccDtwEngine` is hard-wired in `ControlActivity`. When `TfliteEmbeddingEngine` ships, the switch will be a single line plus a prefs toggle.
 - **No microphone selection UI.** The default `VOICE_RECOGNITION` source is used. If the user has a Bluetooth headset and wants to record through it, that's a future setting.

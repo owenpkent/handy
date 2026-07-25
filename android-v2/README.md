@@ -1,4 +1,4 @@
-# Handy Voice V2 (Android)
+﻿# Handy Voice V2 (Android)
 
 An Android client for The Handy that recognises voice commands by matching against **prerecorded samples of the user's own voice** rather than running speech-to-text. Lives alongside the Vosk-based `../android/` app; both can be installed at once.
 
@@ -15,7 +15,7 @@ An Android client for The Handy that recognises voice commands by matching again
 
 For users with non-standard speech, step (1) is the brittle part. Both steps can fail in ways that take work to diagnose.
 
-`android-v2/` shortcuts both steps. It records 3 takes of each command in the user's own voice on first launch, builds an MFCC template per take, and at runtime asks: *"does the audio I just captured look like the samples Owen recorded for `faster`?"* Nothing ever has to map "what was said" to an English word. The matcher is speaker-locked by construction: it knows exactly one speaker's voice and exactly seven labels, and only fires when the incoming audio resembles one of them.
+`android-v2/` shortcuts both steps. It records 3 takes of each command in the user's own voice on first launch, builds an MFCC template per take, and at runtime asks: *"does the audio I just captured look like the samples Owen recorded for `faster`?"* Nothing ever has to map "what was said" to an English word. The matcher is speaker-locked by construction: it knows exactly one speaker's voice and exactly four labels, and only fires when the incoming audio resembles one of them.
 
 Inspired by [`../../vega/`](../../vega), which uses the same pattern-matching approach on a Raspberry Pi with EfficientWord-Net.
 
@@ -94,7 +94,7 @@ These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + 
 
 ## Vocabulary
 
-Seven labels, picked for acoustic distinctness in MFCC+DTW space. The vega set had `heartbeat / wave / surge / breathe / storm` for patterns; those collapsed in a similar corner of MFCC space and kept colliding, so the kept patterns were renamed (and the rest dropped from voice; their envelopes are still on the Manual tab as tap-only buttons).
+Four labels, picked for acoustic distinctness in MFCC+DTW space. The vega set had `heartbeat / wave / surge / breathe / storm` for patterns; those collapsed in a similar corner of MFCC space and kept colliding. Pattern words were dropped from voice entirely (their envelopes live on the Manual tab as tap-only buttons), as were the stroke-length pair `deeper / shallow` and the `random` envelope trigger — none earned their keep spoken, and every label removed widens the gap between the ones left. Depth is on the Manual stroke sliders.
 
 | Label | Action |
 | --- | --- |
@@ -102,9 +102,6 @@ Seven labels, picked for acoustic distinctness in MFCC+DTW space. The vega set h
 | `stop` | Stop the device + cancel any running pattern / humanize loop. Eases the speed down to 0 over ~1.5 s (`rampStop`) rather than a hard halt. |
 | `faster` | Adjust speed by +25 design points, clamped to `globalMaxSpeed`. Glides to the new speed (`rampSpeed`) instead of jumping. |
 | `slower` | Adjust speed by -25 design points, clamped to `[0, globalMaxSpeed]`. Same glide. |
-| `thunder` | Run the **thunder** envelope (random walk; was `storm`). |
-| `ripple` | Run the **ripple** envelope (sine 0..1..0, 8 s cycle; was `wave`). |
-| `pulse` | Run the **pulse** envelope (lub-dub-rest; was `heartbeat`). |
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for envelope definitions and the full pattern engine. The Voice tab carries a tap-shortcut button for every voice label so the user has a one-tap fallback when speech isn't an option.
 
@@ -168,11 +165,11 @@ Every button runs a time-based velocity envelope through `PatternEngine`. STOP, 
 
 | Button | Envelope | Default range | Voice? |
 | --- | --- | --- | --- |
-| Pulse | Lub (0.85, 150 ms) → gap → dub (0.7, 150 ms) → rest 1.5 s | Configured band | ✓ `pulse` |
-| Ripple | Smooth sine 0 → 1 → 0, 8 s cycle | Configured band | ✓ `ripple` |
+| Pulse | Lub (0.85, 150 ms) → gap → dub (0.7, 150 ms) → rest 1.5 s | Configured band | — |
+| Ripple | Smooth sine 0 → 1 → 0, 8 s cycle | Configured band | — |
 | Surge | 24-step linear ramp to peak, 4 s hold, 3 s rest | Configured band | — |
 | Breathe | Sine confined to 0.10..0.60, 6 s cycle (never silent / never peak) | Configured band | — |
-| Thunder | Random walk envelope 0..1 for 0.4..1.6 s, repeat | Configured band | ✓ `thunder` |
+| Thunder | Random walk envelope 0..1 for 0.4..1.6 s, repeat | Configured band | — |
 | Tick | Steady metronome 0.75 / 200 ms ↔ 0 / 200 ms | 40–60% (narrow mid) | — |
 | Tease | Sparse light touches with 2–3 s silences | 0–50% (lower half) | — |
 | Edge | 5 s ramp → 0.95 hold for 6 s → drop 4 s | 70–90% (top) | — |
@@ -181,7 +178,7 @@ Every button runs a time-based velocity envelope through `PatternEngine`. STOP, 
 | Bounce | Sine 0.40..0.90, 2 s cycle | 20–80% | — |
 | Climax | Stairstep 0.30→0.50→0.70→0.85→1.0 (8 s peak hold) → reset | 30–90% | — |
 
-Three envelopes are voice-addressable; the rest are tap-only on this tab. `Pulse` / `Ripple` / `Thunder` are renames of the old `heartbeat` / `wave` / `storm` (chosen for MFCC distinctness on Owen's voice); `Tick` is the old `pulse` metronome, renamed to free the `pulse` name. `Surge` and `Breathe` were dropped from the voice set entirely but kept here as tap-only.
+No envelope is voice-addressable — they're all tap-only on this tab. `Pulse` / `Ripple` / `Thunder` are renames of the old `heartbeat` / `wave` / `storm` (once chosen for MFCC distinctness on Owen's voice, before pattern words left the spoken set); `Tick` is the old `pulse` metronome, renamed to free the `pulse` name.
 
 All envelopes scale to the caller's intensity, which is `globalMaxSpeed` for both voice and Manual taps. So `Pulse` at `globalMaxSpeed=30` peaks at `0.85 × 30 ≈ 26`.
 
@@ -203,14 +200,7 @@ Float the app into a small always-on-top window so you can keep controlling the 
 - Tap the **⧉ float button** in the header (appears once connected), or
 - Press **Home / Recents while the device is running** — the app auto-floats so Stop stays reachable. (If nothing is moving, Home just backgrounds the app normally.)
 
-**Controls in the window.** A PiP window can't take touches on the app's own views, so the controls are the system **RemoteAction** bar (icon buttons in the window's control overlay). Android caps that bar at **3 actions on most phones**, though some allow 5. So:
-
-| Phone allows | Bar shows |
-| --- | --- |
-| 5 actions | ⏪ Slower · ⏩ Faster · ⏹ **Stop** · ▽ Deeper · △ Shallow |
-| 3 actions | ⏪ Slower · ⏹ **Stop** · ⏩ Faster |
-
-On a 3-slot phone, **Stop is always present**; Deeper / Shallow are reached by tapping the window to expand back to the full app. The window itself shows a clean readout — `▶ <speed>%` (green) while running, `■ Stopped` (red) otherwise.
+**Controls in the window.** A PiP window can't take touches on the app's own views, so the controls are the system **RemoteAction** bar (icon buttons in the window's control overlay). Android caps that bar at **3 actions on most phones**, so the bar is the speed trio — ⏪ Slower · ⏹ **Stop** · ⏩ Faster — which fits everywhere and never gets truncated. Anything else is reached by tapping the window to expand back to the full app. The window itself shows a clean readout — `▶ <speed>%` (green) while running, `■ Stopped` (red) otherwise.
 
 Each button routes through the same `Dispatch.dispatch(label)` path as voice and the in-app tap shortcuts, so caps, the faster/slower glide, and stop-cancels-pattern all behave identically. A PiP tap also notes activity (pushing back the idle auto-stop) and plays the ack beep, since the icons are silent. Implemented in [`ui/PipController.kt`](app/src/main/java/com/handyvoice/v2/ui/PipController.kt); the activity declares `supportsPictureInPicture` + the PiP `configChanges` in the manifest.
 
@@ -236,7 +226,7 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 | `app/src/main/java/com/handyvoice/v2/voice/MfccDtwEngine.kt` | Current implementation. Holds per-label `List<MFCC>` in memory; `match()` returns `(label, score, runnerUp)`. |
 | `app/src/main/java/com/handyvoice/v2/voice/TemplateStore.kt` | JSON persistence under `filesDir/templates/<label>/take_N.json`. Schema version 3 (post-CMN); older takes auto-filter on load. |
 | `app/src/main/java/com/handyvoice/v2/voice/TfliteEmbeddingEngine.kt` | Phase-3 stub for a Resnet50 embedding + cosine-similarity engine. |
-| `app/src/main/java/com/handyvoice/v2/dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / AdjustDepth / SetRange / Preset / Pattern / RandomPattern`. `Stop` eases to 0 before halting. |
+| `app/src/main/java/com/handyvoice/v2/dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / SetRange / Preset / Pattern`. `Stop` eases to 0 before halting. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | `LABELS`, `PROMPTS`, `TABLE`, the reserved `NOISE_LABEL` reject class, and a suspending `dispatch(label, api, ..., patternEngine, humanizeEngine)`. Routes regular motion through the humanize engine when it's enabled. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/PatternEngine.kt` | 12-pattern looping envelope engine. Ported from `homeassistant/.../patterns.py`. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/HumanizeEngine.kt` | Organic drift for regular (non-pattern) motion: modulates speed + stroke depth around the base while running. Strength-scaled (0 = off). Sibling to `PatternEngine`. |

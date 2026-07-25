@@ -33,8 +33,6 @@
     <string name="pip_slower">Slower</string>
     <string name="pip_faster">Faster</string>
     <string name="pip_stop">Stop</string>
-    <string name="pip_deeper">Deeper</string>
-    <string name="pip_shallow">Shallow</string>
 
     <!-- Manual screen -->
     <string name="manual_title">Manual controls</string>

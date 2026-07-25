@@ -11,12 +11,12 @@ Accessible control apps for The Handy device, designed for users with disabiliti
 A hands-free Android client that recognizes spoken commands by matching against **the user's own prerecorded voice samples** (MFCC + DTW, no cloud ASR). Built for non-standard speech, where general-purpose speech recognition fails.
 
 - Records 3 takes of each command on first launch; matches against the user's voice on-device, fully offline.
-- Voice vocabulary: `begin` / `stop` / `faster` / `slower` / `deeper` / `shallow` / `random`.
+- Voice vocabulary: `begin` / `stop` / `faster` / `slower`. Deliberately small — every extra label narrows the acoustic gaps the matcher relies on.
 - Tap-shortcut buttons mirror every voice command, plus a Manual tab with sliders and a 4×3 pattern grid.
 - **Humanized motion** — a steady speed drifts organically (speed *and* stroke depth) so it never feels robotic. Strength is a Settings slider (0 = off).
 - **Gentle stop** — every stop eases the speed down to 0 over ~1.5 s instead of a hard halt.
 - **Ignores its own motor noise** *(optional)* — if the running device is ever misheard as a command (it was false-firing "stop"), record its sound once (Settings → Record device sound to ignore) and it's added to a reject class. Purely opt-in — never part of setup, and normal use doesn't need it.
-- **Picture-in-Picture** — float a compact control bar (stop / slower / faster, and deeper / shallow where the phone allows) over other apps.
+- **Picture-in-Picture** — float a compact control bar (stop / slower / faster) over other apps.
 - In-app self-update from GitHub Releases.
 
 See [android-v2/README.md](android-v2/README.md) and [android-v2/docs/](android-v2/docs/) for architecture, the voice engine, the command vocabulary, training, and troubleshooting.
