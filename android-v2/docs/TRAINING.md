@@ -4,7 +4,7 @@ How to record your voice samples for the best results. User-facing; no code know
 
 ## How it works in one paragraph
 
-The first time you open Smart Dong v2, the app asks you to record three takes of each of seven commands. Each take is a 2.5 second window with a brief "Get ready..." prompt before the mic opens. After all 21 recordings, the app turns those into mathematical fingerprints (MFCC sequences, mean-normalised per utterance) that live on the phone forever. Every time you later speak a command, the app compares what you just said against the seven fingerprints and picks the one that looks most similar. The app never tries to "understand" English — it only checks "does this sound like the way Owen said `faster`?"
+The first time you open Smart Dong v2, the app asks you to record three takes of each of four commands. Each take is a 2.5 second window with a brief "Get ready..." prompt before the mic opens. After all 12 recordings, the app turns those into mathematical fingerprints (MFCC sequences, mean-normalised per utterance) that live on the phone forever. Every time you later speak a command, the app compares what you just said against the four fingerprints and picks the one that looks most similar. The app never tries to "understand" English — it only checks "does this sound like the way Owen said `faster`?"
 
 That's why the system works for non-standard speech: it doesn't need to. It only needs your voice to be similar to itself between training and use.
 
@@ -131,7 +131,7 @@ Open the debug panel on the Voice tab (**Show Debug** below the buttons). Every 
 ```
 [14:23:01] Heard: faster  score=8.2 margin=1.4
 [14:23:05] Heard: stop  score=9.94 margin=0.04  (low confidence (margin 0.0))
-[14:23:09] Heard: shallow  score=45.1 margin=3.2  (below threshold)
+[14:23:09] Heard: slower  score=45.1 margin=3.2  (below threshold)
 ```
 
 - `score` is the [path-normalised DTW distance](VOICE_ENGINE.md#dtw). Lower is better. With CMN applied, expect scores in the 5–15 range for good matches; 30+ is the default cutoff.
@@ -156,7 +156,7 @@ If always-on mode never fires when you speak, watch the live peak meter on the V
 
 ## Optional: teach it to ignore the device's own sound
 
-**This is optional and not part of setup — skip it entirely unless you actually hit the problem.** Normal training is just the seven commands above; you never have to record anything else for the app to work.
+**This is optional and not part of setup — skip it entirely unless you actually hit the problem.** Normal training is just the four commands above; you never have to record anything else for the app to work.
 
 If the device's own motor noise gets misheard as a command (most often it halts itself by triggering "stop"), you can teach the app to tune that sound out:
 

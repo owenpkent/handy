@@ -305,49 +305,6 @@
                         app:strokeColor="@color/accent_primary" />
                 </LinearLayout>
 
-                <!-- Shortcut row 3: stroke-length + random voice words. -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/voiceDeeperButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="56dp"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:text="Deeper"
-                        android:textColor="@color/accent_primary"
-                        android:textSize="13sp"
-                        app:strokeColor="@color/accent_primary" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/voiceShallowButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="56dp"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:text="Shallow"
-                        android:textColor="@color/accent_primary"
-                        android:textSize="13sp"
-                        app:strokeColor="@color/accent_primary" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/voiceRandomButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="56dp"
-                        android:layout_weight="1"
-                        android:text="Random"
-                        android:textColor="@color/accent_primary"
-                        android:textSize="13sp"
-                        app:strokeColor="@color/accent_primary" />
-                </LinearLayout>
-
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/debugToggleButton"
                     style="@style/Widget.Material3.Button.TextButton"

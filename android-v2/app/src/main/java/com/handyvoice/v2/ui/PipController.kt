@@ -26,11 +26,9 @@ import com.handyvoice.v2.R
  * **3** actions (`getMaxNumPictureInPictureActions`); some allow 5. The list
  * is silently truncated past the cap.
  *
- * So we show all five controls (Slower / Faster / Stop / Deeper / Shallow)
- * where the phone permits, and fall back to the speed trio
- * (Slower / Stop / Faster, with **Stop always present**) where it doesn't.
- * Deeper / Shallow then stay reachable by tapping the window to expand back to
- * the full app.
+ * The bar is the speed trio — Slower / Stop / Faster — which fits inside the
+ * 3-slot floor every phone honors, so it never gets truncated. Anything else
+ * is reached by tapping the window to expand back to the full app.
  *
  * Each control value is a [com.handyvoice.v2.dispatch.Dispatch] label, so the
  * button fires the exact same code path as the spoken word or the in-app tap
@@ -101,31 +99,15 @@ class PipController(
             .build()
 
     /**
-     * Build the control set sized to what this phone's PiP bar can show. We
-     * decide explicitly (rather than letting the OS truncate a 5-item list)
-     * so **Stop is guaranteed present** on a 3-slot phone — truncation would
-     * keep whichever three happened to be first.
+     * Build the control set. Three actions is the floor
+     * `getMaxNumPictureInPictureActions()` guarantees, so this list is never
+     * truncated and **Stop is always present**.
      */
-    private fun buildActions(): List<RemoteAction> {
-        // Documented since API 26; wrapped defensively so an odd OEM build that
-        // throws just falls back to the safe 3-slot layout instead of crashing.
-        val max = runCatching { activity.maxNumPictureInPictureActions }.getOrDefault(3)
-        return if (max >= 5) {
-            listOf(
-                action(SLOWER, R.drawable.ic_pip_slower, R.string.pip_slower, 1),
-                action(FASTER, R.drawable.ic_pip_faster, R.string.pip_faster, 2),
-                action(STOP, R.drawable.ic_pip_stop, R.string.pip_stop, 3),
-                action(DEEPER, R.drawable.ic_pip_deeper, R.string.pip_deeper, 4),
-                action(SHALLOW, R.drawable.ic_pip_shallow, R.string.pip_shallow, 5),
-            )
-        } else {
-            listOf(
-                action(SLOWER, R.drawable.ic_pip_slower, R.string.pip_slower, 1),
-                action(STOP, R.drawable.ic_pip_stop, R.string.pip_stop, 3),
-                action(FASTER, R.drawable.ic_pip_faster, R.string.pip_faster, 2),
-            )
-        }
-    }
+    private fun buildActions(): List<RemoteAction> = listOf(
+        action(SLOWER, R.drawable.ic_pip_slower, R.string.pip_slower, 1),
+        action(STOP, R.drawable.ic_pip_stop, R.string.pip_stop, 3),
+        action(FASTER, R.drawable.ic_pip_faster, R.string.pip_faster, 2),
+    )
 
     private fun action(control: String, iconRes: Int, labelRes: Int, requestCode: Int): RemoteAction {
         val label = activity.getString(labelRes)
@@ -133,7 +115,7 @@ class PipController(
             .setPackage(activity.packageName)
             .putExtra(EXTRA_CONTROL, control)
         // NB: PendingIntent equality ignores extras, so each control needs its
-        // own request code — otherwise all five buttons would collapse onto one
+        // own request code — otherwise every button would collapse onto one
         // intent and fire the same action. IMMUTABLE because we never mutate it.
         var flags = PendingIntent.FLAG_UPDATE_CURRENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -151,7 +133,5 @@ class PipController(
         const val SLOWER = "slower"
         const val FASTER = "faster"
         const val STOP = "stop"
-        const val DEEPER = "deeper"
-        const val SHALLOW = "shallow"
     }
 }

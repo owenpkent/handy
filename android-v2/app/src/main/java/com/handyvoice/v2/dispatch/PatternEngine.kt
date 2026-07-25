@@ -66,16 +66,6 @@ class PatternEngine(
         return true
     }
 
-    /**
-     * Start a randomly-chosen pattern. Used by the "random" voice command.
-     * Delegates to [start] so the start sequence and cancellation handling
-     * are identical to a named pattern.
-     */
-    suspend fun startRandom(intensity: Int): Boolean {
-        val name = PATTERNS.keys.random()
-        return start(name, intensity)
-    }
-
     /** Cancel any running pattern and stop the device. */
     suspend fun stop() {
         cancel()

@@ -21,18 +21,6 @@ sealed class VoiceAction {
     /** Adjust speed by [delta] percentage points. Positive = faster. */
     data class AdjustSpeed(val delta: Int) : VoiceAction()
 
-    /**
-     * Slide the stroke window one notch deeper ([deeper] = true, toward the
-     * base) or shallower (toward the tip). The window's *length* is held
-     * constant — only its position moves — so depth never changes the cycle
-     * rate / felt speed (a longer stroke completes slower at the same
-     * velocity, which used to make "deeper" then "slower" crawl). The step is
-     * computed at dispatch time from the configured stroke band, so a narrow
-     * band moves in proportionally smaller steps, the same way [AdjustSpeed]
-     * scales its step to the speed cap. The window clamps at the band edges.
-     */
-    data class AdjustDepth(val deeper: Boolean) : VoiceAction()
-
     /** Set stroke range (each 0-100). */
     data class SetRange(val min: Int, val max: Int) : VoiceAction()
 
@@ -42,7 +30,4 @@ sealed class VoiceAction {
 
     /** Run a named [PatternEngine] pattern at the caller's intensity. */
     data class Pattern(val name: String, val intensity: Int = 100) : VoiceAction()
-
-    /** Run a randomly-chosen [PatternEngine] pattern at the caller's intensity. */
-    data class RandomPattern(val intensity: Int = 100) : VoiceAction()
 }

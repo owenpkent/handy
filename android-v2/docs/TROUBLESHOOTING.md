@@ -268,9 +268,9 @@ The system refused the PiP transition. Most common cause: the per-app PiP permis
 
 If the float button never appears at all, the device doesn't report `FEATURE_PICTURE_IN_PICTURE` (rare; some Android TV / Go devices). The button is hidden in that case by design.
 
-### Only 3 controls show in the floating window, not 5
+### Only 3 controls show in the floating window
 
-Expected on most phones — Android caps the PiP control bar at `getMaxNumPictureInPictureActions()`, which is 3 on the majority of devices (some allow 5). On a 3-slot phone the bar shows **Slower · Stop · Faster** (Stop always present). Reach Deeper / Shallow by tapping the window to expand back to the full app, where all the controls live.
+By design. Android caps the PiP control bar at `getMaxNumPictureInPictureActions()`, which is 3 on the majority of devices (some allow 5), and the list is silently truncated past the cap. So the bar is fixed at **Slower · Stop · Faster** — three fits everywhere and Stop can never be the one truncated away. Everything else is a tap on the window away, which expands back to the full app.
 
 ### The floating window shows the shrunk-down full UI instead of a clean status
 
