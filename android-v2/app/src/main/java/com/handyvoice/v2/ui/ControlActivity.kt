@@ -748,6 +748,23 @@ class ControlActivity : AppCompatActivity() {
      */
     private fun onIdleTimeout() {
         appLog("Idle ${idleTimeoutMs / 60000} min — stopping device and listening.")
+        stopDevice("Idle-stop")
+        stopAlwaysOn()
+        if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
+            voiceModeLabel.text = "Paused (idle) — tap mic to resume"
+        } else {
+            voiceModeLabel.text = "Tap mic to listen"
+        }
+        setMicListening(false)
+    }
+
+    /**
+     * Halt the device through the same path as a spoken "stop": cancels any
+     * running pattern / humanize loop, then the rampStop wind-down. Used when
+     * listening ends (idle timeout, mic toggled off) so the device never keeps
+     * moving with no voice control left to stop it.
+     */
+    private fun stopDevice(source: String) {
         lifecycleScope.launch {
             runCatching {
                 Dispatch.dispatch(
@@ -759,15 +776,8 @@ class ControlActivity : AppCompatActivity() {
                     patternEngine = patternEngine,
                     humanizeEngine = humanizeEngine,
                 )
-            }.onFailure { appLog("Idle-stop dispatch error: ${it.message}") }
+            }.onFailure { appLog("$source dispatch error: ${it.message}") }
         }
-        stopAlwaysOn()
-        if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
-            voiceModeLabel.text = "Paused (idle) — tap mic to resume"
-        } else {
-            voiceModeLabel.text = "Tap mic to listen"
-        }
-        setMicListening(false)
     }
 
     private fun onConnectTapped() {
@@ -845,7 +855,7 @@ class ControlActivity : AppCompatActivity() {
     /**
      * In button mode the mic acts as a continuous-listen toggle: first tap
      * starts the VAD-driven loop (same one always-on uses), second tap
-     * stops it. Always-on mode normally self-manages, but after an idle
+     * stops it and stops the device too. Always-on mode normally self-manages, but after an idle
      * auto-stop the loop is down — a tap there brings it back without making
      * the user leave and re-enter the screen.
      */
@@ -861,6 +871,10 @@ class ControlActivity : AppCompatActivity() {
             return
         }
         if (alwaysOnJob?.isActive == true) {
+            // Turning listening off also stops motion: once the mic is off
+            // there's no voice "stop" left, so the device shouldn't keep going.
+            appLog("Mic off — stopping device and listening.")
+            stopDevice("Mic-off stop")
             stopAlwaysOn()
             voiceModeLabel.text = "Tap mic to listen"
             setMicListening(false)

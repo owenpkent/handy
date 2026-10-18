@@ -180,7 +180,7 @@ Pattern envelopes live in **`PatternEngine`** (`dispatch/PatternEngine.kt`) port
 
 Set in `Settings → Listening mode`:
 
-- **Tap mic** (default) — tapping the mic button starts continuous VAD-driven listening (and tapping again stops it). Same loop as always-on, just gated by the user.
+- **Tap mic** (default) — tapping the mic button starts continuous VAD-driven listening (and tapping again stops it **and stops the device**, via the same `"stop"` dispatch as the idle auto-stop, so motion never outlives voice control). Same loop as always-on, just gated by the user.
 - **Always listening** — VAD-driven loop runs whenever the activity is in the foreground and connected.
 
 **Keep screen on while the app is running.** `ControlActivity.onCreate` sets the window's `FLAG_KEEP_SCREEN_ON` unconditionally, so the screen stays on the whole time the app is in the foreground, not just while listening. The OS only honors the flag while the window is visible, so it costs nothing when the app is backgrounded and a navigate-away lets the screen sleep normally. `SettingsActivity` and `TrainingActivity` set the same flag in their `onCreate`. NB: `android:keepScreenOn` on an `<activity>` in the manifest is silently ignored. It's a `View` / window flag, not an activity attribute, so this has to be set in code.
