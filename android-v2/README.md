@@ -80,7 +80,7 @@ A version-named copy is also dropped into the repo-root `apks/` folder (`SmartDo
 4. After the last take of each label, a **cross-validation gate** scores the takes against each other; if one looks like an outlier you'll get a "Re-record take N?" dialog.
 5. Tap **Build templates** to finish; `onboarded` flips and you return to Control. (Earlier versions ran a post-Build verification pass that asked you to say every label once more; that was removed because the cross-validation gate above plus first-use feedback on the Voice tab covers the same ground without a second gauntlet.)
 6. Back on the main screen, enter your Handy connection key and tap **Connect**. The device performs a slow HDSP slide to position 0 (or `globalStrokeMin` if you've set one) on a successful connect.
-7. Use the **Voice / Manual** tabs. Voice tab: tap MIC to start continuous VAD-driven listening, tap again to stop. Live peak meter under "Heard:" confirms the mic is hot. Tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) sit below. Manual tab: stroke / speed sliders + all 12 pattern buttons. The big START / STOP row shows on the Manual tab only (the Voice tab's Begin / Stop shortcuts cover it there).
+7. Use the **Voice / Manual** tabs. Voice tab: tap MIC to start continuous VAD-driven listening, tap again to stop listening and the device. Live peak meter under "Heard:" confirms the mic is hot. Tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) sit below. Manual tab: stroke / speed sliders + all 12 pattern buttons. The big START / STOP row shows on the Manual tab only (the Voice tab's Begin / Stop shortcuts cover it there).
 
 ### Tests
 
@@ -186,7 +186,7 @@ All envelopes scale to the caller's intensity, which is `globalMaxSpeed` for bot
 
 Pick in **Settings → Listening mode**.
 
-- **Tap mic** *(default)*. Tap the mic button to start continuous VAD-driven listening; tap again to stop. Same underlying loop as always-on, just gated by an explicit tap.
+- **Tap mic** *(default)*. Tap the mic button to start continuous VAD-driven listening; tap again to stop listening (this also stops the device). Same underlying loop as always-on, just gated by an explicit tap.
 - **Always listening**. The VAD loop runs whenever the screen is visible and connected. Hands-free.
 
 Both modes use a **post-VAD wait** (~1.8 s) before snapshotting the rolling buffer, so the full word is in the 2.5 s window — without this, the snapshot would be mostly silence followed by the first ~120 ms of speech, and matches would land on whichever template happened to be closest by accident.
