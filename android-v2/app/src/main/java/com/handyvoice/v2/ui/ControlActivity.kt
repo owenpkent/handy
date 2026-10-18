@@ -853,35 +853,25 @@ class ControlActivity : AppCompatActivity() {
     }
 
     /**
-     * In button mode the mic acts as a continuous-listen toggle: first tap
-     * starts the VAD-driven loop (same one always-on uses), second tap
-     * stops it and stops the device too. Always-on mode normally self-manages, but after an idle
-     * auto-stop the loop is down — a tap there brings it back without making
-     * the user leave and re-enter the screen.
+     * The mic is a listen toggle in both modes: a tap while listening stops
+     * the loop and the device; a tap while stopped starts the VAD-driven
+     * loop. In always-on mode that pause lasts until the next tap or resume
+     * (onResume re-arms it), the same as after an idle auto-stop.
      */
     private fun onMicTapped() {
-        if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
-            if (alwaysOnJob?.isActive != true) {
-                ensureMicThenRun {
-                    voiceModeLabel.text = "Always listening"
-                    setMicListening(true)
-                    startAlwaysOn()
-                }
-            }
-            return
-        }
+        val alwaysOn = listeningMode == PreferencesManager.MODE_ALWAYS_ON
         if (alwaysOnJob?.isActive == true) {
             // Turning listening off also stops motion: once the mic is off
             // there's no voice "stop" left, so the device shouldn't keep going.
             appLog("Mic off — stopping device and listening.")
             stopDevice("Mic-off stop")
             stopAlwaysOn()
-            voiceModeLabel.text = "Tap mic to listen"
+            voiceModeLabel.text = if (alwaysOn) "Paused — tap mic to resume" else "Tap mic to listen"
             setMicListening(false)
             return
         }
         ensureMicThenRun {
-            voiceModeLabel.text = "Listening — tap to stop"
+            voiceModeLabel.text = if (alwaysOn) "Always listening" else "Listening — tap to stop"
             setMicListening(true)
             startAlwaysOn()
         }
