@@ -8,8 +8,10 @@ Quick reference for AI assistants working on this repository. **Read this entire
 
 I'm Owen — a wheelchair user with muscular dystrophy.
 
-- **Typing is hard** — Be proactive. Make decisions. Don't ask for confirmation on small things.
-- **Offer A/B/C choices** — I can type one letter instead of explaining.
+- **Typing is hard**: I work mouse-first; the pointer is cheap. Be proactive. Make the call yourself on small or reversible things instead of asking for confirmation.
+- **Ask only when the answer changes the outcome**: Then end the turn with 2 to 4 lettered options (A/B/C), mark the one you recommend, so I can answer with one character. Use clickable choices when the interface offers them. Never end on an open question that needs typed prose.
+- **Keep replies short**: Long explanations cost me more than they give.
+- **Dictated prompts**: My prompts are often dictated, so names may be mistranscribed. Check a plausible proper noun against the repo before treating it as something new.
 - **PowerShell on Windows** — Use PowerShell syntax. Prefer single-line commands.
 - **Accessibility matters** — This project is a tool I actually need.
 - **Non-standard voice** — Browser Web Speech API and Android SpeechRecognizer both fail badly with my voice. The current answer on Android is **matching against my own prerecorded samples** (MFCC + DTW, no ASR at all) in `android-v2/`. Earlier attempts: Vosk offline + constrained grammar on Android (now `legacy/android/`), Deepgram on web.
