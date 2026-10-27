@@ -748,8 +748,9 @@ class ControlActivity : AppCompatActivity() {
      */
     private fun onIdleTimeout() {
         appLog("Idle ${idleTimeoutMs / 60000} min — stopping device and listening.")
-        stopDevice("Idle-stop")
+        val session = alwaysOnJob
         stopAlwaysOn()
+        stopDevice("Idle-stop", after = session)
         if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
             voiceModeLabel.text = "Paused (idle) — tap mic to resume"
         } else {
@@ -763,9 +764,16 @@ class ControlActivity : AppCompatActivity() {
      * running pattern / humanize loop, then the rampStop wind-down. Used when
      * listening ends (idle timeout, mic toggled off) so the device never keeps
      * moving with no voice control left to stop it.
+     *
+     * [after] is the listening session that was just cancelled. Its pending
+     * recognition jobs are children of it, and one may already be mid-dispatch
+     * (the API client swallows cancellation, so it can keep issuing velocity
+     * writes). Joining it first means a stale "begin" lands before the stop,
+     * not during the wind-down where its epoch bump would abort rampStop.
      */
-    private fun stopDevice(source: String) {
+    private fun stopDevice(source: String, after: Job? = null) {
         lifecycleScope.launch {
+            after?.join()
             runCatching {
                 Dispatch.dispatch(
                     label = "stop",
@@ -864,8 +872,9 @@ class ControlActivity : AppCompatActivity() {
             // Turning listening off also stops motion: once the mic is off
             // there's no voice "stop" left, so the device shouldn't keep going.
             appLog("Mic off — stopping device and listening.")
-            stopDevice("Mic-off stop")
+            val session = alwaysOnJob
             stopAlwaysOn()
+            stopDevice("Mic-off stop", after = session)
             voiceModeLabel.text = if (alwaysOn) "Paused — tap mic to resume" else "Tap mic to listen"
             setMicListening(false)
             return
@@ -947,6 +956,9 @@ class ControlActivity : AppCompatActivity() {
             // 0 = no snapshot pending. Set to the wall-clock time at which
             // we should grab the buffer once it contains the whole word.
             var pendingSnapshotAt = 0L
+            // Recognition runs as a child of this session, so stopAlwaysOn
+            // cancels a pending match along with capture and a stop can join it.
+            val session = this
 
             capture.stream(blockSamples, shouldContinue = { alwaysOnJob?.isActive == true }) { block ->
                 // Sliding-window: copy block into a circular buffer; the
@@ -976,7 +988,7 @@ class ControlActivity : AppCompatActivity() {
                         lastFireAt = now
                         voicedRun = 0
                         val snapshot = buffer.copyOf()
-                        lifecycleScope.launch { handleAudio(snapshot) }
+                        session.launch(Dispatchers.Main) { handleAudio(snapshot) }
                     }
                     return@stream
                 }
