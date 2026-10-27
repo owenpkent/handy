@@ -1,10 +1,10 @@
-﻿# Handy Voice V2 (Android)
+# Handy Voice V2 (Android)
 
 An Android client for The Handy that recognises voice commands by matching against **prerecorded samples of the user's own voice** rather than running speech-to-text. Lives alongside the Vosk-based `../android/` app; both can be installed at once.
 
 ## Status
 
-🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live. Recent additions: **humanized regular motion** (organic speed + depth drift), a **wind-down stop** (eases to 0 instead of a hard halt), and a **reject/noise class** that stops the device's own motor sound from false-firing commands.
+🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live. Recent additions: **humanized regular motion** (organic speed + depth drift), a **wind-down stop** (eases to 0 instead of a hard halt), a **reject/noise class** that stops the device's own motor sound from false-firing commands, and (v0.20) **mic off stops the device** in both listening modes.
 
 ## Why a second Android app
 
@@ -80,7 +80,7 @@ A version-named copy is also dropped into the repo-root `apks/` folder (`SmartDo
 4. After the last take of each label, a **cross-validation gate** scores the takes against each other; if one looks like an outlier you'll get a "Re-record take N?" dialog.
 5. Tap **Build templates** to finish; `onboarded` flips and you return to Control. (Earlier versions ran a post-Build verification pass that asked you to say every label once more; that was removed because the cross-validation gate above plus first-use feedback on the Voice tab covers the same ground without a second gauntlet.)
 6. Back on the main screen, enter your Handy connection key and tap **Connect**. The device performs a slow HDSP slide to position 0 (or `globalStrokeMin` if you've set one) on a successful connect.
-7. Use the **Voice / Manual** tabs. Voice tab: tap MIC to start continuous VAD-driven listening, tap again to stop listening and the device. Live peak meter under "Heard:" confirms the mic is hot. Tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) sit below. Manual tab: stroke / speed sliders + all 12 pattern buttons. The big START / STOP row shows on the Manual tab only (the Voice tab's Begin / Stop shortcuts cover it there).
+7. Use the **Voice / Manual** tabs. Voice tab: tap MIC to start continuous VAD-driven listening, tap again to stop listening and the device. Live peak meter under "Heard:" confirms the mic is hot. Tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster) sit below. Manual tab: stroke / speed sliders + all 12 pattern buttons. The big START / STOP row shows on the Manual tab only (the Voice tab's Begin / Stop shortcuts cover it there).
 
 ### Tests
 
@@ -90,7 +90,7 @@ JVM unit tests for the audio math run without the emulator:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, and the updater's version-compare gate. 21 tests, ~40 ms total.
+These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 28 tests, a few seconds.
 
 ## Vocabulary
 
@@ -149,7 +149,7 @@ One activity (`ControlActivity`) hosts both control surfaces via a `TabLayout`:
 
 - **Float button** (⧉, top right, shown once connected) drops the app into a **Picture-in-Picture** window with a control bar. See [Picture-in-Picture](#picture-in-picture).
 - **Settings cog** (top right) opens Settings directly. On Settings there's a **← Home** button, which goes straight back to this screen.
-- **Voice-tab shortcut buttons** (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse) all route through `Dispatch.dispatch(label)` — same code path as the voice match — so taps and voice produce identical device state.
+- **Voice-tab shortcut buttons** (Begin/Stop, Slower/Faster) all route through `Dispatch.dispatch(label)` — same code path as the voice match — so taps and voice produce identical device state.
 - **Recording management** (Re-record voice samples, Clear all recordings) lives in Settings, not on the Voice tab.
 
 ## Manual tab details
@@ -232,10 +232,12 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 | `app/src/main/java/com/handyvoice/v2/dispatch/HumanizeEngine.kt` | Organic drift for regular (non-pattern) motion: modulates speed + stroke depth around the base while running. Strength-scaled (0 = off). Sibling to `PatternEngine`. |
 | `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, humanize strength, global stroke band, invert toggle, match threshold, onboarded flag. |
 | `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding + re-recording. Auto-advance session, per-label cross-validation gate (offers inline re-record of an outlier take). Build templates sets `onboarded=true` and returns to Control. Ack tone on every saved take. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster, Thunder/Ripple/Pulse), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine`, the `HumanizeEngine` (strength from prefs, passed to every dispatch), and the `PipController`. Drops matches on the `__noise__` reject class before dispatching. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
-| `app/src/main/java/com/handyvoice/v2/ui/PipController.kt` | Picture-in-Picture: feature detection, building the system RemoteAction control bar (5 controls where the phone allows, else the Slower/Stop/Faster trio with Stop always present), registering the not-exported broadcast receiver the buttons fire, and entering PiP. Each control is a `Dispatch` label, routed back through the same dispatch path as voice. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Single home screen with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine`, the `HumanizeEngine` (strength from prefs, passed to every dispatch), and the `PipController`. Drops matches on the `__noise__` reject class before dispatching. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
+| `app/src/main/java/com/handyvoice/v2/ui/PipController.kt` | Picture-in-Picture: feature detection, building the system RemoteAction control bar (a fixed Slower/Stop/Faster trio, inside the guaranteed 3-action floor, so Stop is always present), registering the not-exported broadcast receiver the buttons fire, and entering PiP. Each control is a `Dispatch` label, routed back through the same dispatch path as voice. |
 | `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Humanize-strength slider under Motion limits. Re-record voice samples (opens Training, preserves takes), Record device sound to ignore (trains just the `__noise__` reject class), and Clear all recordings (wipes with confirmation, then opens Training) live here. |
+| `app/src/main/java/com/handyvoice/v2/ui/ListeningSession.kt` | Android-free lifecycle of one listening session (capture loop + its recognition jobs under one `Job`). `cancelThen` joins the old session before the mic-off / idle stop, so a command spoken just before can't abort the wind-down. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests covering MFCC, DTW, and engine behaviour. |
+| `app/src/test/java/com/handyvoice/v2/ui/ListeningSessionTest.kt`, `dispatch/MicOffStopRegressionTest.kt` | Session lifecycle tests, and the end-to-end mic-off stop race (real dispatch, engines and API client against a fake device on virtual time). |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots (3), peak bar, record button. |
 | `app/src/main/res/layout/activity_control.xml` | Combined voice + manual UI with TabLayout. `startStopRow` (Manual tab only) holds the big START/STOP pair. |
 | `app/src/main/res/layout/activity_settings.xml` | Settings form with the ← Home header button. |
