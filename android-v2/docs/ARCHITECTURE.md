@@ -63,7 +63,7 @@ The Android `AudioRecord` API allows only one active recorder at a time. We resp
 
 The matcher is invoked synchronously inside a single `withContext(Default)` block per utterance. For the Phase 1 vocabulary (4 labels × 3 takes), a single match takes a few hundred microseconds, so there is no benefit from parallelizing across labels.
 
-In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the `alwaysOnJob?.isActive == true` check; cancelling `alwaysOnJob` (on a screen-on navigate-away, or when listening mode changes) lets the loop drain and `AudioRecord.release()` run. The loop deliberately survives a screen-off (see Lifecycle → `onStop`), held up by the partial wake lock, so commands keep working with the screen dark.
+In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the session's own `isActive` check; cancelling the `ListeningSession` (`ui/ListeningSession.kt`) (on a screen-on navigate-away, or when listening mode changes) lets the loop drain and `AudioRecord.release()` run. The loop deliberately survives a screen-off (see Lifecycle → `onStop`), held up by the partial wake lock, so commands keep working with the screen dark.
 
 ## State
 
@@ -73,7 +73,7 @@ Three kinds of state, three different homes.
 
 - `engine: MfccDtwEngine` — the loaded templates. Rebuilt from disk on every launch and again in `onResume` so newly-recorded takes appear without restart.
 - `patternEngine: PatternEngine` — lazy-init runner for the 12 envelope patterns. Cancelled on STOP, on any new pattern, and (implicitly via `lifecycleScope`) on activity destruction.
-- `alwaysOnJob: Job?` — the coroutine running the listening loop (used by both tap-mic and always-on modes).
+- `listening: ListeningSession` — wraps the coroutine running the listening loop (used by both tap-mic and always-on modes).
 - `ackTone: ToneGenerator?` — short-lived `STREAM_MUSIC` tone generator that beeps on every voice match. Released in `onDestroy`. TrainingActivity owns a parallel instance for take saves + verify passes.
 - `globalMaxSpeed`, `globalMinStroke`, `globalMaxStroke`, `threshold`, `listeningMode` — cached pref values, re-read on every `onResume`.
 - `log: MutableList<String>` — ring buffer of debug lines for the on-screen panel; auto-scrolls to newest on update.
@@ -153,7 +153,7 @@ File names use `take_N.json` where N is the next integer after the existing coun
 
 `ControlActivity.onStop`:
 
-- **Screen-aware teardown.** Checks `PowerManager.isInteractive`. A genuine navigate-away (Home, or opening Settings) leaves the screen interactive → cancels `alwaysOnJob`, the capture loop drains, `AudioRecord.release()` runs, and `keepAwake(false)` drops the wake lock. (The screen-on flag set in `onCreate` is only honored while the window is visible, so navigating away lets the screen sleep on its own.) A screen-off (power button, or an idle timeout) leaves the device non-interactive → the loop is left running so voice control keeps working with the screen dark; the partial wake lock holds the CPU up so capture doesn't suspend. (Older code cancelled unconditionally in `onPause`, which is why listening died the moment the screen slept.)
+- **Screen-aware teardown.** Checks `PowerManager.isInteractive`. A genuine navigate-away (Home, or opening Settings) leaves the screen interactive → cancels the `ListeningSession`, the capture loop drains, `AudioRecord.release()` runs, and `keepAwake(false)` drops the wake lock. (The screen-on flag set in `onCreate` is only honored while the window is visible, so navigating away lets the screen sleep on its own.) A screen-off (power button, or an idle timeout) leaves the device non-interactive → the loop is left running so voice control keeps working with the screen dark; the partial wake lock holds the CPU up so capture doesn't suspend. (Older code cancelled unconditionally in `onPause`, which is why listening died the moment the screen slept.)
 
 `ControlActivity` keep-screen-on (`onCreate`):
 

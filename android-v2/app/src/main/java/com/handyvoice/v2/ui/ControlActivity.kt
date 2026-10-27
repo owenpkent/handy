@@ -46,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -210,7 +211,7 @@ class ControlActivity : AppCompatActivity() {
     private val log: MutableList<String> = mutableListOf()
     private val timestamp = SimpleDateFormat("HH:mm:ss", Locale.US)
 
-    private var alwaysOnJob: Job? = null
+    private val listening = ListeningSession(lifecycleScope)
     private var globalMaxSpeed: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_SPEED
     private var globalMinStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MIN_STROKE
     private var globalMaxStroke: Int = PreferencesManager.DEFAULT_GLOBAL_MAX_STROKE
@@ -585,7 +586,7 @@ class ControlActivity : AppCompatActivity() {
             //     since button listening is tap-gated and must not auto-start.
             if (api.connectionState.value == ConnectionState.CONNECTED) {
                 if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
-                    if (alwaysOnJob?.isActive != true) applyListeningMode()
+                    if (!listening.isActive) applyListeningMode()
                 } else if (modeChanged) {
                     applyListeningMode()
                 }
@@ -748,9 +749,7 @@ class ControlActivity : AppCompatActivity() {
      */
     private fun onIdleTimeout() {
         appLog("Idle ${idleTimeoutMs / 60000} min — stopping device and listening.")
-        val session = alwaysOnJob
-        stopAlwaysOn()
-        stopDevice("Idle-stop", after = session)
+        stopAlwaysOn(stopSource = "Idle-stop")
         if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
             voiceModeLabel.text = "Paused (idle) — tap mic to resume"
         } else {
@@ -765,27 +764,22 @@ class ControlActivity : AppCompatActivity() {
      * listening ends (idle timeout, mic toggled off) so the device never keeps
      * moving with no voice control left to stop it.
      *
-     * [after] is the listening session that was just cancelled. Its pending
-     * recognition jobs are children of it, and one may already be mid-dispatch
-     * (the API client swallows cancellation, so it can keep issuing velocity
-     * writes). Joining it first means a stale "begin" lands before the stop,
-     * not during the wind-down where its epoch bump would abort rampStop.
+     * Runs via [ListeningSession.cancelThen] (see [stopAlwaysOn]), so the
+     * cancelled session, and any recognition job mid-dispatch, has finished
+     * before this runs; a stale "begin" can't land during the wind-down.
      */
-    private fun stopDevice(source: String, after: Job? = null) {
-        lifecycleScope.launch {
-            after?.join()
-            runCatching {
-                Dispatch.dispatch(
-                    label = "stop",
-                    api = api,
-                    globalMaxSpeed = globalMaxSpeed,
-                    globalMinStroke = globalMinStroke,
-                    globalMaxStroke = globalMaxStroke,
-                    patternEngine = patternEngine,
-                    humanizeEngine = humanizeEngine,
-                )
-            }.onFailure { appLog("$source dispatch error: ${it.message}") }
-        }
+    private suspend fun dispatchStop(source: String) {
+        runCatching {
+            Dispatch.dispatch(
+                label = "stop",
+                api = api,
+                globalMaxSpeed = globalMaxSpeed,
+                globalMinStroke = globalMinStroke,
+                globalMaxStroke = globalMaxStroke,
+                patternEngine = patternEngine,
+                humanizeEngine = humanizeEngine,
+            )
+        }.onFailure { appLog("$source dispatch error: ${it.message}") }
     }
 
     private fun onConnectTapped() {
@@ -868,13 +862,11 @@ class ControlActivity : AppCompatActivity() {
      */
     private fun onMicTapped() {
         val alwaysOn = listeningMode == PreferencesManager.MODE_ALWAYS_ON
-        if (alwaysOnJob?.isActive == true) {
+        if (listening.isActive) {
             // Turning listening off also stops motion: once the mic is off
             // there's no voice "stop" left, so the device shouldn't keep going.
             appLog("Mic off — stopping device and listening.")
-            val session = alwaysOnJob
-            stopAlwaysOn()
-            stopDevice("Mic-off stop", after = session)
+            stopAlwaysOn(stopSource = "Mic-off stop")
             voiceModeLabel.text = if (alwaysOn) "Paused — tap mic to resume" else "Tap mic to listen"
             setMicListening(false)
             return
@@ -942,11 +934,11 @@ class ControlActivity : AppCompatActivity() {
     }
 
     private fun startAlwaysOn() {
-        if (alwaysOnJob?.isActive == true) return
+        if (listening.isActive) return
         keepAwake(true)
         armIdleTimeout()
         appLog("Always-on listening started.")
-        alwaysOnJob = lifecycleScope.launch(Dispatchers.IO) {
+        listening.start(Dispatchers.IO) {
             val blockSamples = AudioCapture.SAMPLE_RATE * VAD_BLOCK_MS / 1000
             val windowSamples = (AudioCapture.SAMPLE_RATE * WINDOW_SECONDS).toInt()
             val buffer = ShortArray(windowSamples)
@@ -960,7 +952,7 @@ class ControlActivity : AppCompatActivity() {
             // cancels a pending match along with capture and a stop can join it.
             val session = this
 
-            capture.stream(blockSamples, shouldContinue = { alwaysOnJob?.isActive == true }) { block ->
+            capture.stream(blockSamples, shouldContinue = { session.isActive }) { block ->
                 // Sliding-window: copy block into a circular buffer; the
                 // last `windowSamples` of audio are always at hand.
                 val n = block.size
@@ -1022,14 +1014,18 @@ class ControlActivity : AppCompatActivity() {
         return p
     }
 
-    private fun stopAlwaysOn() {
-        alwaysOnJob?.let {
-            if (it.isActive) {
-                it.cancel()
-                appLog("Always-on stopped.")
-            }
+    /**
+     * Tear down listening synchronously (session, idle watcher, wake lock,
+     * meter). With [stopSource], also stop the device once the old session has
+     * joined (see [ListeningSession.cancelThen]).
+     */
+    private fun stopAlwaysOn(stopSource: String? = null) {
+        if (listening.isActive) appLog("Always-on stopped.")
+        if (stopSource != null) {
+            listening.cancelThen { dispatchStop(stopSource) }
+        } else {
+            listening.cancel()
         }
-        alwaysOnJob = null
         idleTimeoutJob?.cancel()
         idleTimeoutJob = null
         keepAwake(false)

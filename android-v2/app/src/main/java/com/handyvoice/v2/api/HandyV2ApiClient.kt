@@ -18,7 +18,13 @@ import java.util.concurrent.atomic.AtomicLong
 
 enum class ConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
 
-class HandyV2ApiClient {
+/**
+ * @param api the REST service. Defaults to the real Retrofit one; tests pass
+ * an in-memory fake so the client's ramp / epoch logic runs without network.
+ */
+class HandyV2ApiClient(
+    private val api: HandyV2ApiService = createDefaultService(),
+) {
 
     companion object {
         private const val BASE_URL = "https://www.handyfeeling.com/api/handy/v2/"
@@ -43,6 +49,23 @@ class HandyV2ApiClient {
         // would give a ~300 ms ramp that reads as instant.
         private const val STOP_RAMP_MS = 1500L
         private const val STOP_RAMP_STEPS = 12
+
+        private fun createDefaultService(): HandyV2ApiService {
+            val okHttpClient = OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
+                .addInterceptor(HttpLoggingInterceptor().apply {
+                    level = HttpLoggingInterceptor.Level.BASIC
+                })
+                .build()
+            return Retrofit.Builder()
+                .baseUrl(BASE_URL)
+                .client(okHttpClient)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+                .create(HandyV2ApiService::class.java)
+        }
     }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -102,23 +125,6 @@ class HandyV2ApiClient {
      *  writes call this so a fresh command supersedes a running wind-down /
      *  glide; the ramps call it to claim their own epoch. */
     private fun bumpVelocityEpoch(): Long = velocityEpoch.incrementAndGet()
-
-    private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
-        })
-        .build()
-
-    private val retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
-        .client(okHttpClient)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-
-    private val api: HandyV2ApiService = retrofit.create(HandyV2ApiService::class.java)
 
     fun setConnectionKey(key: String) {
         connectionKey = key.trim()
