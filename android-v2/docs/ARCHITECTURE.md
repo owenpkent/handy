@@ -47,8 +47,7 @@ The Android `AudioRecord` API allows only one active recorder at a time. We resp
 | Mode | Who owns mic | When |
 | --- | --- | --- |
 | Training capture | `TrainingActivity.captureOneTake` | Per-take 2.5 s window via `AudioCapture.readWindow`. Released after each. The streaming peak callback drives the live meter during capture. |
-| Training verify | `TrainingActivity.captureForVerify` | One 2.5 s window per label during the post-Build verification pass. Same path. |
-| Voice tab (tap-mic or always-on) | `ControlActivity.startAlwaysOn` | `AudioCapture.stream(...)` runs continuously while the loop is active; cancelled on STOP-listening, listening-mode change, or a screen-on navigate-away (`onStop` while interactive). A screen-off keeps the loop alive on a partial wake lock. Same loop services both tap-mic toggle and the always-on setting. |
+| Voice tab (tap-mic or always-on) | `ControlActivity.startAlwaysOn` | `AudioCapture.stream(...)` runs continuously while the loop is active; cancelled on a mic tap off or the idle auto-stop (both then stop the device, after the session has joined; see `ListeningSession.cancelThen`), listening-mode change, or a screen-on navigate-away (`onStop` while interactive). A screen-off keeps the loop alive on a partial wake lock. Same loop services both tap-mic toggle and the always-on setting. |
 
 `AudioCapture` doesn't pool `AudioRecord`s — each entry point constructs, records, releases. Source is `MediaRecorder.AudioSource.MIC` everywhere (not `VOICE_RECOGNITION`). The Android emulator's virtual mic delivers silence to `VOICE_RECOGNITION` while routing audio fine to `MIC`; we don't know what Google's path does differently but bare `MIC` works in every environment we've tested. We lose any AGC / noise suppression that a device's `VOICE_RECOGNITION` audio source might apply, which has not been a problem in practice.
 
@@ -63,7 +62,7 @@ The Android `AudioRecord` API allows only one active recorder at a time. We resp
 
 The matcher is invoked synchronously inside a single `withContext(Default)` block per utterance. For the Phase 1 vocabulary (4 labels × 3 takes), a single match takes a few hundred microseconds, so there is no benefit from parallelizing across labels.
 
-In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the session's own `isActive` check; cancelling the `ListeningSession` (`ui/ListeningSession.kt`) (on a screen-on navigate-away, or when listening mode changes) lets the loop drain and `AudioRecord.release()` run. The loop deliberately survives a screen-off (see Lifecycle → `onStop`), held up by the partial wake lock, so commands keep working with the screen dark.
+In always-on mode, `capture.stream(...)` runs an unbounded loop on `Dispatchers.IO`. It is gated by the session's own `isActive` check; cancelling the `ListeningSession` (`ui/ListeningSession.kt`) (on a screen-on navigate-away, a mic tap off, the idle auto-stop, or when listening mode changes) lets the loop drain and `AudioRecord.release()` run. The loop deliberately survives a screen-off (see Lifecycle → `onStop`), held up by the partial wake lock, so commands keep working with the screen dark.
 
 ## State
 
