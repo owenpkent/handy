@@ -63,8 +63,10 @@ if (-not (Test-Path $apk)) { throw "Expected APK not found: $apk" }
 Write-Host "APK: $apk" -ForegroundColor Green
 
 # --- 3. Ensure the public releases repo exists ---------------------------
-$repoExists = $true
-try { gh repo view $Repo *> $null } catch { $repoExists = $false }
+# Test $LASTEXITCODE, not try/catch: a failing native command doesn't throw
+# in PowerShell 7 by default, so the catch never ran and "exists" stayed true.
+gh repo view $Repo *> $null
+$repoExists = ($LASTEXITCODE -eq 0)
 if (-not $repoExists) {
     Write-Host "Creating public repo $Repo ..." -ForegroundColor Yellow
     # --add-readme gives the repo an initial commit, so a release tag has
@@ -79,8 +81,8 @@ if ([string]::IsNullOrWhiteSpace($Notes)) {
 }
 
 # If the tag already exists, replace its asset; else create the release.
-$releaseExists = $true
-try { gh release view $tag --repo $Repo *> $null } catch { $releaseExists = $false }
+gh release view $tag --repo $Repo *> $null
+$releaseExists = ($LASTEXITCODE -eq 0)
 
 if ($releaseExists) {
     Write-Host "Release $tag exists; updating asset..." -ForegroundColor Yellow
