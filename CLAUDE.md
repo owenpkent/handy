@@ -293,13 +293,14 @@ applicationContext.filesDir/
 
 ### Tests (Android V2)
 
-28 JVM unit tests cover the audio math, the update version-compare, the listening-session lifecycle and the mic-off stop race without needing Android:
+30 JVM unit tests cover the audio math, the update version-compare, the listening-session lifecycle and the mic-off stop race without needing Android:
 
 - `MfccTest` (5) — extraction shape, determinism, frequency discrimination, empty/short input handling.
 - `DtwTest` (5) — self-distance zero, symmetry, similar beats dissimilar, length invariance after normalization, empty handling.
 - `MfccDtwEngineTest` (4) — no-templates returns null, trained label wins, two-takes-per-label preserves match, clearAll works.
 - `ListeningSessionTest` (4) — pending result doesn't dispatch after cancel; `cancelThen` runs the stop only after a cancellation-swallowing child finishes (begin, then stop); a restarted session never sees the old session's result; `start` is a no-op while active.
 - `MicOffStopRegressionTest` (3) — end-to-end with the real `Dispatch` / `PatternEngine` / `HumanizeEngine` / `HandyV2ApiClient` against an in-memory fake `HandyV2ApiService` on virtual time (`kotlinx-coroutines-test`): a "begin" held at the matcher boundary and released mid-stop-ramp must leave the device stopped with a terminal `hamp/stop`, at humanize strength 0 and 30. A third, control test runs the old ordering (recognition outside the session, stop not joined) and asserts the device is left moving, so the fix tests can't pass for the wrong reason.
+- `ConnectGuardTest` (2): a second Connect tap while the first is still persisting the key is dropped (only one connect runs); the slot frees afterwards so a retry works. `ConnectGuard` (`ui/ConnectGuard.kt`) is the single-flight guard shared by the setup-panel Connect button and the home button.
 - `UpdaterTest` (7) — `isNewer`: integer-component comparison (so `0.10 > 0.9`, the bug that motivates it), equal / older versions, leading `v` tolerated, differing component counts (`1.0 == 1.0.0`), and malformed versions never updating.
 
 Run: `./gradlew :app:testDebugUnitTest` from `android-v2/`. ~40 ms total runtime.
@@ -447,7 +448,7 @@ git add -A; git commit -m "feat: description"; git push
   cd C:\Users\Owen\dev\handy\android-v2
   .\gradlew.bat :app:assembleDebug
   ```
-- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 28 tests, a few seconds.
+- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 30 tests, a few seconds.
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
 - Every debug build drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The task is hooked to `packageDebug` (not `assembleDebug`) so it fires for `installDebug` too. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.

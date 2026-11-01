@@ -184,6 +184,7 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var homeListenButton: MaterialButton
     private lateinit var homeHeardText: TextView
     private var showingMore = false
+    private val connectGuard = ConnectGuard()
     /** Mirrors the mic button's on/off look so the home button matches it. */
     private var micOn = false
     private val backToHome = object : OnBackPressedCallback(false) {
@@ -353,6 +354,25 @@ class ControlActivity : AppCompatActivity() {
         findViewById<View>(R.id.homeMoreButton).setOnClickListener { showMore(true) }
         findViewById<View>(R.id.homeBackButton).setOnClickListener { showMore(false) }
         onBackPressedDispatcher.addCallback(this, backToHome)
+        // Shrink the big button in short windows (split screen) so the status
+        // line, readout and More controls usually fit without scrolling; the
+        // home panel still scrolls as a fallback.
+        homePanel.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+            val dp = resources.displayMetrics.density
+            val size = ((bottom - top) - (220 * dp).toInt())
+                .coerceIn((140 * dp).toInt(), (260 * dp).toInt())
+            val lp = homeListenButton.layoutParams
+            if (lp.width != size) {
+                // Posted: changing layout params inside a layout pass is
+                // deferred (and logged) by the framework.
+                homeListenButton.post {
+                    lp.width = size
+                    lp.height = size
+                    homeListenButton.layoutParams = lp
+                    homeListenButton.cornerRadius = size / 2
+                }
+            }
+        }
         // The home screen shows the same "Heard:" readout as the Voice tab;
         // mirror it rather than touching every place that sets it.
         lastMatchText.addTextChangedListener(object : TextWatcher {
@@ -511,19 +531,26 @@ class ControlActivity : AppCompatActivity() {
         when (api.connectionState.value) {
             ConnectionState.CONNECTED -> onMicTapped()
             ConnectionState.CONNECTING -> Unit
-            ConnectionState.DISCONNECTED ->
-                if (connectionKeyInput.text.isNullOrBlank()) showMore(true) else onConnectTapped()
+            ConnectionState.DISCONNECTED -> when {
+                connectGuard.inFlight -> Unit
+                connectionKeyInput.text.isNullOrBlank() -> showMore(true)
+                else -> onConnectTapped()
+            }
         }
     }
 
     private fun updateHomeButton() {
-        val (label, color) = when (api.connectionState.value) {
-            ConnectionState.CONNECTED ->
+        val state = api.connectionState.value
+        val connecting = state == ConnectionState.CONNECTING ||
+            (state == ConnectionState.DISCONNECTED && connectGuard.inFlight)
+        val (label, color) = when {
+            connecting -> "Connecting…" to R.color.card_dark
+            state == ConnectionState.CONNECTED ->
                 if (micOn) "Stop\nlistening" to R.color.emergency_red
                 else "Start\nlistening" to R.color.primary
-            ConnectionState.CONNECTING -> "Connecting…" to R.color.card_dark
-            ConnectionState.DISCONNECTED -> "Connect" to R.color.primary
+            else -> "Connect" to R.color.primary
         }
+        homeListenButton.isEnabled = !connecting
         homeListenButton.text = label
         homeListenButton.backgroundTintList =
             ColorStateList.valueOf(ContextCompat.getColor(this, color))
@@ -864,8 +891,16 @@ class ControlActivity : AppCompatActivity() {
         // Flip the UI to its busy state immediately on tap, before the
         // suspend connect() even sets CONNECTING — closes the brief window
         // where a double-tap could fire two connect attempts.
-        showConnecting(true)
-        lifecycleScope.launch {
+        // connectGuard claims its slot synchronously, before the prefs write
+        // suspends, so a second tap (from either Connect button) is dropped
+        // rather than racing a parallel connect.
+        val started = connectGuard.launch(
+            lifecycleScope,
+            onDone = {
+                if (api.connectionState.value != ConnectionState.CONNECTING) showConnecting(false)
+                updateHomeButton()
+            },
+        ) {
             prefs.setConnectionKey(key)
             api.setConnectionKey(key)
             val ok = api.connect()
@@ -876,6 +911,7 @@ class ControlActivity : AppCompatActivity() {
                 toast(api.lastError.value ?: "Connection failed.")
             }
         }
+        if (started) showConnecting(true)
     }
 
     /**
@@ -889,6 +925,7 @@ class ControlActivity : AppCompatActivity() {
         connectButton.visibility = if (connecting) View.GONE else View.VISIBLE
         connectButton.isEnabled = !connecting
         connectionKeyInput.isEnabled = !connecting
+        updateHomeButton()
     }
 
     private fun ensureMicThenRun(block: () -> Unit) {
