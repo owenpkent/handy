@@ -11,8 +11,11 @@
         android:id="@+id/mainScroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:visibility="gone">
 
+    <!-- "More controls" screen: the full Voice / Manual UI. Hidden by
+         default; the simplified homePanel below is what the app opens on. -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -26,6 +29,17 @@
             android:gravity="center_vertical"
             android:orientation="horizontal"
             app:layout_constraintTop_toTopOf="parent">
+
+            <!-- Back to the one-button home screen. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/homeBackButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginEnd="4dp"
+                android:text="←  Home"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp" />
 
             <TextView
                 android:layout_width="0dp"
@@ -695,6 +709,72 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>
+
+    <!-- Simplified home screen: one big button that starts / stops listening
+         (it reads "Connect" while disconnected). Everything else lives on
+         the "More controls" screen (mainScroll). -->
+    <LinearLayout
+        android:id="@+id/homePanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/homeStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/status_disconnected"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeListenButton"
+            android:layout_width="260dp"
+            android:layout_height="260dp"
+            android:gravity="center"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:text="Start\nlistening"
+            android:textColor="@color/on_primary"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            app:backgroundTint="@color/primary"
+            app:cornerRadius="130dp" />
+
+        <TextView
+            android:id="@+id/homeHeardText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:minHeight="28dp"
+            android:textColor="@color/status_connected"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            tools:text="✓ begin" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeMoreButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:text="More controls  →"
+            android:textColor="@color/text_secondary"
+            android:textSize="18sp" />
+    </LinearLayout>
 
     <!-- Picture-in-Picture overlay. Hidden during normal full-screen use;
          swapped in by onPictureInPictureModeChanged so the tiny floating

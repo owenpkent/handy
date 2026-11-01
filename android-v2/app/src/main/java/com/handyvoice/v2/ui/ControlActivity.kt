@@ -23,6 +23,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.tabs.TabLayout
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -176,6 +177,18 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var settingsButton: MaterialButton
     private lateinit var pipButton: MaterialButton
     private lateinit var mainScroll: View
+    // Simplified home screen (one listen button). mainScroll is the
+    // "More controls" screen behind it.
+    private lateinit var homePanel: View
+    private lateinit var homeStatusText: TextView
+    private lateinit var homeListenButton: MaterialButton
+    private lateinit var homeHeardText: TextView
+    private var showingMore = false
+    /** Mirrors the mic button's on/off look so the home button matches it. */
+    private var micOn = false
+    private val backToHome = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = showMore(false)
+    }
     private lateinit var pipOverlay: View
     private lateinit var pipStatusText: TextView
     private lateinit var pipHintText: TextView
@@ -286,6 +299,10 @@ class ControlActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         pipButton = findViewById(R.id.pipButton)
         mainScroll = findViewById(R.id.mainScroll)
+        homePanel = findViewById(R.id.homePanel)
+        homeStatusText = findViewById(R.id.homeStatusText)
+        homeListenButton = findViewById(R.id.homeListenButton)
+        homeHeardText = findViewById(R.id.homeHeardText)
         pipOverlay = findViewById(R.id.pipOverlay)
         pipStatusText = findViewById(R.id.pipStatusText)
         pipHintText = findViewById(R.id.pipHintText)
@@ -332,6 +349,17 @@ class ControlActivity : AppCompatActivity() {
         // auto-floats; see onUserLeaveHint.)
         pipButton.setOnClickListener { pip.enter() }
         micButton.setOnClickListener { onMicTapped() }
+        homeListenButton.setOnClickListener { onHomeListenTapped() }
+        findViewById<View>(R.id.homeMoreButton).setOnClickListener { showMore(true) }
+        findViewById<View>(R.id.homeBackButton).setOnClickListener { showMore(false) }
+        onBackPressedDispatcher.addCallback(this, backToHome)
+        // The home screen shows the same "Heard:" readout as the Voice tab;
+        // mirror it rather than touching every place that sets it.
+        lastMatchText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) { homeHeardText.text = s }
+        })
         startButton.setOnClickListener {
             lifecycleScope.launch {
                 // When humanize is on, START brings up modulated motion at the
@@ -459,6 +487,50 @@ class ControlActivity : AppCompatActivity() {
                 stopAlwaysOn()
             }
         }
+        homeStatusText.text = statusText.text
+        homeStatusText.setTextColor(statusText.currentTextColor)
+        updateHomeButton()
+    }
+
+    /** Switch between the one-button home screen and "More controls". */
+    private fun showMore(more: Boolean) {
+        showingMore = more
+        mainScroll.visibility = if (more) View.VISIBLE else View.GONE
+        homePanel.visibility = if (more) View.GONE else View.VISIBLE
+        // System Back returns home from More; on home it behaves normally.
+        backToHome.isEnabled = more
+    }
+
+    /**
+     * The home button is the listen toggle once connected (same path as the
+     * Voice tab's mic). Before that it doubles as Connect, so a failed
+     * auto-connect can be retried without leaving home; with no saved key it
+     * opens More, where the key field is.
+     */
+    private fun onHomeListenTapped() {
+        when (api.connectionState.value) {
+            ConnectionState.CONNECTED -> onMicTapped()
+            ConnectionState.CONNECTING -> Unit
+            ConnectionState.DISCONNECTED ->
+                if (connectionKeyInput.text.isNullOrBlank()) showMore(true) else onConnectTapped()
+        }
+    }
+
+    private fun updateHomeButton() {
+        val (label, color) = when (api.connectionState.value) {
+            ConnectionState.CONNECTED ->
+                if (micOn) "Stop\nlistening" to R.color.emergency_red
+                else "Start\nlistening" to R.color.primary
+            ConnectionState.CONNECTING -> "Connecting…" to R.color.card_dark
+            ConnectionState.DISCONNECTED -> "Connect" to R.color.primary
+        }
+        homeListenButton.text = label
+        homeListenButton.backgroundTintList =
+            ColorStateList.valueOf(ContextCompat.getColor(this, color))
+        homeListenButton.setTextColor(ContextCompat.getColor(
+            this,
+            if (color == R.color.card_dark) R.color.text_secondary else R.color.on_primary,
+        ))
     }
 
     private suspend fun adjustSpeedRespectingLimits(designDelta: Int) {
@@ -672,12 +744,13 @@ class ControlActivity : AppCompatActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
             mainScroll.visibility = View.GONE
+            homePanel.visibility = View.GONE
             pipOverlay.visibility = View.VISIBLE
             pipHintText.text = "Tap to open"
             updatePipStatus()
         } else {
             pipOverlay.visibility = View.GONE
-            mainScroll.visibility = View.VISIBLE
+            showMore(showingMore)
         }
     }
 
@@ -852,6 +925,8 @@ class ControlActivity : AppCompatActivity() {
             if (listening) R.color.emergency_red else R.color.primary,
         )
         micButton.backgroundTintList = ColorStateList.valueOf(tint)
+        micOn = listening
+        updateHomeButton()
     }
 
     /**
