@@ -11,45 +11,55 @@
         android:id="@+id/mainScroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:visibility="gone">
 
+    <!-- "More controls" screen: the full Voice / Manual UI. Hidden by
+         default; the simplified homePanel below is what the app opens on. -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- Header -->
+        <!-- Header. Two rows so the fixed-size navigation (Home, PiP,
+             Settings) always fits, even at large font scales: only the
+             weighted title shrinks in row 1, and the status (which can be a
+             long error reason) wraps in its own row. -->
         <LinearLayout
             android:id="@+id/header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Back to the one-button home screen. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/homeBackButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:layout_marginEnd="4dp"
+                android:text="←  Home"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
                 android:text="@string/app_name"
                 android:textColor="@color/text_primary"
                 android:textSize="22sp"
                 android:textStyle="bold" />
-
-            <View
-                android:id="@+id/statusDot"
-                android:layout_width="12dp"
-                android:layout_height="12dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/status_dot" />
-
-            <TextView
-                android:id="@+id/statusText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/status_disconnected"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
 
             <!-- Float into a Picture-in-Picture window. Hidden until connected
                  and only on devices that support PiP (toggled in code). -->
@@ -76,6 +86,31 @@
                 android:text="⚙"
                 android:textColor="@color/text_primary"
                 android:textSize="22sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/statusDot"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/status_dot" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/status_disconnected"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
         </LinearLayout>
 
         <!-- Setup Panel -->
@@ -694,6 +729,87 @@
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+
+    <!-- Simplified home screen: one big button that starts / stops listening
+         (it reads "Connect" while disconnected). Everything else lives on
+         the "More controls" screen (mainScroll). Scrolls so More controls
+         stays reachable in a short (split-screen) window; fillViewport lets
+         the weighted spaces center the button when there's room. -->
+    <ScrollView
+        android:id="@+id/homePanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/homeStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/status_disconnected"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeListenButton"
+            android:layout_width="260dp"
+            android:layout_height="260dp"
+            android:gravity="center"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:maxLines="2"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="Start\nlistening"
+            android:textColor="@color/on_primary"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            app:autoSizeMaxTextSize="28sp"
+            app:autoSizeMinTextSize="10sp"
+            app:autoSizeStepGranularity="1sp"
+            app:autoSizeTextType="uniform"
+            app:backgroundTint="@color/primary"
+            app:cornerRadius="130dp" />
+
+        <TextView
+            android:id="@+id/homeHeardText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:minHeight="28dp"
+            android:textColor="@color/status_connected"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            tools:text="✓ begin" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeMoreButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:text="More controls  →"
+            android:textColor="@color/text_secondary"
+            android:textSize="18sp" />
+    </LinearLayout>
     </ScrollView>
 
     <!-- Picture-in-Picture overlay. Hidden during normal full-screen use;
