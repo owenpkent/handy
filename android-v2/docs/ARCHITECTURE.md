@@ -9,7 +9,8 @@ Single process, three activities, no foreground service. The mic is owned by exa
 ```
                     ┌──────────────────────────────────────┐
                     │  ControlActivity                     │
-launcher ──────────►│  - Voice / Manual tabs               │
+launcher ──────────►│  - Simple home (one listen button)   │
+                    │  - More: Voice / Manual tabs         │
                     │  - mic toggle, live peak meter       │
                     │  - 12-button pattern grid            │
                     │  - PatternEngine (envelope runner)   │
@@ -20,9 +21,9 @@ launcher ──────────►│  - Voice / Manual tabs            
                                ▼
                     ┌──────────────────────────────────────┐
                     │  TrainingActivity                    │
-                    │  - 9 cards × 3 takes (auto-advance)  │
+                    │  - 4 labels × 3 takes (auto-advance) │
                     │  - cross-validation gate per label   │
-                    │  - verification pass before finish   │
+                    │  - Build templates, then back home   │
                     │  - ack tone on every saved take      │
                     └──────────────────────────────────────┘
 
@@ -34,9 +35,9 @@ launcher ──────────►│  - Voice / Manual tabs            
                     └──────────────────────────────────────┘
 ```
 
-`ControlActivity` is the launcher. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine`, instantiates a `PatternEngine` bound to its `lifecycleScope`, restores the connection key, and wires up the tab listener + listening loop. The shared gear-icon menu (`MainMenu.showMainMenu`) is wired here for the Voice / Settings overflow. The Voice **and** Manual surfaces live in this single activity as tab panels — there is no separate `ManualActivity` anymore.
+`SplashActivity` is the launcher; it animates, starts the connect, and hands off to `ControlActivity`. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine`, instantiates a `PatternEngine` bound to its `lifecycleScope`, restores the connection key, and wires up the tab listener + listening loop. The More screen's header gear opens `SettingsActivity` directly. The activity opens on a simplified home screen (`homePanel`: one Start / Stop listening button wired to `onMicTapped`, status, "Heard:"); `showMore(true)` swaps in the full UI (`mainScroll`) and system Back returns (`backToHome`). User-initiated connects go through `ConnectGuard` (single-flight, claims its slot before the first suspension). The Voice **and** Manual surfaces live on the More screen as tab panels — there is no separate `ManualActivity` anymore.
 
-`TrainingActivity` is unidirectional. The user records, the takes hit disk, cross-validation flags outliers, the verification pass confirms recognition, and the activity finishes back to `ControlActivity`. It does not need a network connection or a Handy device to operate.
+`TrainingActivity` is unidirectional. The user records, the takes hit disk, cross-validation flags outliers, and the activity finishes back to `ControlActivity`. It does not need a network connection or a Handy device to operate.
 
 `SettingsActivity` writes prefs and can invoke the "wipe templates and re-train" path. The header's **← Home** button finishes Settings and returns to `ControlActivity` directly; `onResume` over there re-reads prefs and reloads templates.
 
@@ -73,7 +74,7 @@ Three kinds of state, three different homes.
 - `engine: MfccDtwEngine` — the loaded templates. Rebuilt from disk on every launch and again in `onResume` so newly-recorded takes appear without restart.
 - `patternEngine: PatternEngine` — lazy-init runner for the 12 envelope patterns. Cancelled on STOP, on any new pattern, and (implicitly via `lifecycleScope`) on activity destruction.
 - `listening: ListeningSession` — wraps the coroutine running the listening loop (used by both tap-mic and always-on modes).
-- `ackTone: ToneGenerator?` — short-lived `STREAM_MUSIC` tone generator that beeps on every voice match. Released in `onDestroy`. TrainingActivity owns a parallel instance for take saves + verify passes.
+- `ackTone: ToneGenerator?` — short-lived `STREAM_MUSIC` tone generator that beeps on every voice match. Released in `onDestroy`. TrainingActivity owns a parallel instance for take saves.
 - `globalMaxSpeed`, `globalMinStroke`, `globalMaxStroke`, `threshold`, `listeningMode` — cached pref values, re-read on every `onResume`.
 - `log: MutableList<String>` — ring buffer of debug lines for the on-screen panel; auto-scrolls to newest on update.
 
@@ -92,7 +93,7 @@ The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunnin
 | `global_max_stroke` | Int | 100 | Stroke-position ceiling. |
 | `invert_stroke` | Boolean | false | Flip user-coord 0 to device-coord 100 at the API client boundary. Applied once in `setStrokeRange` and `parkAtRetracted`. |
 | `match_threshold` | Float | 30.0 | Path-normalised DTW distance below which a match counts. Cross-validation also uses `threshold × 1.4` as its outlier cutoff. |
-| `onboarded` | Boolean | false | Set true when the user finishes Training (and passes the verification step) **or** bails out via the gear menu — either way ControlActivity stops force-routing them back. |
+| `onboarded` | Boolean | false | Set true when the user taps **Build templates** **or** bails out via Training's own menu — either way ControlActivity stops force-routing them back. |
 
 `PreferencesManager.snapshot()` returns a single `Snapshot` so a coroutine can read everything in one suspend without juggling individual Flows.
 
@@ -142,7 +143,7 @@ File names use `take_N.json` where N is the next integer after the existing coun
 3. Bind views and observers.
 4. Launch the `bootstrap()` coroutine, which:
    1. Reads the prefs snapshot.
-   2. If `!onboarded` (first run) → launches `TrainingActivity` and returns. Subsequent visits trust the flag, even if the template store is empty (user can deliberately bail onboarding via the gear menu).
+   2. If `!onboarded` (first run) → launches `TrainingActivity` and returns. Subsequent visits trust the flag, even if the template store is empty (user can deliberately bail onboarding via Training's menu).
    3. Otherwise loads MFCCs from disk into the engine.
    4. Restores the connection key into the input field and (if non-blank) immediately calls `api.connect()`.
 
@@ -168,7 +169,7 @@ File names use `take_N.json` where N is the next integer after the existing coun
 
 `ControlActivity` Picture-in-Picture (`ui/PipController.kt`):
 
-- The activity can float into a PiP window (header `pipButton`, or `onUserLeaveHint` auto-floating when connected **and** `isRunning`). A PiP window can't receive touches on the app's own views, so the controls are system `RemoteAction`s — icon buttons in the window overlay, each backed by a `PendingIntent` broadcast. The bar holds at most `getMaxNumPictureInPictureActions()` actions (≥3 on every phone, sometimes 5), so it's the Slower/**Stop**/Faster trio — three fits the guaranteed floor and is never truncated. Taps arrive as broadcasts on a `RECEIVER_NOT_EXPORTED` receiver and route through `Dispatch.dispatch` (`onPipControl`), which also calls `noteActivity()` + `playAck()` since a broadcast never reaches `onUserInteraction`. `onPictureInPictureModeChanged` swaps `mainScroll` for the compact `pipOverlay` status text. The listening loop is **not** torn down on entering PiP (the activity stays STARTED while the window is visible). Manifest: `supportsPictureInPicture` + PiP `configChanges`.
+- The activity can float into a PiP window (header `pipButton`, or `onUserLeaveHint` auto-floating when connected **and** `isRunning`). A PiP window can't receive touches on the app's own views, so the controls are system `RemoteAction`s — icon buttons in the window overlay, each backed by a `PendingIntent` broadcast. The bar holds at most `getMaxNumPictureInPictureActions()` actions (≥3 on every phone, sometimes 5), so it's the Slower/**Stop**/Faster trio — three fits the guaranteed floor and is never truncated. Taps arrive as broadcasts on a `RECEIVER_NOT_EXPORTED` receiver and route through `Dispatch.dispatch` (`onPipControl`), which also calls `noteActivity()` + `playAck()` since a broadcast never reaches `onUserInteraction`. `onPictureInPictureModeChanged` hides both screens (`homePanel`, `mainScroll`) for the compact `pipOverlay` status text and restores whichever was showing on exit. The listening loop is **not** torn down on entering PiP (the activity stays STARTED while the window is visible). Manifest: `supportsPictureInPicture` + PiP `configChanges`.
 
 `TrainingActivity.onCreate`:
 

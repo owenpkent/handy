@@ -64,7 +64,7 @@ Cosmetic. These flags in `gradle.properties` are pinned to AGP-9.x defaults (whi
 
 ## Mic not picking anything up
 
-The single best diagnostic is the **live peak meter** on the Voice tab (under "Heard:") and on the Training screen (above the record button). When the mic is open, the bar should grow/shrink with your voice. If it stays flat-zero, the mic isn't reaching the app.
+The single best diagnostic is the **live peak meter** on the Voice tab (**More controls →** on the home screen, then Voice; under "Heard:") and on the Training screen (above the record button). When the mic is open, the bar should grow/shrink with your voice. If it stays flat-zero, the mic isn't reaching the app.
 
 ### On the Android emulator
 
@@ -251,7 +251,7 @@ Two waits stacked up. After any command the app waits ~1.8 s before snapshotting
 
 The long cooldown existed to dodge a race: a `begin` firing while the stop wind-down (`rampStop`) was still easing velocity toward 0 would get stomped back to 0 a beat later, so the device would appear to refuse to restart. v0.18 removes that race at the API-client level — a fresh velocity command (`begin`, `faster`) bumps a token that makes any in-flight ramp abandon its remaining legs and skip its terminal `hamp/stop`, so the newest command wins. With the race gone, the cooldown dropped to 0.6 s, and `stop` → `begin` restarts on the first try.
 
-If you're on an older build: tapping the on-screen **Begin** button (Voice tab) bypasses recognition and always works, and updating to v0.18+ fixes the spoken path.
+If you're on an older build: tapping the on-screen **Begin** button (Voice tab, under **More controls**) bypasses recognition and always works, and updating to v0.18+ fixes the spoken path.
 
 ### `Heard: faster` shows but device doesn't speed up
 
@@ -274,7 +274,7 @@ By design. Android caps the PiP control bar at `getMaxNumPictureInPictureActions
 
 ### The floating window shows the shrunk-down full UI instead of a clean status
 
-`onPictureInPictureModeChanged` should swap `mainScroll` for the `pipOverlay` status text. If you see the full layout, the activity was likely recreated on the PiP resize — confirm `ControlActivity` still has `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` in the manifest.
+`onPictureInPictureModeChanged` should swap the home / More screens (`homePanel`, `mainScroll`) for the `pipOverlay` status text. If you see the full layout, the activity was likely recreated on the PiP resize — confirm `ControlActivity` still has `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` in the manifest.
 
 ## Updating the app
 

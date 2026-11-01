@@ -12,6 +12,7 @@ A hands-free Android client that recognizes spoken commands by matching against 
 
 - Records 3 takes of each command on first launch; matches against the user's voice on-device, fully offline.
 - Voice vocabulary: `begin` / `stop` / `faster` / `slower`. Deliberately small — every extra label narrows the acoustic gaps the matcher relies on.
+- **One-button home screen** (v0.21): opens on a single big Start / Stop listening button; everything else is behind "More controls".
 - Tap-shortcut buttons mirror every voice command, plus a Manual tab with sliders and a 4×3 pattern grid.
 - **Humanized motion** — a steady speed drifts organically (speed *and* stroke depth) so it never feels robotic. Strength is a Settings slider (0 = off).
 - **Gentle stop** — every stop eases the speed down to 0 over ~1.5 s instead of a hard halt.

@@ -195,8 +195,8 @@ The default threshold of 30 deliberately overshoots so the margin gate does most
 
 **Empirical tuning loop:**
 
-1. Record your templates and run the verification pass.
-2. Issue every command twice in the Voice tab; watch the debug log line `Heard: <label> score=NN.NN margin=MM.MM`.
+1. Record your templates, then say each command a few times on the home screen and watch the "Heard:" readout.
+2. Issue every command twice in the Voice tab (**More controls** on the home screen); watch the debug log line `Heard: <label> score=NN.NN margin=MM.MM`.
 3. Note the highest score you saw for a *correct* match. Call it `S_correct_max`.
 4. Issue commands you did *not* train (or speak nonsense at the mic). Note the lowest score you saw. Call it `S_wrong_min`.
 5. Set the threshold to `(S_correct_max + S_wrong_min) / 2` if there's a gap; if `S_correct_max > S_wrong_min` there's no clean threshold and you should re-record the worst-performing label or pick a more phonetically-distinct word.

@@ -75,7 +75,7 @@ The session ends when all 21 takes are recorded. Tap **Build templates** to cont
 Earlier versions ran a verification gauntlet right after Build: for every trained label the app would ask you to say it once and confirm the engine returned the right label, with an inline re-record loop on a miss. It was removed because:
 
 1. The cross-validation gate above already catches the bad-take case at the moment the audio is freshest in your mind.
-2. The Voice tab gives instant feedback the first time you use a label in real use, so collisions surface within a few seconds of normal operation rather than after another long forced loop.
+2. The Voice tab (under **More controls**) gives instant feedback the first time you use a label in real use, so collisions surface within a few seconds of normal operation rather than after another long forced loop.
 3. The pass could get stuck looping on a borderline word, which was worse UX than just letting the first real use catch it.
 
 If two of your labels collide in real use, fix it by re-recording them from Settings (see below).
@@ -116,6 +116,8 @@ If a command in `Dispatch.LABELS` ever takes more than 2.5 seconds to say comfor
 
 Three paths, easiest first:
 
+Settings is reached from the home screen via **More controls →**, then the gear in the header.
+
 **Re-record one label** — Settings → **Re-record voice samples** opens Training without wiping anything. Navigate to the label you want and tap the **Sage Re-record button** to wipe just that label's 3 takes and capture fresh ones.
 
 **Re-record everything (in place)** — Same path: Settings → **Re-record voice samples**. Navigate label by label, tap the Sage Re-record on each one you want to redo. Existing labels you don't touch are preserved.
@@ -126,7 +128,7 @@ These management buttons used to live on the Voice tab but were moved to Setting
 
 ## Reading match scores
 
-Open the debug panel on the Voice tab (**Show Debug** below the buttons). Every match emits a line:
+Open the debug panel on the Voice tab (home screen, **More controls →**, Voice; **Show Debug** below the buttons). Every match emits a line:
 
 ```
 [14:23:01] Heard: faster  score=8.2 margin=1.4
@@ -152,7 +154,7 @@ Always-on mode runs a voice-activity detector on every block of mic input. When 
 - **Background noise triggers it.** Coughs, TV, room HVAC, or the device's own motor. The default VAD thresholds in `audio/Vad.kt` reject most non-speech, but they're not perfect. **Workaround:** switch to button mode in noisy environments (tap mic to start a continuous listening session, tap again to stop). **If it's the device's own sound being misheard as a command** (usually "stop"), use the optional "ignore device sound" recording — see [Optional: teach it to ignore the device's own sound](#optional-teach-it-to-ignore-the-devices-own-sound) below.
 - **Your speech triggers it before you finish, and the match fires on a partial word.** Less of a problem now that we wait 1.8 s after the trigger before snapshotting, but possible for unusually long words. **Workaround:** speak the command in one breath. If you have a word that genuinely takes more than 2 seconds to say, bump `WINDOW_SECONDS` in both Training and Control (they must match).
 
-If always-on mode never fires when you speak, watch the live peak meter on the Voice tab. If it's flat-zero, the mic isn't reaching the app (see [TROUBLESHOOTING](TROUBLESHOOTING.md#mic-not-picking-anything-up)). If the meter moves but no match fires, your speech may be below the VAD energy threshold — speak a bit louder or move closer to the mic.
+If always-on mode never fires when you speak, watch the live peak meter on the Voice tab (**More controls** on the home screen). If it's flat-zero, the mic isn't reaching the app (see [TROUBLESHOOTING](TROUBLESHOOTING.md#mic-not-picking-anything-up)). If the meter moves but no match fires, your speech may be below the VAD energy threshold — speak a bit louder or move closer to the mic.
 
 ## Optional: teach it to ignore the device's own sound
 

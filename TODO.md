@@ -44,6 +44,7 @@
 - [x] **Android v2: per-command retrain** — Settings → "Re-record voice samples" opens Training without wiping saved takes, and Prev/Next/Skip let the user land on one command. `TrainingActivity` also accepts `EXTRA_LABELS` to scope a session to a subset (used for the reject/noise class).
 - [x] **Android v2: trim the voice vocabulary to four labels** (v0.19) — dropped `random` / `deeper` / `shallow`, leaving begin / stop / faster / slower. Depth moved to the Manual stroke sliders; the PiP bar became a fixed Slower / Stop / Faster trio.
 - [x] **Android v2: mic off stops the device** (v0.20) - tapping the mic off (tap-mic mode) or pausing always-on listening also stops the device, so motion never outlives voice control. Fixed the race where a command spoken just before mic-off could cancel the stop's wind-down; the listening lifecycle now lives in ListeningSession, covered by ListeningSessionTest + MicOffStopRegressionTest.
+- [x] **Android v2: one-button home screen** (v0.21) - the app opens on one big Start / Stop listening button (status + "Heard:" readout); the old full UI (Voice / Manual tabs, connection key, Settings) is behind "More controls". Two-row More header so the gear survives large fonts; button and label shrink for split-screen. `ConnectGuard` stops a double-tapped Connect from firing two connects (`ConnectGuardTest`).
 
 ## Next Up
 
