@@ -770,10 +770,17 @@
             android:gravity="center"
             android:insetTop="0dp"
             android:insetBottom="0dp"
+            android:maxLines="2"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:text="Start\nlistening"
             android:textColor="@color/on_primary"
             android:textSize="28sp"
             android:textStyle="bold"
+            app:autoSizeMaxTextSize="28sp"
+            app:autoSizeMinTextSize="10sp"
+            app:autoSizeStepGranularity="1sp"
+            app:autoSizeTextType="uniform"
             app:backgroundTint="@color/primary"
             app:cornerRadius="130dp" />
 
