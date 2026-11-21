@@ -13,5 +13,15 @@
     "version": 3,
     "date": "2026-11-21",
     "note": "moved project into handy repo (hardware/wearable-sleeve); no design change"
+  },
+  {
+    "version": 4,
+    "date": "2026-11-21",
+    "note": "v4: one DRV2605L per sleeve motor (5), TCA9548A mux, lid STOP button, USB-C slot, PG7 cable exit, new board layout"
+  },
+  {
+    "version": 5,
+    "date": "2026-11-21",
+    "note": "v5: same geometry as v4, accepted-warn reasons updated for the new pack distance; Brief v2 and sketch_v2"
   }
 ]
