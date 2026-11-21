@@ -94,7 +94,7 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 | `CONSTELLATION_INTEGRATION_GUIDE.md` | Dashboard integration |
 | `WEARABLE_DEVICE_RESEARCH.md` | Research for a DIY low-profile wearable (vibration / soft pneumatic) that works around a condom catheter, BLE-controlled by android-v2 via a proposed `HapticDevice` interface. Safety constraints, parts, build plan. |
 
-**Hardware CAD (`hardware/`):** `hardware/wearable-sleeve/` is an [nl-cad](../nl-cad) project (brief, build123d parts, `assembly.yaml`, numbered builds). Build from the nl-cad repo: `cd W:\dev\nl-cad; uv run python -m nlcad.build W:\dev\handy\hardware\wearable-sleeve --note "..."`. Bought-part stand-ins live in nl-cad's shared `library/`. STEP/GLB outputs and the downloaded vendor CAD in `hardware/cad/` are gitignored (regenerated / re-downloadable; `hardware/cad/README.md` lists sources).
+**Hardware CAD (`hardware/`):** `hardware/wearable-sleeve/` is an [nl-cad](../nl-cad) project (brief, build123d parts, `assembly.yaml`, numbered builds; at v5: open C-shell sleeve with 5 LRAs, chair box with one DRV2605L per motor behind a TCA9548A mux, STOP button). Follow nl-cad's rules (its `CLAUDE.md` and `docs/agents/`): new `builds/vN` per build, `BUILD_LOG.md` row, brief bumped with `git mv`. Build from the nl-cad repo: `cd W:\dev\nl-cad; uv run python -m nlcad.build W:\dev\handy\hardware\wearable-sleeve --note "..."`. Bought-part stand-ins live in nl-cad's shared `library/`. STEP/GLB outputs and the downloaded vendor CAD in `hardware/cad/` are gitignored (regenerated / re-downloadable; `hardware/cad/README.md` lists sources).
 
 ### Documentation (`android-v2/docs/`)
 

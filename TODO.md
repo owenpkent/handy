@@ -45,8 +45,17 @@
 - [x] **Android v2: trim the voice vocabulary to four labels** (v0.19) — dropped `random` / `deeper` / `shallow`, leaving begin / stop / faster / slower. Depth moved to the Manual stroke sliders; the PiP bar became a fixed Slower / Stop / Faster trio.
 - [x] **Android v2: mic off stops the device** (v0.20) - tapping the mic off (tap-mic mode) or pausing always-on listening also stops the device, so motion never outlives voice control. Fixed the race where a command spoken just before mic-off could cancel the stop's wind-down; the listening lifecycle now lives in ListeningSession, covered by ListeningSessionTest + MicOffStopRegressionTest.
 - [x] **Android v2: one-button home screen** (v0.21) - the app opens on one big Start / Stop listening button (status + "Heard:" readout); the old full UI (Voice / Manual tabs, connection key, Settings) is behind "More controls". Two-row More header so the gear survives large fonts; button and label shrink for split-screen. `ConnectGuard` stops a double-tapped Connect from firing two connects (`ConnectGuardTest`).
+- [x] **Wearable device: research** (2026-11-21) - mechanisms, prior art, catheter and skin safety constraints, electronics, app integration plan. [docs/WEARABLE_DEVICE_RESEARCH.md](docs/WEARABLE_DEVICE_RESEARCH.md)
+- [x] **Wearable device: CAD v5** (2026-11-21) - nl-cad assembly in [hardware/wearable-sleeve/](hardware/wearable-sleeve/): open C-shell sleeve with 5 LRAs, chair box with one DRV2605L per motor, TCA9548A mux, STOP button. 32 checks pass.
 
 ## Next Up
+
+- [ ] **Wearable: ask the continence nurse / urologist** about over-the-sheath use versus sheath-off sessions, and pressure limits, before anything is worn
+- [ ] **Wearable: place the motor sample order** (DigiKey + Adafruit carts are filled) and add the v5 box parts: 4 more DRV2605L, TCA9548A, Adafruit 559 STOP button, STEMMA QT cables, 1S LiPo, PG7 gland
+- [ ] **Wearable: bench firmware** - XIAO ESP32-C3 BLE GATT, per-motor DRV2605L via the mux, link-loss watchdog, on-device session cap; sweep frequency and strength per motor for a feel test (check DRV2605L at 100 Hz and 70 Hz)
+- [ ] **Wearable: STOP button wiring** - firmware interrupt plus a hardware cut of motor power
+- [ ] **Wearable: app side** - extract a `HapticDevice` interface from `HandyV2ApiClient`, add `BleWearableClient` and a device picker; the Handy path stays unchanged
+- [ ] **Wearable: soft pneumatics (phase 2)** - pump, normally-open vent, MPRLS, low-set relief valve (part not yet found)
 
 - [ ] **Android v2: validate Picture-in-Picture on Owen's phone** — confirm the per-app PiP permission is on and verify auto-float-on-Home and each of the three controls
 
