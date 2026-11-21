@@ -1,0 +1,98 @@
+# wearable-sleeve v1: a clinical assistive sleeve (open C-shell, 4 shaft LRAs, base pod LRA) plus a chair-mounted electronics pack.
+# Millimetres. Z up, X forward (distal), Y left. Origin: base datum at the proximal end of the shaft reference, on the shaft axis.
+# Datums first (joints before geometry): every mount is a named world frame; parts are authored about their own frames.
+project: wearable-sleeve
+units: mm
+
+subassemblies:
+  - {id: ref,         name: Reference anatomy (fixture, not a part), color: "#8a8f98"}
+  - {id: sleeve,      name: Sleeve,             color: "#4fb3c8"}
+  - {id: motors,      name: Sleeve motors,      parent: sleeve, color: "#e0a030"}
+  - {id: pack,        name: Electronics pack,   color: "#2c5f8a"}
+  - {id: electronics, name: Pack contents,      parent: pack, color: "#c0504d"}
+
+world_frames:
+  base:        {origin: [0, 0, 0],      z: [0, 0, 1]}       # proximal end of the shaft reference
+  shell_start: {origin: [5, 0, 0],      z: [0, 0, 1]}       # shell starts 5 mm from the base
+  tip_start:   {origin: [95, 0, 0],     z: [0, 0, 1]}       # distal end of the shaft reference
+  pod_c:       {origin: [10, 0, -24],   z: [0, 0, 1]}       # centre of the base pod: under the shaft base, top 1.9 mm below the shaft
+  pack:        {origin: [0, -300, -150], z: [0, 0, 1]}      # chair-mounted box: 300 mm to -Y and 150 mm to -Z of the base
+
+parts:
+  - {id: shaft,    module: shaft_ref}
+  - {id: tip,      module: sheath_tip_ref}
+  - {id: drain,    module: drain_tube_ref}
+  - {id: shell,    module: sleeve_shell}
+  - {id: pod,      module: base_pod}
+  - {id: lra_u,    module: lra_vlv101040a}
+  - {id: lra_f,    module: lra_vg0832012}
+  - {id: lra_b,    module: lra_vl32158h}
+  - {id: tray,     module: enclosure_tray}
+  - {id: lid,      module: enclosure_lid}
+  - {id: mcu,      module: mcu_xiao}
+  - {id: drv,      module: driver_drv2605l}
+  - {id: bat,      module: battery_lipo}
+
+instances:
+  - {id: shaft,  part: shaft,  subassembly: ref, place: {self: prox, to: world.base, type: coincident}}
+  - {id: tip,    part: tip,    subassembly: ref, place: {self: prox, to: world.tip_start, type: coincident}}
+  - {id: drain,  part: drain,  subassembly: ref, place: {self: top, to: tip.drain, type: coincident}}
+  - {id: shell,  part: shell,  subassembly: sleeve, place: {self: origin, to: world.shell_start, type: coincident}}
+  - {id: pod,    part: pod,    subassembly: sleeve, place: {self: origin, to: world.pod_c, type: coincident}}
+  - {id: lra_u1, part: lra_u,  subassembly: motors, place: {self: center, to: shell.u1, type: coincident}}
+  - {id: lra_u2, part: lra_u,  subassembly: motors, place: {self: center, to: shell.u2, type: coincident}}
+  - {id: lra_fl, part: lra_f,  subassembly: motors, place: {self: center, to: shell.fl, type: coincident}}
+  - {id: lra_fr, part: lra_f,  subassembly: motors, place: {self: center, to: shell.fr, type: coincident}}
+  - {id: lra_b1, part: lra_b,  subassembly: motors, place: {self: center, to: pod.motor, type: coincident}}
+  - {id: tray,   part: tray,   subassembly: pack, place: {self: datum, to: world.pack, type: coincident}}
+  - {id: lid,    part: lid,    subassembly: pack, place: {self: bottom, to: tray.lid_seat}}
+  - {id: bat,    part: bat,    subassembly: electronics, place: {self: bottom, to: tray.bat_seat}}
+  - {id: mcu,    part: mcu,    subassembly: electronics, place: {self: bottom, to: tray.mcu_seat}}
+  - {id: drv,    part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat}}
+
+steps:
+  - {name: Reference anatomy, subassemblies: [ref]}
+  - {name: Sleeve shell and base pod, paths: [sleeve/shell, sleeve/pod]}
+  - {name: Sleeve motors, subassemblies: [motors]}
+  - {name: Pack tray, paths: [pack/tray]}
+  - {name: Pack contents, subassemblies: [electronics]}
+  - {name: Pack lid, paths: [pack/lid]}
+
+# All joints are fixed in v1: the sleeve is held by a garment pouch (not modelled) and nothing moves.
+# The pack joins the shaft only to keep one tree; its origin sits 300 mm away on purpose (cable not modelled).
+joints:
+  - {name: fx_tip,    type: fixed, parent: shaft, child: tip,   frame: world.tip_start}
+  - {name: fx_drain,  type: fixed, parent: tip,   child: drain, frame: tip.drain}
+  - {name: fx_shell,  type: fixed, parent: shaft, child: shell, frame: world.shell_start}
+  - {name: fx_pod,    type: fixed, parent: shell, child: pod,   frame: world.pod_c}
+  - {name: fx_lra_u1, type: fixed, parent: shell, child: lra_u1, frame: shell.u1}
+  - {name: fx_lra_u2, type: fixed, parent: shell, child: lra_u2, frame: shell.u2}
+  - {name: fx_lra_fl, type: fixed, parent: shell, child: lra_fl, frame: shell.fl}
+  - {name: fx_lra_fr, type: fixed, parent: shell, child: lra_fr, frame: shell.fr}
+  - {name: fx_lra_b1, type: fixed, parent: pod,   child: lra_b1, frame: pod.motor}
+  - {name: fx_tray,   type: fixed, parent: shaft, child: tray,  frame: world.pack}
+  - {name: fx_lid,    type: fixed, parent: tray,  child: lid,   frame: tray.lid_seat}
+  - {name: fx_bat,    type: fixed, parent: tray,  child: bat,   frame: tray.bat_seat}
+  - {name: fx_mcu,    type: fixed, parent: tray,  child: mcu,   frame: tray.mcu_seat}
+  - {name: fx_drv,    type: fixed, parent: tray,  child: drv,   frame: tray.drv_seat}
+
+checks:
+  interference:
+    min_volume_cm3: 0.001
+    allow:
+      - ["sleeve/shell", "sleeve/pod"]              # the pod is fused into the shell's proximal underside wall (same silicone, one pour)
+      - ["ref/tip", "ref/drain"] # the drain tube leaves the tip: reference fixtures, they join by design
+  # Intent rows (mm). Numbers the brief states: shell ends at least 10 mm short of the tip, minimum clearance 5 mm; pod clear of the shaft.
+  distances:
+    - {id: shell_to_tip,   from: "sleeve/shell", to: "ref/tip", min: 5}
+    - {id: shell_to_drain, from: "sleeve/shell", to: "ref/drain", min: 5}
+    - {id: pod_to_shaft,   from: "sleeve/pod",   to: "ref/shaft", min: 1}
+    - {id: shell_to_shaft, from: "sleeve/shell", to: "ref/shaft", min: 0.4}
+  mass: {}
+  accepted_warns:
+    - check: qa.joints
+      reason: "fx_tray joins the chair-mounted pack to the shaft reference to keep one tree; the pack sits 300 mm away by design (brief D), the cable is not modelled"
+    - check: qa.connected
+      reason: "the electronics pack is a separate chair-mounted sub-assembly 300 mm from the sleeve; the cable between them is not modelled in v1"
+    - check: qa.joint_contact
+      reason: "fx_tray is 294 mm apart by design: the pack is chair-mounted, not touching the sleeve (brief D)"

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 620" width="980" height="620" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="980" height="620" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold">wearable-sleeve, Brief v1 sketch (not to a single scale across views; millimetres noted on each)</text>
+
+  <!-- SIDE VIEW, seen from +Y (left). X forward (distal) to the right, Z up. 3 px per mm. Axis at y=150, X=0 at x=40. -->
+  <text x="20" y="62" font-weight="bold">Side view (from +Y)</text>
+  <line x1="20" y1="150" x2="420" y2="150" stroke="#999" stroke-dasharray="6 4"/>
+  <text x="424" y="154" fill="#666">shaft axis</text>
+  <rect x="40" y="102" width="285" height="96" fill="#f3d9c4" stroke="#8a5a3a"/>
+  <text x="60" y="95" fill="#8a5a3a">shaft_ref, 32 dia x 95 (reference, not a part)</text>
+  <rect x="325" y="129" width="75" height="42" fill="#e4e4e4" stroke="#777"/>
+  <text x="318" y="122" fill="#555">sheath_tip_ref 14 x 25</text>
+  <rect x="361" y="168" width="24" height="360" fill="#e4e4e4" stroke="#777"/>
+  <text x="392" y="400" fill="#555">drain_tube_ref</text>
+  <text x="392" y="416" fill="#555">8 OD x 120, down -Z</text>
+  <!-- shell, X 5..85, outline z +10 .. -20 -->
+  <rect x="55" y="120" width="240" height="90" fill="#bfe6ef" fill-opacity="0.7" stroke="#1d7f95" stroke-width="2"/>
+  <line x1="55" y1="120" x2="295" y2="120" stroke="#d33" stroke-width="2" stroke-dasharray="8 4"/>
+  <text x="60" y="114" fill="#d33" font-size="12">top edge of the 120 deg opening (open to +Z)</text>
+  <text x="60" y="140" fill="#0d5a6b">sleeve_shell, 80 long, X 5 to 85</text>
+  <!-- underside pads (LRA VLV101040A at 30 and 65 percent) -->
+  <rect x="100" y="210" width="54" height="9" fill="#e0a030" stroke="#8a5a00"/>
+  <rect x="184" y="210" width="54" height="9" fill="#e0a030" stroke="#8a5a00"/>
+  <text x="96" y="236" fill="#8a5a00" font-size="12">LRA 30%</text>
+  <text x="182" y="236" fill="#8a5a00" font-size="12">LRA 65%</text>
+  <!-- flank pad -->
+  <circle cx="175" cy="150" r="18" fill="none" stroke="#8a5a00" stroke-width="2"/>
+  <text x="152" y="182" fill="#8a5a00" font-size="12">flank LRA, 50%</text>
+  <!-- pod -->
+  <rect x="41" y="204" width="58" height="36" fill="#9fd4a6" fill-opacity="0.85" stroke="#2c7a38" stroke-width="2"/>
+  <text x="40" y="262" fill="#2c7a38">base_pod, 100 Hz LRA</text>
+  <text x="40" y="276" fill="#2c7a38" font-size="12">(across Y, under the base)</text>
+  <!-- dimensions -->
+  <line x1="40" y1="330" x2="325" y2="330" stroke="#000"/><text x="140" y="324">shaft 95</text>
+  <line x1="55" y1="350" x2="295" y2="350" stroke="#000"/><text x="140" y="366">shell 80, starts 5 from base</text>
+  <line x1="295" y1="380" x2="325" y2="380" stroke="#c00"/><text x="270" y="398" fill="#c00">gap 10 to the tip</text>
+  <text x="20" y="450" fill="#444">Base datum: X = 0 at the proximal end of the shaft.</text>
+  <text x="20" y="470" fill="#444">Electronics pack (chair box) is 300 mm to -Y and 150 mm to -Z of the base, off this view.</text>
+  <text x="20" y="490" fill="#444">The sleeve is held by a garment pouch (not modelled).</text>
+
+  <!-- END VIEW, from the distal end looking toward the base. Z up, +Y to the right. 4 px per mm. Centre (760, 220). -->
+  <text x="560" y="62" font-weight="bold">End view (from +X, looking toward the base)</text>
+  <circle cx="760" cy="220" r="28" fill="none" stroke="#777" stroke-dasharray="4 3"/>
+  <text x="800" y="170" fill="#555" font-size="12">tip behind</text>
+  <path d="M 690.7 180 A 80 80 0 1 0 829.3 180 L 817.2 187 A 66 66 0 1 1 702.8 187 Z" fill="#bfe6ef" fill-opacity="0.8" stroke="#1d7f95" stroke-width="2"/>
+  <circle cx="760" cy="220" r="64" fill="#f3d9c4" fill-opacity="0.9" stroke="#8a5a3a"/>
+  <text x="728" y="224" fill="#8a5a3a" font-size="12">shaft 32</text>
+  <!-- underside pad -->
+  <rect x="732" y="288" width="56" height="24" fill="#e0a030" fill-opacity="0.9" stroke="#8a5a00"/>
+  <!-- flank pads -->
+  <rect x="828" y="196" width="24" height="48" fill="#e0a030" fill-opacity="0.9" stroke="#8a5a00"/>
+  <rect x="668" y="196" width="24" height="48" fill="#e0a030" fill-opacity="0.9" stroke="#8a5a00"/>
+  <!-- pod -->
+  <rect x="682" y="292" width="156" height="49" fill="#9fd4a6" fill-opacity="0.55" stroke="#2c7a38" stroke-width="2"/>
+  <text x="716" y="334" fill="#1c5a28" font-size="12">base_pod (LRA across Y)</text>
+  <!-- opening arc -->
+  <line x1="760" y1="220" x2="690.7" y2="180" stroke="#d33" stroke-dasharray="5 3"/>
+  <line x1="760" y1="220" x2="829.3" y2="180" stroke="#d33" stroke-dasharray="5 3"/>
+  <text x="725" y="128" fill="#d33">opening 120 deg, top (+Z)</text>
+  <text x="712" y="368" fill="#0d5a6b">shell arc 240 deg, centred on the underside (-Z)</text>
+  <text x="640" y="392" fill="#555" font-size="12">wall 3.5, inner radius 16.5 (0.5 clearance); pads on the outside only</text>
+  <text x="858" y="226" fill="#444" font-size="12">+Y (left)</text>
+  <text x="615" y="226" fill="#444" font-size="12">-Y</text>
+  <text x="640" y="430" fill="#444">Underside LRAs: 2 (VLV101040A). Flanks: 2 (VG0832012), left and right.</text>
+  <text x="640" y="450" fill="#444">Base pod: 1 (VL32158H-L25, 100 Hz), tangential (long axis across Y).</text>
+</svg>

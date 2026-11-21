@@ -1,0 +1,17 @@
+[
+  {
+    "version": 1,
+    "date": "2026-11-21",
+    "note": "v1: open C-shell, 4 shaft LRAs, base pod 100 Hz LRA, chair pack"
+  },
+  {
+    "version": 2,
+    "date": "2026-11-21",
+    "note": "v2: motor pockets and pod open to the outside (closed cavities had no insertion path); pack steps tray, contents, lid; accepted the three pack-separation warns"
+  },
+  {
+    "version": 3,
+    "date": "2026-11-21",
+    "note": "moved project into handy repo (hardware/wearable-sleeve); no design change"
+  }
+]

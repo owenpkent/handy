@@ -1,0 +1,894 @@
+{
+  "format": "nl-cad/checks/1",
+  "summary": {
+    "pass": 26,
+    "warn": 3,
+    "fail": 0,
+    "accepted": 3,
+    "untriaged": 0,
+    "stale_accepts": [],
+    "coverage": [
+      {
+        "check": "interference",
+        "ran": 13,
+        "of": 15,
+        "unit": "pairs with overlapping bboxes"
+      },
+      {
+        "check": "envelope.width",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "envelope.length",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "envelope.height",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "door",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "ground.contact",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "ground.clearance",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "mass.total",
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "mass.cg",
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "qa.joints",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "qa.connected",
+        "ran": null,
+        "of": null,
+        "unit": ""
+      },
+      {
+        "check": "qa.joint_contact",
+        "ran": 14,
+        "of": 14,
+        "unit": "joints"
+      },
+      {
+        "check": "qa.mass_density",
+        "ran": 0,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "qa.mass_missing",
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "qa.bom",
+        "ran": 8,
+        "of": 15,
+        "unit": "instances (bought only)"
+      },
+      {
+        "check": "qa.mesh",
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "checks.dist.shell_to_tip@home",
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "checks.dist.shell_to_drain@home",
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "checks.dist.pod_to_shaft@home",
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "checks.dist.shell_to_shaft@home",
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      },
+      {
+        "check": "qa.insert.ref/shaft",
+        "ran": 0,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.ref/tip",
+        "ran": 1,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.ref/drain",
+        "ran": 2,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/shell",
+        "ran": 3,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/pod",
+        "ran": 4,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/motors/lra_u1",
+        "ran": 5,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/motors/lra_u2",
+        "ran": 6,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/motors/lra_fl",
+        "ran": 7,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/motors/lra_fr",
+        "ran": 8,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.sleeve/motors/lra_b1",
+        "ran": 9,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.pack/tray",
+        "ran": 10,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.pack/electronics/bat",
+        "ran": 11,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.pack/electronics/mcu",
+        "ran": 12,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.pack/electronics/drv",
+        "ran": 13,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.insert.pack/lid",
+        "ran": 14,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      },
+      {
+        "check": "qa.fasteners",
+        "ran": 0,
+        "of": 0,
+        "unit": "fasteners"
+      }
+    ],
+    "not_checked": [
+      {
+        "check": "interference",
+        "reason": "pair declared in checks.interference.allow (overlap not measured)",
+        "items": [
+          "ref/tip x ref/drain",
+          "sleeve/shell x sleeve/pod"
+        ]
+      },
+      {
+        "check": "qa.mass_density",
+        "reason": "material has no density bound in qa/static.py DENSITY",
+        "items": [
+          "pack/electronics/bat",
+          "pack/electronics/drv",
+          "pack/electronics/mcu",
+          "pack/lid",
+          "pack/tray",
+          "ref/drain",
+          "ref/shaft",
+          "ref/tip",
+          "sleeve/motors/lra_b1",
+          "sleeve/motors/lra_fl",
+          "sleeve/motors/lra_fr",
+          "sleeve/motors/lra_u1",
+          "sleeve/motors/lra_u2",
+          "sleeve/pod",
+          "sleeve/shell"
+        ]
+      },
+      {
+        "check": "qa.insert.ref/drain",
+        "reason": "allowed pair (checks.interference.allow): rides through, not an obstacle",
+        "items": [
+          "ref/drain x ref/tip"
+        ]
+      },
+      {
+        "check": "qa.insert.sleeve/pod",
+        "reason": "allowed pair (checks.interference.allow): rides through, not an obstacle",
+        "items": [
+          "sleeve/pod x sleeve/shell"
+        ]
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "interference",
+      "name": "Part overlap",
+      "status": "pass",
+      "value": 0.0,
+      "limit": 0.0,
+      "unit": "cm3",
+      "detail": "no pair overlaps by 0.001 cm3 or more (0 smaller ignored)",
+      "parts": [],
+      "skipped": [
+        {
+          "reason": "pair declared in checks.interference.allow (overlap not measured)",
+          "items": [
+            "ref/tip x ref/drain",
+            "sleeve/shell x sleeve/pod"
+          ]
+        }
+      ],
+      "scope": {
+        "ran": 13,
+        "of": 15,
+        "unit": "pairs with overlapping bboxes"
+      }
+    },
+    {
+      "id": "envelope.width",
+      "name": "Overall width",
+      "status": "info",
+      "value": 0.3452,
+      "limit": null,
+      "unit": "m",
+      "detail": "345 mm",
+      "parts": [
+        "pack/tray",
+        "sleeve/shell"
+      ]
+    },
+    {
+      "id": "envelope.length",
+      "name": "Overall length",
+      "status": "info",
+      "value": 0.1634,
+      "limit": null,
+      "unit": "m",
+      "detail": "163 mm",
+      "parts": [
+        "pack/tray",
+        "ref/tip"
+      ]
+    },
+    {
+      "id": "envelope.height",
+      "name": "Overall height",
+      "status": "info",
+      "value": 0.166,
+      "limit": null,
+      "unit": "m",
+      "detail": "166 mm",
+      "parts": [
+        "pack/tray",
+        "ref/shaft"
+      ]
+    },
+    {
+      "id": "door",
+      "name": "Doorway fit",
+      "status": "pass",
+      "value": 0.3452,
+      "limit": 0.813,
+      "unit": "m",
+      "detail": "+468 mm total clearance in an 813 mm door",
+      "parts": []
+    },
+    {
+      "id": "ground.contact",
+      "name": "Wheel ground contact",
+      "status": "pass",
+      "value": 0.0,
+      "limit": 0.002,
+      "unit": "m",
+      "detail": "0 wheels; lowest points ",
+      "parts": []
+    },
+    {
+      "id": "ground.clearance",
+      "name": "Ground clearance",
+      "status": "info",
+      "value": -0.15,
+      "limit": null,
+      "unit": "m",
+      "detail": "lowest non-wheel point -150 mm (pack/tray)",
+      "parts": [
+        "pack/tray"
+      ]
+    },
+    {
+      "id": "mass.total",
+      "name": "Total mass",
+      "status": "info",
+      "value": 0.1825,
+      "limit": null,
+      "unit": "kg",
+      "detail": "0.2 kg over 15 instances",
+      "parts": [
+        "pack/electronics/bat",
+        "pack/tray",
+        "ref/shaft",
+        "sleeve/motors/lra_b1",
+        "sleeve/shell"
+      ],
+      "scope": {
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "mass.cg",
+      "name": "Centre of gravity height",
+      "status": "info",
+      "value": -0.0464,
+      "limit": null,
+      "unit": "m",
+      "detail": "x +33, y -85, z -46 mm (x forward of the drive-axle datum)",
+      "parts": [],
+      "scope": {
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "qa.joints",
+      "name": "Joint definitions",
+      "status": "warn",
+      "value": 1.0,
+      "limit": 0.0,
+      "unit": "issues",
+      "detail": "14 joints well formed; origin far from its parts: fx_tray: origin is 314 mm from the parent ref/shaft",
+      "parts": [],
+      "accepted": "fx_tray joins the chair-mounted pack to the shaft reference to keep one tree; the pack sits 300 mm away by design (brief D), the cable is not modelled"
+    },
+    {
+      "id": "qa.connected",
+      "name": "Parts form one connected body",
+      "status": "warn",
+      "value": 2.0,
+      "limit": 1.0,
+      "unit": "clusters",
+      "detail": "2 separate clusters (largest has 10 of 15 parts): cluster of 5 (pack/electronics/bat ...). Unknown whether a mount is missing or the gap is intended; check the listed parts' mating frames and offsets.",
+      "parts": [
+        "pack/electronics/bat",
+        "pack/electronics/drv",
+        "pack/electronics/mcu",
+        "pack/lid",
+        "pack/tray"
+      ],
+      "accepted": "the electronics pack is a separate chair-mounted sub-assembly 300 mm from the sleeve; the cable between them is not modelled in v1"
+    },
+    {
+      "id": "qa.joint_contact",
+      "name": "Joint parts touch",
+      "status": "warn",
+      "value": 0.2941,
+      "limit": 0.005,
+      "unit": "m",
+      "detail": "1 of 14 joints have parent and child surfaces apart: fx_tray 294 mm apart. Unknown whether the joint origin or the part placement is off (a hub through a bearing may legitimately leave a gap).",
+      "parts": [
+        "pack/tray",
+        "ref/shaft"
+      ],
+      "scope": {
+        "ran": 14,
+        "of": 14,
+        "unit": "joints"
+      },
+      "accepted": "fx_tray is 294 mm apart by design: the pack is chair-mounted, not touching the sleeve (brief D)"
+    },
+    {
+      "id": "qa.mass_density",
+      "name": "Mass is physically possible",
+      "status": "pass",
+      "value": 0.0,
+      "limit": 0.0,
+      "unit": "parts",
+      "detail": "no part is denser than a solid of its material",
+      "parts": [],
+      "skipped": [
+        {
+          "reason": "material has no density bound in qa/static.py DENSITY",
+          "items": [
+            "pack/electronics/bat",
+            "pack/electronics/drv",
+            "pack/electronics/mcu",
+            "pack/lid",
+            "pack/tray",
+            "ref/drain",
+            "ref/shaft",
+            "ref/tip",
+            "sleeve/motors/lra_b1",
+            "sleeve/motors/lra_fl",
+            "sleeve/motors/lra_fr",
+            "sleeve/motors/lra_u1",
+            "sleeve/motors/lra_u2",
+            "sleeve/pod",
+            "sleeve/shell"
+          ]
+        }
+      ],
+      "scope": {
+        "ran": 0,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "qa.mass_missing",
+      "name": "Every part has a mass",
+      "status": "pass",
+      "value": 0.0,
+      "limit": 0.0,
+      "unit": "parts",
+      "detail": "15 instances carry a positive mass",
+      "parts": [],
+      "scope": {
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "qa.bom",
+      "name": "Bought parts name a vendor or part number",
+      "status": "pass",
+      "value": 0.0,
+      "limit": 0.0,
+      "unit": "parts",
+      "detail": "8 bought instances all named. Status tiers over 15 instances: confirmed 0, measured 0, published 8, estimated 7",
+      "parts": [],
+      "scope": {
+        "ran": 8,
+        "of": 15,
+        "unit": "instances (bought only)"
+      }
+    },
+    {
+      "id": "qa.mesh",
+      "name": "Part meshes are solid",
+      "status": "pass",
+      "value": 0.0,
+      "limit": 0.0,
+      "unit": "parts",
+      "detail": "15 meshes closed with positive volume",
+      "parts": [],
+      "scope": {
+        "ran": 15,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "checks.dist.shell_to_tip@home",
+      "name": "Distance shell_to_tip at home",
+      "status": "pass",
+      "value": 0.0138,
+      "limit": 0.005,
+      "unit": "m",
+      "detail": "sleeve/shell to ref/tip, nearest points: 13.79 mm at home (every joint at rest); min 5 mm",
+      "parts": [
+        "ref/tip",
+        "sleeve/shell"
+      ],
+      "scope": {
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "checks.dist.shell_to_drain@home",
+      "name": "Distance shell_to_drain at home",
+      "status": "pass",
+      "value": 0.022,
+      "limit": 0.005,
+      "unit": "m",
+      "detail": "sleeve/shell to ref/drain, nearest points: 22.00 mm at home (every joint at rest); min 5 mm",
+      "parts": [
+        "ref/drain",
+        "sleeve/shell"
+      ],
+      "scope": {
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "checks.dist.pod_to_shaft@home",
+      "name": "Distance pod_to_shaft at home",
+      "status": "pass",
+      "value": 0.0019,
+      "limit": 0.001,
+      "unit": "m",
+      "detail": "sleeve/pod to ref/shaft, nearest points: 1.90 mm at home (every joint at rest); min 1 mm",
+      "parts": [
+        "ref/shaft",
+        "sleeve/pod"
+      ],
+      "scope": {
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "checks.dist.shell_to_shaft@home",
+      "name": "Distance shell_to_shaft at home",
+      "status": "pass",
+      "value": 0.0005,
+      "limit": 0.0004,
+      "unit": "m",
+      "detail": "sleeve/shell to ref/shaft, nearest points: 0.50 mm at home (every joint at rest); min 0.4 mm",
+      "parts": [
+        "ref/shaft",
+        "sleeve/shell"
+      ],
+      "scope": {
+        "ran": 2,
+        "of": 15,
+        "unit": "instances"
+      }
+    },
+    {
+      "id": "qa.insert.ref/shaft",
+      "name": "Insertion, ref/shaft",
+      "status": "pass",
+      "value": 0.0,
+      "limit": null,
+      "unit": "m",
+      "detail": "first part of its step 'Reference anatomy': nothing present to get past",
+      "parts": [
+        "ref/shaft"
+      ],
+      "scope": {
+        "ran": 0,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.ref/tip",
+      "name": "Insertion, ref/tip",
+      "status": "pass",
+      "value": 0.023,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (23 mm to leave the 1 parts present at step 'Reference anatomy')",
+      "parts": [
+        "ref/tip"
+      ],
+      "scope": {
+        "ran": 1,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.ref/drain",
+      "name": "Insertion, ref/drain",
+      "status": "pass",
+      "value": 0.0,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (nothing ahead of it among the 2 parts present at step 'Reference anatomy')",
+      "parts": [
+        "ref/drain"
+      ],
+      "skipped": [
+        {
+          "reason": "allowed pair (checks.interference.allow): rides through, not an obstacle",
+          "items": [
+            "ref/drain x ref/tip"
+          ]
+        }
+      ],
+      "scope": {
+        "ran": 2,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/shell",
+      "name": "Insertion, sleeve/shell",
+      "status": "pass",
+      "value": 0.085,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along -x (85 mm to leave the 3 parts present at step 'Sleeve shell and base pod'); blocked: +z by ref/shaft at 2 mm, -z by ref/shaft at 2 mm, +x by ref/drain at 22 mm",
+      "parts": [
+        "sleeve/shell"
+      ],
+      "scope": {
+        "ran": 3,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/pod",
+      "name": "Insertion, sleeve/pod",
+      "status": "pass",
+      "value": 0.0,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along -z (nothing ahead of it among the 4 parts present at step 'Sleeve shell and base pod'); blocked: +z by ref/shaft at 2 mm",
+      "parts": [
+        "sleeve/pod"
+      ],
+      "skipped": [
+        {
+          "reason": "allowed pair (checks.interference.allow): rides through, not an obstacle",
+          "items": [
+            "sleeve/pod x sleeve/shell"
+          ]
+        }
+      ],
+      "scope": {
+        "ran": 4,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/motors/lra_u1",
+      "name": "Insertion, sleeve/motors/lra_u1",
+      "status": "pass",
+      "value": 0.0055,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along -z (6 mm to leave the 5 parts present at step 'Sleeve motors'); blocked: +z by sleeve/shell at 2 mm",
+      "parts": [
+        "sleeve/motors/lra_u1"
+      ],
+      "scope": {
+        "ran": 5,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/motors/lra_u2",
+      "name": "Insertion, sleeve/motors/lra_u2",
+      "status": "pass",
+      "value": 0.0055,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along -z (6 mm to leave the 6 parts present at step 'Sleeve motors'); blocked: +z by sleeve/shell at 2 mm",
+      "parts": [
+        "sleeve/motors/lra_u2"
+      ],
+      "scope": {
+        "ran": 6,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/motors/lra_fl",
+      "name": "Insertion, sleeve/motors/lra_fl",
+      "status": "pass",
+      "value": 0.0043,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +y (4 mm to leave the 7 parts present at step 'Sleeve motors'); blocked: +z by sleeve/shell at 2 mm, -z by sleeve/shell at 2 mm, +x by sleeve/shell at 2 mm, -x by sleeve/shell at 2 mm",
+      "parts": [
+        "sleeve/motors/lra_fl"
+      ],
+      "scope": {
+        "ran": 7,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/motors/lra_fr",
+      "name": "Insertion, sleeve/motors/lra_fr",
+      "status": "pass",
+      "value": 0.0043,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along -y (4 mm to leave the 8 parts present at step 'Sleeve motors'); blocked: +z by sleeve/shell at 2 mm, -z by sleeve/shell at 2 mm, +x by sleeve/shell at 2 mm, -x by sleeve/shell at 2 mm, +y by sleeve/shell at 2 mm",
+      "parts": [
+        "sleeve/motors/lra_fr"
+      ],
+      "scope": {
+        "ran": 8,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.sleeve/motors/lra_b1",
+      "name": "Insertion, sleeve/motors/lra_b1",
+      "status": "pass",
+      "value": 0.0101,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along -z (10 mm to leave the 9 parts present at step 'Sleeve motors'); blocked: +z by sleeve/shell at 2 mm",
+      "parts": [
+        "sleeve/motors/lra_b1"
+      ],
+      "scope": {
+        "ran": 9,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.pack/tray",
+      "name": "Insertion, pack/tray",
+      "status": "pass",
+      "value": 0.0,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (nothing ahead of it among the 10 parts present at step 'Pack tray')",
+      "parts": [
+        "pack/tray"
+      ],
+      "scope": {
+        "ran": 10,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.pack/electronics/bat",
+      "name": "Insertion, pack/electronics/bat",
+      "status": "pass",
+      "value": 0.008,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (8 mm to leave the 11 parts present at step 'Pack contents')",
+      "parts": [
+        "pack/electronics/bat"
+      ],
+      "scope": {
+        "ran": 11,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.pack/electronics/mcu",
+      "name": "Insertion, pack/electronics/mcu",
+      "status": "pass",
+      "value": 0.008,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (8 mm to leave the 12 parts present at step 'Pack contents')",
+      "parts": [
+        "pack/electronics/mcu"
+      ],
+      "scope": {
+        "ran": 12,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.pack/electronics/drv",
+      "name": "Insertion, pack/electronics/drv",
+      "status": "pass",
+      "value": 0.008,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (8 mm to leave the 13 parts present at step 'Pack contents')",
+      "parts": [
+        "pack/electronics/drv"
+      ],
+      "scope": {
+        "ran": 13,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.insert.pack/lid",
+      "name": "Insertion, pack/lid",
+      "status": "pass",
+      "value": 0.002,
+      "limit": null,
+      "unit": "m",
+      "detail": "clear along +z (2 mm to leave the 14 parts present at step 'Pack lid')",
+      "parts": [
+        "pack/lid"
+      ],
+      "scope": {
+        "ran": 14,
+        "of": 14,
+        "unit": "other parts (those present at its step)"
+      }
+    },
+    {
+      "id": "qa.fasteners",
+      "name": "Fasteners",
+      "status": "info",
+      "value": 0.0,
+      "limit": null,
+      "unit": "fasteners",
+      "detail": "no fasteners modelled, nothing to check",
+      "parts": [],
+      "scope": {
+        "ran": 0,
+        "of": 0,
+        "unit": "fasteners"
+      }
+    }
+  ]
+}

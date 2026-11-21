@@ -92,6 +92,9 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 | `ALEXA_GUIDE.md` | Alexa skill setup (shelved — Amazon content filter) |
 | `HOME_ASSISTANT_GUIDE.md` | HA integration plan |
 | `CONSTELLATION_INTEGRATION_GUIDE.md` | Dashboard integration |
+| `WEARABLE_DEVICE_RESEARCH.md` | Research for a DIY low-profile wearable (vibration / soft pneumatic) that works around a condom catheter, BLE-controlled by android-v2 via a proposed `HapticDevice` interface. Safety constraints, parts, build plan. |
+
+**Hardware CAD (`hardware/`):** `hardware/wearable-sleeve/` is an [nl-cad](../nl-cad) project (brief, build123d parts, `assembly.yaml`, numbered builds). Build from the nl-cad repo: `cd W:\dev\nl-cad; uv run python -m nlcad.build W:\dev\handy\hardware\wearable-sleeve --note "..."`. Bought-part stand-ins live in nl-cad's shared `library/`. STEP/GLB outputs and the downloaded vendor CAD in `hardware/cad/` are gitignored (regenerated / re-downloadable; `hardware/cad/README.md` lists sources).
 
 ### Documentation (`android-v2/docs/`)
 

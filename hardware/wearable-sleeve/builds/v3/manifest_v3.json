@@ -1,0 +1,1515 @@
+{
+  "format": "nl-cad/build/1",
+  "project": "wearable-sleeve",
+  "version": 3,
+  "date": "2026-11-21",
+  "units": "m",
+  "frame": "Z up, X forward, Y left",
+  "subassemblies": [
+    {
+      "id": "electronics",
+      "name": "Pack contents",
+      "parent": "pack",
+      "color": "#c0504d"
+    },
+    {
+      "id": "motors",
+      "name": "Sleeve motors",
+      "parent": "sleeve",
+      "color": "#e0a030"
+    },
+    {
+      "id": "pack",
+      "name": "Electronics pack",
+      "parent": null,
+      "color": "#2c5f8a"
+    },
+    {
+      "id": "ref",
+      "name": "Reference anatomy (fixture",
+      "parent": null,
+      "color": "#8a8f98"
+    },
+    {
+      "id": "sleeve",
+      "name": "Sleeve",
+      "parent": null,
+      "color": "#4fb3c8"
+    }
+  ],
+  "instances": [
+    {
+      "path": "pack/electronics/bat",
+      "part": "bat",
+      "subassembly": "electronics",
+      "source": "parts/battery_lipo.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        -0.0144,
+        0.0,
+        1.0,
+        0.0,
+        -0.3,
+        0.0,
+        0.0,
+        1.0,
+        -0.145,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          -0.0394,
+          -0.317,
+          -0.148
+        ],
+        [
+          0.0106,
+          -0.283,
+          -0.142
+        ]
+      ],
+      "mass_kg": 0.02,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "TBD",
+        "part_number": "TBD",
+        "description": "Single-cell 3.7 V lithium polymer pouch cell, about 1000 mAh, 50 x 34 x 6 mm (503450 size code: 5.0 mm thick nominal, 34 mm wide, 50 mm long, with margin to 6 mm for swelling), with protection circuit and JST-PH style lead. Vendor and exact part not chosen yet.",
+        "source": "library/battery-lipo-1s-1000mah.json: estimated: typical 1000 mAh 503450 pouch cell"
+      },
+      "status": "estimated"
+    },
+    {
+      "path": "pack/electronics/drv",
+      "part": "drv",
+      "subassembly": "electronics",
+      "source": "parts/driver_drv2605l.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.0265,
+        0.0,
+        1.0,
+        0.0,
+        -0.2896,
+        0.0,
+        0.0,
+        1.0,
+        -0.1457,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.0136,
+          -0.2985,
+          -0.148
+        ],
+        [
+          0.0394,
+          -0.2807,
+          -0.1434
+        ]
+      ],
+      "mass_kg": 0.0017,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "published",
+      "bom": {
+        "vendor": "Adafruit",
+        "part_number": "2305",
+        "description": "TI DRV2605L I2C haptic driver breakout for ERM and LRA motors, 2.0 to 5.2 V supply, library of 123 effects. Page dimensions 25.8 x 17.8 x 4.6 mm (with header); the vendor STEP bounds 17.8 x 16.5 x 2.7 mm without header. Mass 1.7 g.",
+        "source": "library/driver-haptic-adafruit-drv2605l.json: https://www.adafruit.com/product/2305 ; CAD https://github.com/adafruit/Adafruit_CAD_Parts/tree/main/2305%20DRV2605L"
+      },
+      "status": "published"
+    },
+    {
+      "path": "pack/electronics/mcu",
+      "part": "mcu",
+      "subassembly": "electronics",
+      "source": "parts/mcu_xiao.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.0265,
+        0.0,
+        1.0,
+        0.0,
+        -0.3104,
+        0.0,
+        0.0,
+        1.0,
+        -0.1462,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.016,
+          -0.3193,
+          -0.148
+        ],
+        [
+          0.037,
+          -0.3015,
+          -0.1445
+        ]
+      ],
+      "mass_kg": 0.003,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "Seeed Studio",
+        "part_number": "XIAO ESP32-C3",
+        "description": "ESP32-C3 RISC-V 160 MHz module with Wi-Fi and BLE 5, 4 MB flash, USB-C, 3.3 V logic, 11 GPIO, LiPo charge input, U.FL antenna connector. Board 21 x 17.8 mm. Thickness and mass are not published; the envelope height covers board, shield can and USB-C shell. No 3D STEP from Seeed (2D DXF only).",
+        "source": "library/mcu-seeed-xiao-esp32c3.json: https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/ (21 x 17.8 mm); XIAO ESP32C3 v1.2 Dimensioning.dxf at https://files.seeedstudio.com/wiki/Seeed-Studio-XIAO-ESP32/XIAO_ESP32C3_v1.2_Dimensioning.zip . estimated: thickness 3.5 mm (not on wiki or DXF, 2D only) and mass 3 g (not published)"
+      },
+      "status": "estimated"
+    },
+    {
+      "path": "pack/lid",
+      "part": "lid",
+      "subassembly": "pack",
+      "source": "parts/enclosure_lid.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -0.3,
+        0.0,
+        0.0,
+        1.0,
+        -0.14,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          -0.0434,
+          -0.3233,
+          -0.142
+        ],
+        [
+          0.0434,
+          -0.2767,
+          -0.138
+        ]
+      ],
+      "mass_kg": 0.011,
+      "material": "petg",
+      "bought": false,
+      "provenance": "published",
+      "bom": {
+        "vendor": "in-house print",
+        "part_number": "enclosure_lid",
+        "description": "Electronics enclosure lid with locating lip, 3D-printed PETG",
+        "source": "published: PETG density about 1270 kg/m3 (typical filament datasheets); geometry estimated"
+      }
+    },
+    {
+      "path": "pack/tray",
+      "part": "tray",
+      "subassembly": "pack",
+      "source": "parts/enclosure_tray.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -0.3,
+        0.0,
+        0.0,
+        1.0,
+        -0.15,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          -0.0434,
+          -0.3233,
+          -0.15
+        ],
+        [
+          0.0434,
+          -0.2767,
+          -0.14
+        ]
+      ],
+      "mass_kg": 0.016,
+      "material": "petg",
+      "bought": false,
+      "provenance": "published",
+      "bom": {
+        "vendor": "in-house print",
+        "part_number": "enclosure_tray",
+        "description": "Electronics enclosure tray, 3D-printed PETG, 2 mm wall",
+        "source": "published: PETG density about 1270 kg/m3 (typical filament datasheets); geometry estimated"
+      }
+    },
+    {
+      "path": "ref/drain",
+      "part": "drain",
+      "subassembly": "ref",
+      "source": "parts/drain_tube_ref.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.111,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        -0.006,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.107,
+          -0.004,
+          -0.126
+        ],
+        [
+          0.115,
+          0.004,
+          -0.006
+        ]
+      ],
+      "mass_kg": 0.006032,
+      "material": "reference",
+      "bought": false,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "",
+        "part_number": "",
+        "description": "REFERENCE FIXTURE (drain tube, straight stand-in for a bend), not a bought or made part; leave out of any purchase list",
+        "source": "estimated: typical drain tube 8 mm OD, 120 mm run before the bend; parametric"
+      }
+    },
+    {
+      "path": "ref/shaft",
+      "part": "shaft",
+      "subassembly": "ref",
+      "source": "parts/shaft_ref.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.0,
+          -0.016,
+          -0.016
+        ],
+        [
+          0.095,
+          0.016,
+          0.016
+        ]
+      ],
+      "mass_kg": 0.076,
+      "material": "reference",
+      "bought": false,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "",
+        "part_number": "",
+        "description": "REFERENCE FIXTURE (anatomy stand-in), not a bought or made part; leave out of any purchase list",
+        "source": "estimated: typical flaccid dimensions; condom catheter sizes 25 to 41 mm, 32 mm mid-range; parametric"
+      }
+    },
+    {
+      "path": "ref/tip",
+      "part": "tip",
+      "subassembly": "ref",
+      "source": "parts/sheath_tip_ref.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.095,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.095,
+          -0.007,
+          -0.007
+        ],
+        [
+          0.12,
+          0.007,
+          0.007
+        ]
+      ],
+      "mass_kg": 0.003848,
+      "material": "reference",
+      "bought": false,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "",
+        "part_number": "",
+        "description": "REFERENCE FIXTURE (catheter tip and connector), not a bought or made part; leave out of any purchase list",
+        "source": "estimated: typical external catheter tip/connector, 14 mm x 25 mm; parametric"
+      }
+    },
+    {
+      "path": "sleeve/motors/lra_b1",
+      "part": "lra_b",
+      "subassembly": "motors",
+      "source": "parts/lra_vl32158h.py",
+      "transform": [
+        0.0,
+        -1.0,
+        0.0,
+        0.01,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        -0.024,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.0025,
+          -0.0176,
+          -0.028
+        ],
+        [
+          0.0175,
+          0.0176,
+          -0.02
+        ]
+      ],
+      "mass_kg": 0.014,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "published",
+      "bom": {
+        "vendor": "Vybronics",
+        "part_number": "VL32158H-L25",
+        "description": "Bar linear resonant actuator, 32 x 15 x 8 mm body plus a 3.2 mm terminal boss on the +X end (35.2 mm overall), vibrates along X. Rated 2.0 Vrms AC sine (or 4.0 V PWM at 50% duty), resonant frequency 100 +/- 8 Hz, 5 +/- 1.5 G, max 300 mArms, 6.5 ohm, 32 AWG wire leads 25 mm. Mass 13.6 +/- 1 g.",
+        "source": "library/lra-vybronics-vl32158h-l25.json: Vybronics-VL32158H-L25-datasheet.pdf pp5 and 8; https://www.vybronics.com/wp-content/uploads/datasheet-files/Vybronics-VL32158H-L25-datasheet.pdf ; STEP https://www.vybronics.com/wp-content/uploads/cad-files/Vybronics-VL32158H-L25-3D-file.rar"
+      },
+      "status": "published"
+    },
+    {
+      "path": "sleeve/motors/lra_fl",
+      "part": "lra_f",
+      "subassembly": "motors",
+      "source": "parts/lra_vg0832012.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.045,
+        0.0,
+        0.0,
+        1.0,
+        0.0192,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.041,
+          0.0176,
+          -0.004
+        ],
+        [
+          0.049,
+          0.0208,
+          0.004
+        ]
+      ],
+      "mass_kg": 0.001,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "published",
+      "bom": {
+        "vendor": "Vybronics",
+        "part_number": "VG0832012",
+        "description": "Coin linear resonant actuator, 8 mm diameter x 3.2 mm thick, vibrates along Z. Rated 1.8 Vrms AC sine, resonant frequency 235 +/- 5 Hz, 1.0 to 1.8 G (100 g dummy jig), 22.5 ohm +/-10%, max 80 mArms, wire leads (tinned). Mass 1.0 +/- 0.1 g.",
+        "source": "library/lra-vybronics-vg0832012.json: Vybronics-VG0832012-datasheet.pdf pp4-5; https://www.vybronics.com/wp-content/uploads/datasheet-files/Vybronics-VG0832012-datasheet.pdf ; STEP https://www.vybronics.com/wp-content/uploads/cad-files/Vybronics-VG0832012-3D-file.rar"
+      },
+      "status": "published"
+    },
+    {
+      "path": "sleeve/motors/lra_fr",
+      "part": "lra_f",
+      "subassembly": "motors",
+      "source": "parts/lra_vg0832012.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.045,
+        0.0,
+        0.0,
+        -1.0,
+        -0.0192,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.041,
+          -0.0208,
+          -0.004
+        ],
+        [
+          0.049,
+          -0.0176,
+          0.004
+        ]
+      ],
+      "mass_kg": 0.001,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "published",
+      "bom": {
+        "vendor": "Vybronics",
+        "part_number": "VG0832012",
+        "description": "Coin linear resonant actuator, 8 mm diameter x 3.2 mm thick, vibrates along Z. Rated 1.8 Vrms AC sine, resonant frequency 235 +/- 5 Hz, 1.0 to 1.8 G (100 g dummy jig), 22.5 ohm +/-10%, max 80 mArms, wire leads (tinned). Mass 1.0 +/- 0.1 g.",
+        "source": "library/lra-vybronics-vg0832012.json: Vybronics-VG0832012-datasheet.pdf pp4-5; https://www.vybronics.com/wp-content/uploads/datasheet-files/Vybronics-VG0832012-datasheet.pdf ; STEP https://www.vybronics.com/wp-content/uploads/cad-files/Vybronics-VG0832012-3D-file.rar"
+      },
+      "status": "published"
+    },
+    {
+      "path": "sleeve/motors/lra_u1",
+      "part": "lra_u",
+      "subassembly": "motors",
+      "source": "parts/lra_vlv101040a.py",
+      "transform": [
+        0.0,
+        1.0,
+        0.0,
+        0.029,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        -0.0198,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.0221,
+          -0.005,
+          -0.022
+        ],
+        [
+          0.036,
+          0.005,
+          -0.0176
+        ]
+      ],
+      "mass_kg": 0.001,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "Vybronics",
+        "part_number": "VLV101040A",
+        "description": "Linear resonant actuator (LRA), 10 x 13.9 x 4.05 mm body (4.4 mm max with bond), flat FPC tab at one end. Rated 2.5 Vrms AC sine, 6.0 to 7.5 ohm, max 350 mA, 0.9 Grms min at 140 Hz and 300 Hz (wide band, alert range 140 to 300 Hz, no single resonant frequency stated), up to 2.75 Grms near 170 Hz. Mass is not in the datasheet.",
+        "source": "library/lra-vybronics-vlv101040a.json: Vybronics-VLV101040A-datasheet.pdf (spec drawing p12, specs p6); https://www.vybronics.com/wp-content/uploads/datasheet-files/Vybronics-VLV101040A-datasheet.pdf ; STEP https://www.vybronics.com/wp-content/uploads/cad-files/Vybronics-VLV101040A-3D-file.rar . estimated: mass 1 g, not in datasheet; the STEP solid is only 105 mm3, so 1 g is a typical small-LRA figure"
+      },
+      "status": "estimated"
+    },
+    {
+      "path": "sleeve/motors/lra_u2",
+      "part": "lra_u",
+      "subassembly": "motors",
+      "source": "parts/lra_vlv101040a.py",
+      "transform": [
+        0.0,
+        1.0,
+        0.0,
+        0.057,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        -0.0198,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.0501,
+          -0.005,
+          -0.022
+        ],
+        [
+          0.064,
+          0.005,
+          -0.0176
+        ]
+      ],
+      "mass_kg": 0.001,
+      "material": "electronics",
+      "bought": true,
+      "provenance": "estimated",
+      "bom": {
+        "vendor": "Vybronics",
+        "part_number": "VLV101040A",
+        "description": "Linear resonant actuator (LRA), 10 x 13.9 x 4.05 mm body (4.4 mm max with bond), flat FPC tab at one end. Rated 2.5 Vrms AC sine, 6.0 to 7.5 ohm, max 350 mA, 0.9 Grms min at 140 Hz and 300 Hz (wide band, alert range 140 to 300 Hz, no single resonant frequency stated), up to 2.75 Grms near 170 Hz. Mass is not in the datasheet.",
+        "source": "library/lra-vybronics-vlv101040a.json: Vybronics-VLV101040A-datasheet.pdf (spec drawing p12, specs p6); https://www.vybronics.com/wp-content/uploads/datasheet-files/Vybronics-VLV101040A-datasheet.pdf ; STEP https://www.vybronics.com/wp-content/uploads/cad-files/Vybronics-VLV101040A-3D-file.rar . estimated: mass 1 g, not in datasheet; the STEP solid is only 105 mm3, so 1 g is a typical small-LRA figure"
+      },
+      "status": "estimated"
+    },
+    {
+      "path": "sleeve/pod",
+      "part": "pod",
+      "subassembly": "sleeve",
+      "source": "parts/base_pod.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.01,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        -0.024,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.0004,
+          -0.0197,
+          -0.0301
+        ],
+        [
+          0.0196,
+          0.0197,
+          -0.0179
+        ]
+      ],
+      "mass_kg": 0.004002,
+      "material": "silicone",
+      "bought": false,
+      "provenance": "published",
+      "bom": {
+        "vendor": "in-house cast",
+        "part_number": "base_pod",
+        "description": "Base pod around the 100 Hz LRA, platinum-cure silicone, cast",
+        "source": "published: Smooth-On Ecoflex 00-30 density about 1070 kg/m3; geometry estimated"
+      }
+    },
+    {
+      "path": "sleeve/shell",
+      "part": "shell",
+      "subassembly": "sleeve",
+      "source": "parts/sleeve_shell.py",
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        0.005,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox": [
+        [
+          0.005,
+          -0.0219,
+          -0.0231
+        ],
+        [
+          0.085,
+          0.0219,
+          0.01
+        ]
+      ],
+      "mass_kg": 0.023,
+      "material": "silicone",
+      "bought": false,
+      "provenance": "published",
+      "bom": {
+        "vendor": "in-house cast",
+        "part_number": "sleeve_shell",
+        "description": "Open C-section sleeve, platinum-cure silicone (Ecoflex 00-30 class), cast",
+        "source": "published: Smooth-On Ecoflex 00-30 density about 1070 kg/m3 (specific volume 0.9 cu in/lb); geometry estimated"
+      }
+    }
+  ],
+  "joints": [
+    {
+      "name": "fx_bat",
+      "type": "fixed",
+      "parent": "pack/tray",
+      "child": "pack/electronics/bat",
+      "origin": [
+        -0.0144,
+        -0.3,
+        -0.148
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_drain",
+      "type": "fixed",
+      "parent": "ref/tip",
+      "child": "ref/drain",
+      "origin": [
+        0.111,
+        0.0,
+        -0.006
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_drv",
+      "type": "fixed",
+      "parent": "pack/tray",
+      "child": "pack/electronics/drv",
+      "origin": [
+        0.0265,
+        -0.2896,
+        -0.148
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_lid",
+      "type": "fixed",
+      "parent": "pack/tray",
+      "child": "pack/lid",
+      "origin": [
+        0.0,
+        -0.3,
+        -0.14
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_lra_b1",
+      "type": "fixed",
+      "parent": "sleeve/pod",
+      "child": "sleeve/motors/lra_b1",
+      "origin": [
+        0.01,
+        0.0,
+        -0.024
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_lra_fl",
+      "type": "fixed",
+      "parent": "sleeve/shell",
+      "child": "sleeve/motors/lra_fl",
+      "origin": [
+        0.045,
+        0.0192,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_lra_fr",
+      "type": "fixed",
+      "parent": "sleeve/shell",
+      "child": "sleeve/motors/lra_fr",
+      "origin": [
+        0.045,
+        -0.0192,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_lra_u1",
+      "type": "fixed",
+      "parent": "sleeve/shell",
+      "child": "sleeve/motors/lra_u1",
+      "origin": [
+        0.029,
+        0.0,
+        -0.0198
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_lra_u2",
+      "type": "fixed",
+      "parent": "sleeve/shell",
+      "child": "sleeve/motors/lra_u2",
+      "origin": [
+        0.057,
+        0.0,
+        -0.0198
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_mcu",
+      "type": "fixed",
+      "parent": "pack/tray",
+      "child": "pack/electronics/mcu",
+      "origin": [
+        0.0265,
+        -0.3104,
+        -0.148
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_pod",
+      "type": "fixed",
+      "parent": "sleeve/shell",
+      "child": "sleeve/pod",
+      "origin": [
+        0.01,
+        0.0,
+        -0.024
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_shell",
+      "type": "fixed",
+      "parent": "ref/shaft",
+      "child": "sleeve/shell",
+      "origin": [
+        0.005,
+        0.0,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_tip",
+      "type": "fixed",
+      "parent": "ref/shaft",
+      "child": "ref/tip",
+      "origin": [
+        0.095,
+        0.0,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    },
+    {
+      "name": "fx_tray",
+      "type": "fixed",
+      "parent": "ref/shaft",
+      "child": "pack/tray",
+      "origin": [
+        0.0,
+        -0.3,
+        -0.15
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range": null
+    }
+  ],
+  "frames": [
+    {
+      "path": "pack/electronics/bat",
+      "name": "bottom",
+      "origin": [
+        -0.0144,
+        -0.3,
+        -0.148
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/electronics/drv",
+      "name": "bottom",
+      "origin": [
+        0.0265,
+        -0.2896,
+        -0.148
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/electronics/mcu",
+      "name": "bottom",
+      "origin": [
+        0.0265,
+        -0.3104,
+        -0.148
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/lid",
+      "name": "bottom",
+      "origin": [
+        0.0,
+        -0.3,
+        -0.14
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/tray",
+      "name": "bat_seat",
+      "origin": [
+        -0.0144,
+        -0.3,
+        -0.148
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/tray",
+      "name": "datum",
+      "origin": [
+        0.0,
+        -0.3,
+        -0.15
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/tray",
+      "name": "drv_seat",
+      "origin": [
+        0.0265,
+        -0.2896,
+        -0.148
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/tray",
+      "name": "lid_seat",
+      "origin": [
+        0.0,
+        -0.3,
+        -0.14
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "pack/tray",
+      "name": "mcu_seat",
+      "origin": [
+        0.0265,
+        -0.3104,
+        -0.148
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "ref/drain",
+      "name": "top",
+      "origin": [
+        0.111,
+        0.0,
+        -0.006
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "ref/shaft",
+      "name": "distal",
+      "origin": [
+        0.095,
+        0.0,
+        0.0
+      ],
+      "z": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "path": "ref/shaft",
+      "name": "prox",
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "ref/tip",
+      "name": "drain",
+      "origin": [
+        0.111,
+        0.0,
+        -0.006
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "ref/tip",
+      "name": "prox",
+      "origin": [
+        0.095,
+        0.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/motors/lra_b1",
+      "name": "center",
+      "origin": [
+        0.01,
+        0.0,
+        -0.024
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/motors/lra_fl",
+      "name": "center",
+      "origin": [
+        0.045,
+        0.0192,
+        0.0
+      ],
+      "z": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/motors/lra_fr",
+      "name": "center",
+      "origin": [
+        0.045,
+        -0.0192,
+        0.0
+      ],
+      "z": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/motors/lra_u1",
+      "name": "center",
+      "origin": [
+        0.029,
+        0.0,
+        -0.0198
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/motors/lra_u2",
+      "name": "center",
+      "origin": [
+        0.057,
+        0.0,
+        -0.0198
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/pod",
+      "name": "motor",
+      "origin": [
+        0.01,
+        0.0,
+        -0.024
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/pod",
+      "name": "origin",
+      "origin": [
+        0.01,
+        0.0,
+        -0.024
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/shell",
+      "name": "fl",
+      "origin": [
+        0.045,
+        0.0192,
+        0.0
+      ],
+      "z": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/shell",
+      "name": "fr",
+      "origin": [
+        0.045,
+        -0.0192,
+        0.0
+      ],
+      "z": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/shell",
+      "name": "origin",
+      "origin": [
+        0.005,
+        0.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/shell",
+      "name": "u1",
+      "origin": [
+        0.029,
+        0.0,
+        -0.0198
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "path": "sleeve/shell",
+      "name": "u2",
+      "origin": [
+        0.057,
+        0.0,
+        -0.0198
+      ],
+      "z": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "name": "Reference anatomy",
+      "subassemblies": [
+        "ref"
+      ]
+    },
+    {
+      "name": "Sleeve shell and base pod",
+      "paths": [
+        "sleeve/shell",
+        "sleeve/pod"
+      ]
+    },
+    {
+      "name": "Sleeve motors",
+      "subassemblies": [
+        "motors"
+      ]
+    },
+    {
+      "name": "Pack tray",
+      "paths": [
+        "pack/tray"
+      ]
+    },
+    {
+      "name": "Pack contents",
+      "subassemblies": [
+        "electronics"
+      ]
+    },
+    {
+      "name": "Pack lid",
+      "paths": [
+        "pack/lid"
+      ]
+    }
+  ]
+}
