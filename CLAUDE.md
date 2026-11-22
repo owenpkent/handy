@@ -463,7 +463,7 @@ git add -A; git commit -m "feat: description"; git push
   cd C:\Users\Owen\dev\handy\android-v2
   .\gradlew.bat :app:assembleDebug
   ```
-- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 39 tests, a few seconds.
+- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest` — 53 tests, a few seconds.
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
 - Every debug build drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The task is hooked to `packageDebug` (not `assembleDebug`) so it fires for `installDebug` too. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.
