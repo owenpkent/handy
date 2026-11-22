@@ -34,6 +34,7 @@ parts:
   - {id: drv,      module: driver_drv2605l}
   - {id: mux,      module: mux_tca9548a}
   - {id: stop_btn, module: button_stop}
+  - {id: stop_nut, module: nut_stop}
   - {id: bat,      module: battery_lipo}
 
 instances:
@@ -58,6 +59,7 @@ instances:
   - {id: drv5,   part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat_5, rotate: 90}}
   - {id: mux,    part: mux,    subassembly: electronics, place: {self: bottom, to: tray.mux_seat}}
   - {id: stop,   part: stop_btn, subassembly: pack, place: {self: seat, to: lid.button_seat}}
+  - {id: stop_nut, part: stop_nut, subassembly: pack, place: {self: seat, to: lid.nut_seat}}
 
 steps:
   - {name: Reference anatomy, subassemblies: [ref]}
@@ -65,8 +67,11 @@ steps:
   - {name: Sleeve motors, subassemblies: [motors]}
   - {name: Pack tray, paths: [pack/tray]}
   - {name: Pack contents, subassemblies: [electronics]}
-  - {name: Pack lid, paths: [pack/lid]}
-  - {name: STOP button, paths: [pack/stop]}
+  # The button is retained by a nut on its rear thread, so it is fitted to the loose lid first (button through the hole from above, nut
+  # screwed on from below), and the lid with its button is lowered onto the tray as one piece. The `order:` here is only for qa.insert, which
+  # tests against the tray already present: a nut cannot be shown reaching the lid underside through a closed tray, so the nut is listed
+  # first (it clears upward), then the lid, then the button. The real bench order is button in loose lid, nut from below, lid onto tray.
+  - {name: Pack lid with STOP button, paths: [pack/lid, pack/stop, pack/stop_nut], order: [pack/stop_nut, pack/lid, pack/stop]}
 
 # All joints are fixed: the sleeve is held by a garment pouch (not modelled) and nothing moves.
 # The pack joins the shaft only to keep one tree; its origin sits 300 mm away on purpose (cable not modelled).

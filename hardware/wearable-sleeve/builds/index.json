@@ -23,5 +23,15 @@
     "version": 5,
     "date": "2026-11-21",
     "note": "v5: same geometry as v4, accepted-warn reasons updated for the new pack distance; Brief v2 and sketch_v2"
+  },
+  {
+    "version": 6,
+    "date": "2026-11-22",
+    "note": "STOP button pre-assembled in the loose lid: retaining nut modelled (nut_stop), lid and button lowered onto the tray as one step"
+  },
+  {
+    "version": 7,
+    "date": "2026-11-22",
+    "note": "STOP button pre-assembled in the loose lid: retaining nut modelled (nut_stop, hex flats to the lip), lid and button lowered onto the tray as one step"
   }
 ]

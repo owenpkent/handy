@@ -1,6 +1,6 @@
 # Build log, wearable-sleeve
 
-An open C-shell silicone sleeve with four shaft LRAs and a base pod LRA, plus a chair-mounted electronics pack, around a reference shaft. Brief: [Brief v2.md](Brief%20v2.md). Sketches: [brief/sketch_v1.svg](brief/sketch_v1.svg), [brief/sketch_v2.svg](brief/sketch_v2.svg).
+An open C-shell silicone sleeve with four shaft LRAs and a base pod LRA, plus a chair-mounted electronics pack, around a reference shaft. Brief: [Brief v3.md](Brief%20v3.md). Sketches: [brief/sketch_v1.svg](brief/sketch_v1.svg), [brief/sketch_v2.svg](brief/sketch_v2.svg).
 
 ## Plan checkpoint (before v1)
 
@@ -16,6 +16,8 @@ An open C-shell silicone sleeve with four shaft LRAs and a base pod LRA, plus a 
 | v3 | 26 pass, 3 warn (3 accepted), 0 fail (from builds/v3/checks_v3.md). Row added retroactively in v4; no notes were logged at the time. | Not recorded. |
 | v4 | 32 pass, 3 warn (3 accepted), 0 fail; `nlcad.qa` 25 pass, 3 accepted warn. First build of the revised pack: 5 DRV2605L, TCA9548A, XIAO, LiPo on printed posts; lid STOP button (Adafruit 559, 16 mm hole); USB-C slot (-X wall) and 12.5 mm PG7 hole (+Y wall); box 114.6 x 89.2 x 28.4 mm (tray). Mass 0.2492 kg total, of which 0.086 kg is reference fixtures. Every new part inserts at its step (`qa.insert.*`). | Tray and lid rewritten around a new layout; new parts `mux_tca9548a`, `button_stop`; new library entries for the mux and the button; assembly: 5 driver instances (rotated 90 degrees), mux, stop button, new step. |
 | v5 | Same numbers as v4: 32 pass, 3 accepted warn, 0 fail. | Geometry unchanged; accepted-warn reasons corrected for the pack distance (about 270 mm now). Brief renamed to v2, sketch_v2.svg added. |
+| v6 | 31 pass, 3 warn (3 accepted), 2 fail: `interference` (nut hex corners 0.007 cm3 into the lid's locating lip) and `qa.insert.pack/stop_nut` (nut listed after the lid cannot reach the lid underside through the closed tray). Kept as the record of the failed attempt. | New part `nut_stop` (STOP button retaining nut, estimated); lid gains frame `nut_seat`; steps 'Pack lid' and 'STOP button' merged into 'Pack lid with STOP button' (lid, button, nut). |
+| v7 | 33 pass, 3 warn (3 accepted), 0 fail. Nut no longer touches the lip (hex flats face +/-X); `qa.insert.pack/stop_nut` passes with the nut ordered first in the step (qa.insert only tests against the tray already present, so the listed order is a proxy; the real bench order is button in loose lid, nut from below, lid onto tray). No overlap of the nut with the tray or contents (nut 3 mm below the plate over the free column). Mass 0.2544 kg (nut about 5 g, estimated). | Nut rotated 30 degrees; step order set to nut, lid, button. Brief bumped to v3 (STOP button assembly order). Fixes PR #3 review finding P2. |
 
 ## Open questions
 

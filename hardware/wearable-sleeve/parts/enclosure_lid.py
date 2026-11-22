@@ -1,7 +1,8 @@
 """Electronics enclosure, lid: 3D-printed PETG plate with a locating lip and the STOP button hole, mm. Origin: centre of the plate's
 underside, +Z up. The lip hangs below the plate into the tray cavity (cavity size from the same layout as the tray; keep the two
 `layout` functions equal). The 16 mm round hole (published drill size of the Adafruit 559 button) sits over the free column of the tray.
-Frames: bottom (z -Z, face down), button_seat (top face at the hole, z +Z)."""
+Frames: bottom (z -Z, face down), button_seat (top face at the hole, z +Z), nut_seat (underside at the hole, z -Z: the STOP
+button's retaining nut screws up against it from below, with the lid off the tray)."""
 from build123d import Box, Cylinder, Pos
 
 from nlcad.part import Frame, Part
@@ -33,7 +34,8 @@ def make(wall=2.0, clearance=2.0, lip_h=2.0, lip_t=1.5, lip_fit=0.2, hole_d=16.0
     lip = Pos(0, 0, -lip_h / 2) * (Box(ix, iy, lip_h) - Box(ix - 2 * lip_t, iy - 2 * lip_t, lip_h + 1))
     shape = plate + lip - Pos(bxp, byp, wall / 2) * Cylinder(hole_d / 2, wall + 1)
     assert len(shape.solids()) == 1
-    return Part(shape=shape, frames={"bottom": Frame((0, 0, 0), z=(0, 0, -1)), "button_seat": Frame((bxp, byp, wall))},
+    return Part(shape=shape, frames={"bottom": Frame((0, 0, 0), z=(0, 0, -1)), "button_seat": Frame((bxp, byp, wall)),
+                                 "nut_seat": Frame((bxp, byp, 0), z=(0, 0, -1))},
                 density_kg_m3=1270, material="petg", bought=False, provenance="published",
                 bom={"vendor": "in-house print", "part_number": "enclosure_lid",
                      "description": "Electronics enclosure lid with locating lip and 16 mm STOP button hole, 3D-printed PETG",
