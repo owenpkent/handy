@@ -407,7 +407,9 @@ class ControlActivity : AppCompatActivity() {
                 // at speed 0 there's nothing to modulate, so just start.
                 val device = (manualSpeed * globalMaxSpeed.coerceIn(1, 100) / 100).coerceIn(0, 100)
                 if (humanizeEngine.enabled && device > 0) humanizeEngine.start(device)
-                else api.start()
+                // Speed AFTER start: the client refuses positive speed until a
+                // start, so a slider move made before START never reached the device.
+                else if (api.start() && device > 0) api.setSpeed(device)
             }
         }
         stopButton.setOnClickListener {
