@@ -38,6 +38,8 @@ class LovenseBleTransport(
     companion object {
         private const val OP_TIMEOUT_MS = 1_000L
         private const val DROPPED = "Toy disconnected during setup. Try again."
+        private const val STOP_RETRIES = 3
+        private const val STOP_RESEND_MS = 2_000L
     }
 
     override val kind = "lovense"
@@ -73,6 +75,11 @@ class LovenseBleTransport(
     // Probe names currently sent at a nonzero level; guarded by opMutex. While
     // non-empty the keep-alive never forces Vibrate:0; (it would end the experiment).
     private val probing = HashSet<String>()
+
+    // A stop was requested but its Vibrate:0; write is not confirmed. The
+    // keep-alive loop resends it (in any mode) until one lands. Guarded by opMutex
+    // for writes; volatile so the loop can peek.
+    @Volatile private var stopPending = false
 
     // Diagnostics for the test panel.
     @Volatile private var diagService: String? = null
@@ -113,6 +120,7 @@ class LovenseBleTransport(
         running = false
         desiredLevel = 0
         probing.clear()
+        stopPending = false
         disconnectedAtMs = clock()
         disconnectUnexpected = true
         listener?.onUnexpectedDisconnect("Lovense toy disconnected.")
@@ -180,6 +188,30 @@ class LovenseBleTransport(
         }
         session = s
 
+        // The session is live from here. Anything short of a committed connect
+        // (failure, or cancellation during discover / CCCD / DeviceType awaits)
+        // must close it, or the GATT link would leak.
+        var committed = false
+        try {
+            val r = finishConnect(s, saved, target, name)
+            committed = r.ok
+            return r
+        } finally {
+            if (!committed) {
+                synchronized(stateLock) { connected = false; ready = false }
+                closeSession()
+            }
+        }
+    }
+
+    private suspend fun finishConnect(
+        s: LovenseGattSession,
+        saved: String?,
+        target: String,
+        nameIn: String?,
+    ): TransportResult {
+        var name = nameIn
+
         fun abort(msg: String): TransportResult {
             synchronized(stateLock) { connected = false; ready = false }
             closeSession()
@@ -204,6 +236,7 @@ class LovenseBleTransport(
         running = false
         desiredLevel = 0
         probing.clear()
+        stopPending = false
         diagService = s.serviceUuid
         diagDeviceType = null
         diagAutoSwith = null
@@ -228,10 +261,10 @@ class LovenseBleTransport(
         // Name lookup goes before the commit so a drop during it still fails
         // this attempt (the commit below is the last point a drop can land).
         if (name == null) name = s.deviceName
-        val committed = synchronized(stateLock) {
+        val up = synchronized(stateLock) {
             if (linkLost) false else { ready = true; connectedAtMs = clock(); true }
         }
-        if (!committed) return abort(DROPPED)
+        if (!up) return abort(DROPPED)
 
         if (saved == null) {
             address = target
@@ -300,7 +333,7 @@ class LovenseBleTransport(
         return when (s.write(cmd)) {
             WriteResult.OK -> {
                 lastLevel = level
-                if (level > 0) lastMotionAtMs = clock()
+                if (level > 0) lastMotionAtMs = clock() else stopPending = false
                 TransportResult.OK
             }
             else -> {
@@ -317,6 +350,15 @@ class LovenseBleTransport(
         pollJob = scope.launch {
             while (isActive && connected) {
                 val mode = keepAliveMode
+                // An unconfirmed stop outranks every keep-alive mode, Off included.
+                if (stopPending) {
+                    opMutex.withLock {
+                        if (connected && !running && stopPending) {
+                            zeroProbesLocked()
+                            if (sendLevel(0, force = true).ok) log("Lovense: pending stop confirmed")
+                        }
+                    }
+                }
                 if (mode != KeepAliveMode.OFF) {
                     val reply = opMutex.withLock {
                         val r = sendLocked(LovenseProtocol.CMD_BATTERY, awaitReply = true)
@@ -340,7 +382,7 @@ class LovenseBleTransport(
                         listener?.onBattery(pct)
                     }
                 }
-                delay(keepAliveIntervalS * 1_000L)
+                delay(if (stopPending) STOP_RESEND_MS else keepAliveIntervalS * 1_000L)
             }
         }
     }
@@ -379,7 +421,7 @@ class LovenseBleTransport(
         if (!connected) return@withLock ProbeResult(false, null, "Lovense toy not connected.")
         log("${stamp()} probe >> $cmd")
         // Registered before the write: even a failed or unanswered write may have moved the toy.
-        if (level > 0) { probing += name; lastMotionAtMs = clock() } else probing -= name
+        if (level > 0) { probing += name; lastMotionAtMs = clock(); stopPending = false } else probing -= name
         lastLevel = -1 // the toy's level is no longer what the dedupe cache thinks
         val reply = sendLocked(cmd, awaitReply = true)
         log("${stamp()} probe << ${reply ?: "(no reply)"}")
@@ -403,7 +445,10 @@ class LovenseBleTransport(
         pollJob?.cancel()
         opMutex.withLock {
             if (connected) {
-                // Best effort: make sure it is not left vibrating.
+                // Best effort: make sure it is not left vibrating, probes included.
+                for (n in probing.filter { it != "Vibrate" }) {
+                    LovenseProtocol.probeCommand(n, 0)?.let { runCatching { session?.write(it) } }
+                }
                 runCatching { session?.write(LovenseProtocol.CMD_STOP) }
             }
             synchronized(stateLock) { connected = false; ready = false }
@@ -412,6 +457,7 @@ class LovenseBleTransport(
             running = false
             desiredLevel = 0
             probing.clear()
+            stopPending = false
             disconnectedAtMs = clock()
             disconnectUnexpected = false
         }
@@ -421,15 +467,54 @@ class LovenseBleTransport(
     override suspend fun start(): TransportResult = opMutex.withLock {
         if (!connected) return@withLock TransportResult(false, "Lovense toy not connected.")
         running = true
+        stopPending = false // a fresh start supersedes any unconfirmed stop
         val r = if (desiredLevel > 0) sendLevel(desiredLevel) else TransportResult.OK
         if (!r.ok) running = false
         r
     }
 
-    override suspend fun stop(): TransportResult = opMutex.withLock {
+    /**
+     * Zero every probe name still at a nonzero level (best effort, no replies).
+     * Caller holds [opMutex]. Vibrate is not included: the caller's own
+     * Vibrate:0; follows, so a probe like Oscillate can never be left running.
+     */
+    private suspend fun zeroProbesLocked() {
+        if (probing.isEmpty()) return
+        val names = probing.filter { it != "Vibrate" }
+        for (n in names) LovenseProtocol.probeCommand(n, 0)?.let { sendLocked(it) }
+        probing.clear()
+    }
+
+    private suspend fun stopOnce(retry: Boolean): TransportResult = opMutex.withLock {
+        // A start() that landed between retries is newer intent: leave it running.
+        if (retry && running) return@withLock TransportResult.OK
         running = false
+        zeroProbesLocked()
         // Always written (never deduplicated): a stop is safety-critical.
         sendLevel(0, force = true)
+    }
+
+    /**
+     * Stop the toy. A failed zero write is retried (150, 300, 600 ms); if it
+     * still fails, [stopPending] stays set so the keep-alive loop (in any mode,
+     * including Off) keeps resending Vibrate:0; until one lands. A stop is
+     * never silently lost.
+     */
+    override suspend fun stop(): TransportResult {
+        stopPending = true
+        var r = stopOnce(retry = false)
+        var wait = 150L
+        var tries = 0
+        while (!r.ok && connected && tries < STOP_RETRIES) {
+            delay(wait)
+            wait *= 2
+            tries++
+            r = stopOnce(retry = true)
+        }
+        if (r.ok) return r
+        // Wake the loop now so the resend does not wait out a long keep-alive delay.
+        if (connected && ready) startBatteryPoll()
+        return TransportResult(false, "Stop not confirmed by toy", r.detail)
     }
 
     override suspend fun setVelocity(velocity: Int): TransportResult = opMutex.withLock {

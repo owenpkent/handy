@@ -1,6 +1,9 @@
 package com.handyvoice.v2.api
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -231,7 +234,16 @@ class HandyV2ApiClient(
         _debugLog.value = current
     }
 
+    /**
+     * Runs at the start of every [connect], before anything else. The app sets
+     * it to cancel and join the pattern / humanize loops, so no connect path
+     * (home, toy page, setup panel, splash, bootstrap, test panel) can come up
+     * with a stale motion loop still alive.
+     */
+    @Volatile var preConnect: (suspend () -> Unit)? = null
+
     suspend fun connect(): Boolean {
+        preConnect?.invoke()
         transport.preflightError()?.let {
             _lastError.value = it
             return false
@@ -269,6 +281,18 @@ class HandyV2ApiClient(
                 _lastError.value = result.error
                 false
             }
+        } catch (e: CancellationException) {
+            // Cancelled mid-connect: leave nothing half-open, then propagate.
+            withContext(NonCancellable) {
+                runCatching { transport.disconnect() }
+                startRequired = true
+                _warning.value = null
+                _battery.value = null
+                _deviceName.value = null
+                _connectionState.value = ConnectionState.DISCONNECTED
+            }
+            log("Connect cancelled")
+            throw e
         } catch (e: Exception) {
             log("Connection error: ${e.message}")
             _connectionState.value = ConnectionState.DISCONNECTED
@@ -324,8 +348,15 @@ class HandyV2ApiClient(
             log("Stopping...")
             val result = transport.stop()
             _isRunning.value = false
-            _lastError.value = null
-            log("Stopped.")
+            if (result.ok) {
+                _lastError.value = null
+                log("Stopped.")
+            } else {
+                // Never report an unconfirmed stop as a clean one.
+                _lastError.value = result.error ?: "Stop not confirmed"
+                result.detail?.let { log(it) }
+                log("Stop not confirmed.")
+            }
             result.ok
         } catch (e: Exception) {
             _isRunning.value = false

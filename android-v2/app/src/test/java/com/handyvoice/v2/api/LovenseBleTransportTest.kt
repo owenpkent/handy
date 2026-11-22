@@ -36,6 +36,7 @@ class LovenseBleTransportTest {
             }
         var cccdOk = true
         var dropDuringCccd = false
+        var ignoreDeviceType = false
 
         /** Drop the link while this command is awaiting its reply. */
         var dropOnCommand: String? = null
@@ -75,7 +76,7 @@ class LovenseBleTransportTest {
             }
             when {
                 text.startsWith("Vibrate:") -> port.motor = text.removePrefix("Vibrate:").removeSuffix(";").toInt()
-                text == LovenseProtocol.CMD_DEVICE_TYPE -> sink.onNotify("C:11:0082059AD3BD;")
+                text == LovenseProtocol.CMD_DEVICE_TYPE -> if (!ignoreDeviceType) sink.onNotify("C:11:0082059AD3BD;")
                 text == LovenseProtocol.CMD_AUTO_SWITCH -> autoSwitchWriteReply?.let { sink.onNotify(it) }
                 text == LovenseProtocol.CMD_GET_AUTO_SWITCH -> getAsReply?.let { sink.onNotify(it) }
                 text == LovenseProtocol.CMD_BATTERY -> sink.onNotify("85;")
@@ -93,7 +94,8 @@ class LovenseBleTransportTest {
             return WriteResult.OK
         }
 
-        override fun close() {}
+        var closed = false
+        override fun close() { closed = true }
     }
 
     private class FakePort : LovenseGattPort {
@@ -530,6 +532,100 @@ class LovenseBleTransportTest {
         runCurrent()
         assertTrue("fast interval: ${e.port.writes.drop(mark)}", e.port.writes.drop(mark).count { it == "Battery;" } >= 2)
         assertEquals(1, e.port.opened.size)
+    }
+
+    // ---- 11. review fixes ---------------------------------------------------------
+
+    @Test
+    fun stopAfterOscillateProbe_zeroesOscillate_clearsProbing_keepAliveResumes() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        assertTrue(e.api.probe("Oscillate:20;").sent)
+        e.api.stop()
+        assertTrue("Oscillate:0; written: ${e.port.writes}", e.port.writes.contains("Oscillate:0;"))
+        assertEquals("Vibrate:0; goes last", "Vibrate:0;", e.port.writes.last())
+
+        val mark = e.port.writes.size
+        advanceTimeBy(30_001)
+        runCurrent()
+        assertTrue("keep-alive resumed", e.port.writes.drop(mark).contains("Vibrate:0;"))
+    }
+
+    @Test
+    fun rampStopAfterOscillateProbe_zeroesOscillate() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        assertTrue(e.api.probe("Oscillate:20;").sent)
+        e.api.rampStop()
+        assertTrue(e.port.writes.contains("Oscillate:0;"))
+    }
+
+    @Test
+    fun disconnectAfterOscillateProbe_zeroesOscillate() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        assertTrue(e.api.probe("Oscillate:20;").sent)
+        e.api.disconnect()
+        assertTrue(e.port.writes.contains("Oscillate:0;"))
+    }
+
+    @Test
+    fun cancelledConnectDuringDeviceType_closesSession_andPropagatesCancellation() = runTest {
+        val e = Env(this)
+        e.port.onSession = { it.ignoreDeviceType = true }   // DeviceType awaits its 1 s reply timeout
+        val job = launch { e.api.connect() }
+        runCurrent()
+        assertEquals(ConnectionState.CONNECTING, e.api.connectionState.value)
+        job.cancel()
+        job.join()
+        assertTrue(job.isCancelled)
+        assertTrue("GATT session closed", e.port.current!!.closed)
+        assertEquals(ConnectionState.DISCONNECTED, e.api.connectionState.value)
+    }
+
+    @Test
+    fun failedStop_retriesThenConfirmsLater_andSurfacesErrorWhileUnconfirmed() = runTest {
+        val e = Env(this)
+        e.transport.setKeepAlive(KeepAliveMode.OFF, 30)   // pending stop must outrank Off
+        assertTrue(e.api.connect())
+        runCurrent()
+        assertTrue(e.api.start())
+        assertTrue(e.api.setSpeed(50))
+        assertEquals(10, e.port.motor)
+
+        e.port.current!!.busy = true                       // every write is rejected
+        assertFalse(e.api.stop())
+        assertEquals(10, e.port.motor)
+        assertEquals("Stop not confirmed by toy", e.api.lastError.value)
+
+        e.port.current!!.busy = false                      // toy recovers; the keep-alive loop resends
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(0, e.port.motor)
+        assertTrue(e.port.writes.last() == "Vibrate:0;")
+    }
+
+    @Test
+    fun failedStop_retriesWithinTheCall() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        assertTrue(e.api.start())
+        assertTrue(e.api.setSpeed(50))
+        e.port.current!!.rejectNextWrite = true            // first zero is refused, retry lands
+        assertTrue(e.api.stop())
+        assertEquals(0, e.port.motor)
+    }
+
+    @Test
+    fun preConnectHook_runsBeforeEveryConnect() = runTest {
+        val e = Env(this)
+        var runs = 0
+        e.api.preConnect = { runs++ }
+        assertTrue(e.api.connect())
+        e.api.disconnect()
+        assertTrue(e.api.connect())
+        assertEquals(2, runs)
     }
 
     // ---- 10. test panel: diagnostics --------------------------------------------------

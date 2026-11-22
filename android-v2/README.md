@@ -90,7 +90,7 @@ JVM unit tests for the audio math run without the emulator:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 30 tests, a few seconds.
+These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 90 tests, a few seconds.
 
 ## Vocabulary
 

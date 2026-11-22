@@ -27,7 +27,9 @@ class HandyVoiceApp : Application() {
      * holds no Android context — just OkHttp/Retrofit and state flows — so a
      * process-lifetime singleton is safe.
      */
-    val api: HandyV2ApiClient by lazy { HandyV2ApiClient() }
+    val api: HandyV2ApiClient by lazy {
+        HandyV2ApiClient().also { it.preConnect = { awaitMotionTeardown() } }
+    }
 
     /**
      * Process-lifetime scope for work that must outlive a single activity —
@@ -47,12 +49,23 @@ class HandyVoiceApp : Application() {
     val humanizeEngine: HumanizeEngine by lazy { HumanizeEngine(api, appScope) }
 
     /**
+     * Cancel and join both motion loops. The single teardown point: the
+     * connection-state collector runs it on DISCONNECTED, and the client runs it
+     * (via `api.preConnect`) at the start of every connect, so every connect
+     * path (home, toy page, setup panel, splash, bootstrap, test panel) awaits
+     * it and a stale loop can never drive a reconnected device. Idempotent.
+     */
+    suspend fun awaitMotionTeardown() {
+        humanizeEngine.cancel()
+        patternEngine.cancel()
+    }
+
+    /**
      * The one stop path for callers with no activity (the toy notification's
      * Stop action): cancel humanize + pattern, then the rampStop wind-down.
      */
     suspend fun stopMotion() {
-        humanizeEngine.cancel()
-        patternEngine.cancel()
+        awaitMotionTeardown()
         api.rampStop()
     }
 
@@ -73,21 +86,26 @@ class HandyVoiceApp : Application() {
                     }
                 }
                 prev = state
-                if (state == ConnectionState.CONNECTED && toy) ToyConnectionService.start(this@HandyVoiceApp)
+                // A lost or ended connection must not leave a loop alive, even
+                // with no activity around (the toy service keeps the process).
+                if (state == ConnectionState.DISCONNECTED) awaitMotionTeardown()
+                if (state ==ConnectionState.CONNECTED && toy) ToyConnectionService.start(this@HandyVoiceApp)
                 else if (state != ConnectionState.CONNECTING) ToyConnectionService.stop(this@HandyVoiceApp)
             }
         }
     }
 
-    // Identifies the wire transport currently installed on [api]: "handy" or
-    // "lovense:<saved address>". A different signature means a new transport.
-    private var transportSig = "handy"
+    // Identity of the wire transport currently installed on [api]: Handy, or a
+    // Lovense toy with its address (null until one is saved or paired).
+    @Volatile private var installedLovense = false
+    @Volatile private var installedAddress: String? = null
 
-    private fun sigFor(snap: PreferencesManager.Snapshot) =
-        if (snap.isLovense) "lovense:${snap.lovenseAddress}" else "handy"
+    // Address just paired by a scan whose prefs write has not landed yet.
+    @Volatile private var pendingAddress: String? = null
 
     /** True if the saved device settings no longer match the installed transport. */
-    fun deviceChanged(snap: PreferencesManager.Snapshot): Boolean = sigFor(snap) != transportSig
+    fun deviceChanged(snap: PreferencesManager.Snapshot): Boolean =
+        !deviceMatches(installedLovense, installedAddress, pendingAddress, snap.isLovense, snap.lovenseAddress)
 
     /**
      * Install the transport the prefs ask for (Handy REST or Lovense BLE).
@@ -95,18 +113,28 @@ class HandyVoiceApp : Application() {
      * installed transport now matches the prefs.
      */
     fun configureDevice(snap: PreferencesManager.Snapshot): Boolean {
-        val sig = sigFor(snap)
-        if (sig == transportSig) return true
+        if (!deviceChanged(snap)) return true
         val t = if (snap.isLovense) {
             LovenseBle.createTransport(this, snap.lovenseAddress.ifBlank { null }) { address, name ->
-                transportSig = "lovense:$address"
-                appScope.launch { PreferencesManager(applicationContext).setLovenseToy(address, name) }
+                // Known to the transport now, saved a moment later: until the
+                // save lands, a blank-address snapshot still matches.
+                installedAddress = address
+                pendingAddress = address
+                appScope.launch {
+                    try {
+                        PreferencesManager(applicationContext).setLovenseToy(address, name)
+                    } finally {
+                        if (pendingAddress == address) pendingAddress = null
+                    }
+                }
             }.also { it.setKeepAlive(KeepAliveMode.fromId(snap.toyKeepAliveMode), snap.toyKeepAliveIntervalS) }
         } else {
             HandyRestTransport()
         }
         if (!api.useTransport(t)) return false
-        transportSig = sig
+        installedLovense = snap.isLovense
+        installedAddress = if (snap.isLovense) snap.lovenseAddress.ifBlank { null } else null
+        pendingAddress = null
         return true
     }
 }

@@ -154,6 +154,10 @@ class ToyLabActivity : AppCompatActivity() {
         }
         connectGuard.launch(lifecycleScope, onDone = { refresh() }) {
             val snap = prefs.snapshot()
+            if (!snap.isLovense) {
+                toast("Choose Lovense toy in Settings first.")
+                return@launch
+            }
             if (api.connectionState.value == ConnectionState.DISCONNECTED) app.configureDevice(snap)
             if (!api.connect()) toast(api.lastError.value ?: "Connection failed.")
         }

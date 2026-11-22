@@ -260,9 +260,6 @@ class ControlActivity : AppCompatActivity() {
     /** True when Settings selects a Lovense toy (no connection key needed). */
     private var deviceIsLovense = false
 
-    /** Cancel + join of the motion engines after a lost connection. Reconnect and device swap wait for it. */
-    private var motionTeardown: Job? = null
-
     private val requestBle = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         // Notifications are optional (the toy service runs without them); only
         // the BLE grant gates the connect.
@@ -557,14 +554,8 @@ class ControlActivity : AppCompatActivity() {
                     )
                 }
                 stopAlwaysOn()
-                // A lost (or ended) connection must not leave a humanize /
-                // pattern loop alive: it would drive the device again the
-                // moment a reconnect lands. Cancel and join both; reconnect
-                // and device swaps wait on this job.
-                motionTeardown = lifecycleScope.launch {
-                    humanizeEngine.cancel()
-                    patternEngine.cancel()
-                }
+                // Motion-loop teardown on a lost connection is owned by the app
+                // (HandyVoiceApp collector + api.preConnect), not this activity.
             }
         }
         homeStatusText.text = statusText.text
@@ -656,9 +647,7 @@ class ControlActivity : AppCompatActivity() {
                 stopAlwaysOn()
                 api.disconnect()
             }
-            motionTeardown?.join()
-            humanizeEngine.cancel()
-            patternEngine.cancel()
+            app.awaitMotionTeardown()
         }
         if (!app.configureDevice(snap)) return false
         deviceIsLovense = snap.isLovense
@@ -744,7 +733,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
-            toyPanel.setIntensity(snap.toyIntensity)
+            if (::toyPanel.isInitialized) toyPanel.setIntensity(snap.toyIntensity)
             invertStroke = snap.invertStroke
             humanizeStrength = snap.humanizeStrength
             humanizeEngine.setStrength(snap.humanizeStrength)
@@ -802,7 +791,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
-            toyPanel.setIntensity(snap.toyIntensity)
+            if (::toyPanel.isInitialized) toyPanel.setIntensity(snap.toyIntensity)
             invertStroke = snap.invertStroke
             humanizeStrength = snap.humanizeStrength
             // Live-apply a strength change from Settings. If the user turned
@@ -1082,7 +1071,6 @@ class ControlActivity : AppCompatActivity() {
                 updateHomeButton()
             },
         ) {
-            motionTeardown?.join()
             if (!deviceIsLovense) {
                 prefs.setConnectionKey(key)
                 api.setConnectionKey(key)

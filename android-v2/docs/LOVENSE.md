@@ -101,6 +101,10 @@ Plus a one-time prompt to exempt the app from battery optimization, which aggres
 
 **Test:** leave the toy connected and idle for 2+ hours (the Bond's timeout) and see whether it's still on. The test panel (built) lets you switch the keep-alive mode (battery only, battery + silent `Vibrate:0;` which is the default, off) and interval (30 s, 1 min, 5 min) live, with no reconnect and no new build (`toy_keepalive_mode`, `toy_keepalive_interval_s`). Its idle timer shows "Connected for 1 h 12 min", "Idle for 45 min" (since the last nonzero motion command, or connect) and "Last keep-alive: 12 s ago (OK)". The last 5 disconnects (time, how long it had been connected, how long idle, unexpected or by you) are saved, so you can come back after hours and see when and after how much idle the toy dropped. Copy report puts all of it (status, probe results, settings, history, last 50 log lines) on the clipboard to paste. If it powers off whatever we send, the firmware can't be worked around, and only the DIY sleeve, whose firmware we write, is guaranteed to stay on.
 
+**Stop is never silently lost.** A stop or disconnect after a probe such as `Oscillate:20;` also writes `<Name>:0;` for every probed name and clears the probe, so the keep-alive resumes. A failed `Vibrate:0;` is retried (150, 300, 600 ms); if it still fails the client reports "Stop not confirmed by toy" and the transport keeps a pending-stop flag. The keep-alive loop then resends `Vibrate:0;` every 2 s in any mode (Off and battery-only included) until one lands. A fresh start or nonzero probe supersedes it.
+
+**Motion loops and connects.** `HandyVoiceApp.awaitMotionTeardown()` cancels and joins the pattern and humanize loops. It runs when the shared client reports DISCONNECTED and, through `api.preConnect`, at the start of every `connect()` (home, toy page, setup panel, splash, bootstrap, test panel), so a stale loop cannot drive a reconnected toy. A connect cancelled after the GATT link opens closes it and rethrows the cancellation.
+
 ---
 
 ## Hardware test checklist
