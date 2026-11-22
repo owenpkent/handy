@@ -25,6 +25,12 @@ Status (2026-11-21): research done, motor sample order carted (not yet placed), 
 | Lovense Max | Air-pump contraction sleeve | Proves pneumatic contraction works. It has an open BLE protocol and is supported by Buttplug/Intiface. Too bulky to wear. |
 | Arcwave Ion | Air-pressure pulses in a sealed chamber | Needs a seal over the glans, which a catheter tip prevents. |
 | Bump'n, Liberator Wanda, Sportsheets thigh harness | Hands-free mounts and harnesses | Shows the conventions for mounting a device without straps around the penis. |
+| We-Vibe Bond (owner used it) | App-controlled wearable | It powers itself off after about 2 h of no use, and the owner can't reach it to switch it back on. Ours must never auto power-off while idle (see Hands-off usability). |
+| Lovense Diamo | App-controlled vibrating ring | Closed ring, so it breaks our no-ring rule with a catheter. No auto-off timer documented. Open BLE protocol (see App integration). |
+| LELO Tor 3 | App-controlled vibrating ring | Closed ring. Auto power-off is set in the app to 10 to 20 min, worse than the Bond. About 85 min battery. |
+| We-Vibe Verge / Pivot | App-controlled vibrating rings | Closed rings. Same maker and app as the Bond, so expect the same idle shut-off (*unverified*). |
+| Hot Octopuss Pulse Duo (Lux) | Wrap-around shaft vibrator with remote | Open wrap, not a closed ring. Auto-off not documented. |
+| Lovense Gush 2 | Open vibrating/oscillating sleeve, hands-free with an optional band | Not a ring. No auto-off documented. Open BLE protocol. |
 | OSR2 / SR6 + TCode | Open-source stroker with an open control protocol | Not wearable, but the protocol is a reference for command design. |
 | Programmable Air, Soft Robotics Toolkit, CU Haptic Pneumatics Toolkit | Open DIY pump/valve/bladder kits | A ready-made base for the pneumatic part. |
 
@@ -77,6 +83,25 @@ Chair-mounted pack: XIAO ESP32-C3 / nRF52840
 
 ---
 
+## Hands-off usability (lessons from commercial devices)
+
+Commercial app-controlled toys assume you can reach the device and your phone at any time. These are the failures that break that assumption, and what this build does instead.
+
+| Failure seen in commercial devices | Requirement for this build | Source |
+|---|---|---|
+| Powers itself off after a period idle (We-Vibe Bond: about 2 h), and turning it back on needs a button you can't reach | No idle auto power-off. The board stays awake and reconnectable (low-power BLE advertising). The session cap and watchdog stop the motors only. | Owner experience |
+| Power-on is a long press on a small button on the worn part | Nothing on the sleeve needs pressing. Power and STOP live on the chair box, big and reachable. Waking from the app needs no hands at all. | Owner need, accessibility guides |
+| BLE drops when the phone screen locks or the app is backgrounded | The app holds the BLE link in a foreground service with a battery-optimization exemption, so screen-off and other apps don't break it. | User reviews (We-Vibe, Lovense support) |
+| Has to be re-paired after the app closes, sometimes by forgetting it in phone Bluetooth settings | Bond once. The device auto-reconnects to the last phone and the app reconnects on launch with no pairing screen. | We-Vibe app reviews |
+| Loses the link and keeps vibrating at full strength until turned off by hand | Link-loss watchdog stops the motors (already in Safety constraints). | Lovense App Store review |
+| Boots or reconnects at the last (or max) intensity | Always boot and reconnect with the motors off. Starting needs a fresh command and ramps up from low. | Design judgement |
+| Fiddly charging pins or a magnetic tip that must be lined up on the toy | Never charge the sleeve itself. The battery lives in the chair box, on a large magnetic or barrel connector, or runs off the wheelchair battery. | Accessibility guides (magnetic snap charging) |
+| Battery dies mid-session with no warning | Report battery level to the app and warn early. On low battery, wind the motors down instead of cutting out. | Design judgement |
+| Buttons on the body get pressed by sitting or leaning | No buttons on the worn part. Box buttons are recessed, except the STOP button. | Owner need (seated all day) |
+| App needs an account, cloud or internet, and updates break the connection | Local only, no account, works offline (as android-v2 already does). Firmware updates are opt-in. | Lovense user reports |
+
+---
+
 ## App integration
 
 The engines (`Dispatch`, `PatternEngine`, `HumanizeEngine`) currently call `HandyV2ApiClient` directly. Extract an interface and have both clients implement it:
@@ -103,6 +128,7 @@ interface HapticDevice {
 - **Mapping:** speed becomes vibration intensity or pump rhythm rate. Stroke range becomes the bladder fill window, or is a no-op on the vibration-only build.
 - **BLE protocol:** start with our own GATT service. One write characteristic takes the command (mode, intensity, pressure target, session limit, heartbeat). One notify characteristic reports pressure, state and faults. Buttplug/Intiface compatibility can come later: Buttplug only allows new devices that reuse an existing protocol, such as Lovense.
 - The voice vocabulary stays the same: `begin` / `stop` / `faster` / `slower`.
+- **Commercial devices as a stopgap (Lovense):** Lovense toys use an open, documented BLE protocol, so a `LovenseClient : HapticDevice` could drive one from android-v2 before our own sleeve exists. Toys advertise as `LVS-*` / `LOVE-*`, using one of three GATT services (Nordic UART `6e400001-...` on gen 2). Commands are ASCII ending in `;`: `Vibrate:0..20;`, `Battery;`, `DeviceType;`, `PowerOff;`. `AutoSwith:<a>:<b>;` (read with `GetAS;`) sets (a) stop vibrating on an accidental disconnect, and (b) return to the last level on reconnect. Set a on and b off, so a dropped link stops the toy and it never restarts by surprise. No idle power-off timer is documented, but neither is a way to disable one. A periodic `Battery;` poll while connected is the likely keep-awake, still to be tested. The Diamo and Gush 2 are not in the protocol page's model table, so check their device type and service generation on real hardware.
 
 ---
 
@@ -229,6 +255,7 @@ Vendor STEP files and datasheets for the motors are downloaded to [`hardware/cad
 - With sensation intact, does LRA amplitude through a silicone sheath feel like enough, or would we need a larger ERM or a voice-coil actuator?
 - Does vibration loosen the sheath adhesive over 30 minutes? No data exists, so a bench test (and a real test) will have to tell us.
 - What pressure limit does the clinician want for the pneumatic version?
+- Idle battery life with BLE advertising always on: is the XIAO nRF52840 needed (rather than the ESP32-C3) to last a full day, or does the chair box run off the wheelchair battery?
 
 ---
 
@@ -240,7 +267,9 @@ Vendor STEP files and datasheets for the motors are downloaded to [`hardware/cad
 - Thermal limits: https://www.ele.uri.edu/Courses/bme484/iec60601-1ed3.0_parts.pdf
 - Penile vibratory stimulation: https://pubmed.ncbi.nlm.nih.gov/32665708/, https://pmc.ncbi.nlm.nih.gov/articles/PMC5129398, https://www.nature.com/articles/sc201760
 - Hot Octopuss: https://disabilityhorizons.com/2015/08/pulse-ii-the-sex-toy-developed-with-disabled-people-in-mind/
+- Commercial device failures: https://justuseapp.com/en/app/890526071/we-connect-by-we-vibe/reviews, https://mv-support.knowledgeowl.com/help/why-does-my-lovense-toy-have-a-weak-connection, https://apps.apple.com/us/app/lovense-remote/id1027312824
 - Accessible devices: https://newmobility.com/the-quest-for-accessible-sex-toys/, https://www.issm.info/sexual-health-qa/what-are-some-sex-enhancement-devices-for-people-with-disabilities
+- Comparable devices: https://www.reviewed.com/products/lovense-diamo, https://fcc.report/FCC-ID/2AXNT-DIAMO/5049085.pdf, https://lyko.com/en/lelo/lelo-tor-3-black, https://testix.co.uk/test/best-cock-ring, https://shop.sexwithemily.com/products/hot-octopuss-pulse-duo-lux, https://www.insidehook.com/sex-and-dating/we-vibe-bond/amp
 - Buttplug / Intiface: https://buttplug.io, https://buttplug.io/docs/dev-guide/inflating-buttplug/devices/device-configuration-file, https://buttplug.io/stpihkal/protocols/lovense/
 - TCode: https://github.com/multiaxis/tcode-spec
 - Soft robotics: https://softroboticstoolkit.com/book/parts-and-materials, https://www.colorado.edu/atlas/haptic-pneumatics-toolkit, https://hackaday.com/2019/06/14/pneumatics-for-the-masses
