@@ -123,6 +123,7 @@
             app:layout_constraintTop_toBottomOf="@id/header">
 
             <TextView
+                android:id="@+id/connectionKeyLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Connection Key"
@@ -811,6 +812,11 @@
             android:textSize="18sp" />
     </LinearLayout>
     </ScrollView>
+
+    <!-- Dedicated Lovense toy page (shown instead of homePanel while the
+         device type is Lovense). Layout in panel_toy.xml, logic in
+         ui/ToyPanel.kt. -->
+    <include layout="@layout/panel_toy" />
 
     <!-- Picture-in-Picture overlay. Hidden during normal full-screen use;
          swapped in by onPictureInPictureModeChanged so the tiny floating

@@ -4,7 +4,7 @@ How the pieces fit, what runs on which thread, what state lives where, and what 
 
 ## Process and activity model
 
-Single process, three activities, no foreground service. The mic is owned by exactly one component at any moment.
+Single process, four activities (Control, Training, Settings, and the Lovense test panel `ToyLabActivity`), plus one foreground service that exists only while a Lovense toy is connected (see Device transports). The mic is owned by exactly one component at any moment.
 
 ```
                     ┌──────────────────────────────────────┐
@@ -35,7 +35,7 @@ launcher ──────────►│  - Simple home (one listen button)
                     └──────────────────────────────────────┘
 ```
 
-`SplashActivity` is the launcher; it animates, starts the connect, and hands off to `ControlActivity`. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine`, instantiates a `PatternEngine` bound to its `lifecycleScope`, restores the connection key, and wires up the tab listener + listening loop. The More screen's header gear opens `SettingsActivity` directly. The activity opens on a simplified home screen (`homePanel`: one Start / Stop listening button wired to `onMicTapped`, status, "Heard:"); `showMore(true)` swaps in the full UI (`mainScroll`) and system Back returns (`backToHome`). User-initiated connects go through `ConnectGuard` (single-flight, claims its slot before the first suspension). The Voice **and** Manual surfaces live on the More screen as tab panels — there is no separate `ManualActivity` anymore.
+`SplashActivity` is the launcher; it animates, starts the connect, and hands off to `ControlActivity`. On `onCreate` it reads a snapshot of `PreferencesManager`. If `onboarded == false` (first run), it launches `TrainingActivity` and returns. Otherwise it loads templates from `TemplateStore` into `MfccDtwEngine`, uses the process-owned `PatternEngine` / `HumanizeEngine` from `HandyVoiceApp`, restores the connection key, and wires up the tab listener + listening loop. The More screen's header gear opens `SettingsActivity` directly. The activity opens on a simplified home screen (`homePanel`: one Start / Stop listening button wired to `onMicTapped`, status, "Heard:"); `showMore(true)` swaps in the full UI (`mainScroll`) and system Back returns (`backToHome`). User-initiated connects go through `ConnectGuard` (single-flight, claims its slot before the first suspension). The Voice **and** Manual surfaces live on the More screen as tab panels, there is no separate `ManualActivity` anymore.
 
 `TrainingActivity` is unidirectional. The user records, the takes hit disk, cross-validation flags outliers, and the activity finishes back to `ControlActivity`. It does not need a network connection or a Handy device to operate.
 
@@ -72,13 +72,13 @@ Three kinds of state, three different homes.
 ### Per-launch in-memory state (`ControlActivity` fields)
 
 - `engine: MfccDtwEngine` — the loaded templates. Rebuilt from disk on every launch and again in `onResume` so newly-recorded takes appear without restart.
-- `patternEngine: PatternEngine` — lazy-init runner for the 12 envelope patterns. Cancelled on STOP, on any new pattern, and (implicitly via `lifecycleScope`) on activity destruction.
+- `patternEngine` / `humanizeEngine`, owned by `HandyVoiceApp` (appScope), not the activity, so a loop survives the activity being destroyed while a toy service keeps the link up. Cancelled on STOP, on any new pattern, and by `awaitMotionTeardown()` on DISCONNECTED and before every connect. For the Handy, `ControlActivity.onDestroy` still cancels them.
 - `listening: ListeningSession` — wraps the coroutine running the listening loop (used by both tap-mic and always-on modes).
 - `ackTone: ToneGenerator?` — short-lived `STREAM_MUSIC` tone generator that beeps on every voice match. Released in `onDestroy`. TrainingActivity owns a parallel instance for take saves.
 - `globalMaxSpeed`, `globalMinStroke`, `globalMaxStroke`, `threshold`, `listeningMode` — cached pref values, re-read on every `onResume`.
 - `log: MutableList<String>` — ring buffer of debug lines for the on-screen panel; auto-scrolls to newest on update.
 
-The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunning`, `currentSpeed`, `strokeMin`, `strokeMax`, `lastError`, `debugLog`), plus three injected configuration knobs that activities push in: `connectionKey`, `invertStroke`, `(globalStrokeMin, globalStrokeMax)`. The flows survive activity recreation as long as the client instance does (the activity recreates it on every `onCreate`, which is acceptable because the only persisted piece is the connection key).
+The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunning`, `currentSpeed`, `strokeMin`, `strokeMax`, `lastError`, `debugLog`), plus three injected configuration knobs that activities push in: `connectionKey`, `invertStroke`, `(globalStrokeMin, globalStrokeMax)`. The client is a process-lifetime singleton on `HandyVoiceApp` (shared by Splash and Control), so the flows survive activity recreation.
 
 ### Persistent state (DataStore prefs)
 
@@ -93,6 +93,13 @@ The `HandyV2ApiClient` itself holds device-side state as `StateFlow`s (`isRunnin
 | `global_max_stroke` | Int | 100 | Stroke-position ceiling. |
 | `invert_stroke` | Boolean | false | Flip user-coord 0 to device-coord 100 at the API client boundary. Applied once in `setStrokeRange` and `parkAtRetracted`. |
 | `match_threshold` | Float | 30.0 | Path-normalised DTW distance below which a match counts. Cross-validation also uses `threshold × 1.4` as its outlier cutoff. |
+| `device_type` | String | `handy` | `handy` or `lovense`. Selects the transport and which max-speed key applies. |
+| `lovense_max_speed` | Int | 100 | Max speed for a Lovense toy (per-device; `global_max_speed` stays the Handy's). |
+| `lovense_address` / `lovense_name` | String | `""` | The paired toy. "Forget toy" clears both. |
+| `toy_intensity` | Int | 20 | Last intensity on the toy page (design space). |
+| `toy_keepalive_mode` / `toy_keepalive_interval_s` | String / Int | battery + silent `Vibrate:0;` / 30 | Keep-alive traffic, set from the test panel. |
+| `toy_disconnect_history` | String | `""` | Last 5 toy disconnects (time, connected and idle durations, unexpected or by you), for the test panel. |
+| `battery_opt_asked` | Boolean | false | The one-time battery-optimization prompt has been shown. |
 | `onboarded` | Boolean | false | Set true when the user taps **Build templates** **or** bails out via Training's own menu — either way ControlActivity stops force-routing them back. |
 
 `PreferencesManager.snapshot()` returns a single `Snapshot` so a coroutine can read everything in one suspend without juggling individual Flows.
@@ -260,9 +267,23 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 
 **Ramp supersession (`velocityEpoch`).** `rampSpeed`/`rampStop` write velocity across ~1.5 s in their own coroutines. A monotonic epoch, bumped by every single-shot velocity write (`start`/`stop`/`setSpeed`/`setSpeedModulated`) and captured by each ramp, lets a ramp abandon its remaining legs — and skip its terminal `hamp/stop` — the instant a newer command bumps it. Without this, a "begin" landing while a "stop" ramp was still draining would be overwritten back to 0 a beat later, so the device appeared to refuse to restart.
 
+## Device transports
+
+`HandyV2ApiClient` owns all motion policy (velocity epoch, `rampSpeed` / `rampStop`, invert, global band, transient writes, state flows, debug log, `lastError`) and is the single device object the rest of the app uses. Below it sits a small `DeviceTransport` (`api/DeviceTransport.kt`) that does only wire work:
+
+- `HandyRestTransport`: the Handy V2 REST calls (default).
+- `LovenseBleTransport`: a Lovense toy over BLE GATT (`Vibrate:N;`, levels 0..20; protocol helpers in the Android-free `LovenseProtocol`).
+
+`HandyVoiceApp.configureDevice(prefs snapshot)` installs the transport chosen in Settings; `useTransport` only works while DISCONNECTED. Transports report back through `TransportListener` (log lines, battery, device name, and an unexpected link drop, which flips the client to DISCONNECTED with a `lastError` so the usual red status line shows it). GATT operations are serialized inside the Lovense transport (one Mutex, suspend until callback, ~1 s timeout); a 30 s `Battery;` poll doubles as keep-awake.
+
+### Toy page
+
+When the selected device is Lovense, `ControlActivity` shows `ToyPanel` (`ui/ToyPanel.kt`, layout `panel_toy.xml`) in place of the voice `homePanel`; `showMore` and `syncDevice` choose between them. `ToyPanel` owns only view wiring and routes motion through the same client, `HumanizeEngine` and `PatternEngine` calls the Manual tab uses (maths in the Android-free `ToyIntensity`). Intensity persists as `toy_intensity`. Listening is gated: `toyPageShowing` stops `applyListeningMode` and the `onResume` re-arm from starting the mic, even in always-on mode, until the user opens More.
+
 ## Things deliberately missing
 
-- **No background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
+- **Toy foreground service (the one exception to "no background service").** While a Lovense toy is connected, `service/ToyConnectionService` (connectedDevice foreground service, ongoing notification with a Stop action, `HandyVoiceV2:toy` partial wake lock) keeps the process and the BLE link plus its keep-alive alive with the screen off or the app backgrounded. `HandyVoiceApp` starts/stops it from the shared client's connection state, and owns the motion engines (appScope) and `stopMotion()` so the notification's Stop works with no activity. The service holds no mic and no connection logic. A silent `Vibrate:0;` keep-alive is written on the 30 s poll while the motor is stopped.
+- **No mic background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.
 - **No automatic reconnection retries.** If `api.connect()` fails, the user must tap Connect again. The API client surfaces errors in `lastError` and `debugLog`, and `ControlActivity` shows the reason on the status line in red (plus a toast on a manual Connect tap) so the failure is visible rather than a silent "Disconnected". This covers both the manual tap and the splash-time auto-connect, since both end in `DISCONNECTED` with the reason cached. Retries belong in user-driven UI, not silently in the background.
 - **No template versioning beyond `format: 1`.** A future migration script can read `format` and adapt; for now there is one shape.
 - **No remote sync of templates.** Templates are speaker-locked by design; syncing them across devices defeats the point unless the device-to-device sync is between two devices used by the same speaker, which is rarely worth the complexity for four labels.

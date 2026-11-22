@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.handyvoice.v2.api.KeepAliveMode
+import com.handyvoice.v2.ui.ToyDisconnectRecord
+import com.handyvoice.v2.ui.ToyLabFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -20,6 +23,9 @@ class PreferencesManager(private val context: Context) {
         private val KEY_CONNECTION_KEY = stringPreferencesKey("connection_key")
         private val KEY_LISTENING_MODE = stringPreferencesKey("listening_mode")
         private val KEY_GLOBAL_MAX_SPEED = intPreferencesKey("global_max_speed")
+        // Separate cap for a Lovense toy: the Handy cap is a stroke-speed
+        // comfort limit (often low), which would pin vibration to level 1-2 of 20.
+        private val KEY_LOVENSE_MAX_SPEED = intPreferencesKey("lovense_max_speed")
         private val KEY_MATCH_THRESHOLD = floatPreferencesKey("match_threshold")
         private val KEY_ONBOARDED = booleanPreferencesKey("onboarded")
         private val KEY_GLOBAL_MIN_STROKE = intPreferencesKey("global_min_stroke")
@@ -29,12 +35,28 @@ class PreferencesManager(private val context: Context) {
         private val KEY_MANUAL_STROKE_MIN = intPreferencesKey("manual_stroke_min")
         private val KEY_MANUAL_STROKE_MAX = intPreferencesKey("manual_stroke_max")
         private val KEY_MANUAL_SPEED = intPreferencesKey("manual_speed_design")
+        private val KEY_TOY_INTENSITY = intPreferencesKey("toy_intensity")
         private val KEY_HUMANIZE_STRENGTH = intPreferencesKey("humanize_strength")
+        private val KEY_DEVICE_TYPE = stringPreferencesKey("device_type")
+        private val KEY_LOVENSE_ADDRESS = stringPreferencesKey("lovense_address")
+        private val KEY_LOVENSE_NAME = stringPreferencesKey("lovense_name")
+        private val KEY_TOY_KEEPALIVE_MODE = stringPreferencesKey("toy_keepalive_mode")
+        private val KEY_TOY_KEEPALIVE_INTERVAL_S = intPreferencesKey("toy_keepalive_interval_s")
+        private val KEY_TOY_DISCONNECTS = stringPreferencesKey("toy_disconnect_history")
+        private val KEY_BATTERY_OPT_ASKED = booleanPreferencesKey("battery_opt_asked")
+
+        const val DEVICE_HANDY = "handy"
+        const val DEVICE_LOVENSE = "lovense"
 
         const val MODE_BUTTON = "button"
         const val MODE_ALWAYS_ON = "always_on"
 
         const val DEFAULT_GLOBAL_MAX_SPEED = 30          // Owen's preference.
+        const val DEFAULT_LOVENSE_MAX_SPEED = 100        // full vibration range; lower it in Settings.
+
+        private fun maxSpeedOf(p: androidx.datastore.preferences.core.Preferences): Int =
+            if (p[KEY_DEVICE_TYPE] == DEVICE_LOVENSE) p[KEY_LOVENSE_MAX_SPEED] ?: DEFAULT_LOVENSE_MAX_SPEED
+            else p[KEY_GLOBAL_MAX_SPEED] ?: DEFAULT_GLOBAL_MAX_SPEED
         const val DEFAULT_THRESHOLD: Float = 30f          // path-normalized DTW units.
         const val DEFAULT_GLOBAL_MIN_STROKE = 0          // stroke-position floor (presets squashed into [min,max]).
         const val DEFAULT_GLOBAL_MAX_STROKE = 100        // stroke-position ceiling.
@@ -44,6 +66,7 @@ class PreferencesManager(private val context: Context) {
         const val MAX_IDLE_TIMEOUT_MIN = 30
         const val DEFAULT_MANUAL_STROKE_MIN = 0          // last position of the Manual tab's stroke-min slider.
         const val DEFAULT_MANUAL_STROKE_MAX = 100        // last position of the Manual tab's stroke-max slider.
+        const val DEFAULT_TOY_INTENSITY = 20             // last intensity on the Lovense toy page (design space, own scale from the Handy's).
         const val DEFAULT_MANUAL_SPEED = 0               // last position of the Manual tab's speed slider (design space).
         // Humanize amount for regular (non-pattern) motion: 0 = off (pure
         // constant speed), 100 = strongest organic drift. Default is a gentle
@@ -58,8 +81,9 @@ class PreferencesManager(private val context: Context) {
     val listeningMode: Flow<String> = context.dataStore.data
         .map { it[KEY_LISTENING_MODE] ?: MODE_BUTTON }
 
+    /** Max speed for the currently selected device type (each device keeps its own). */
     val globalMaxSpeed: Flow<Int> = context.dataStore.data
-        .map { it[KEY_GLOBAL_MAX_SPEED] ?: DEFAULT_GLOBAL_MAX_SPEED }
+        .map { maxSpeedOf(it) }
 
     val matchThreshold: Flow<Float> = context.dataStore.data
         .map { it[KEY_MATCH_THRESHOLD] ?: DEFAULT_THRESHOLD }
@@ -91,9 +115,54 @@ class PreferencesManager(private val context: Context) {
     val humanizeStrength: Flow<Int> = context.dataStore.data
         .map { it[KEY_HUMANIZE_STRENGTH] ?: DEFAULT_HUMANIZE_STRENGTH }
 
+    val deviceType: Flow<String> = context.dataStore.data
+        .map { it[KEY_DEVICE_TYPE] ?: DEVICE_HANDY }
+
+    val lovenseAddress: Flow<String> = context.dataStore.data
+        .map { it[KEY_LOVENSE_ADDRESS] ?: "" }
+
+    val lovenseName: Flow<String> = context.dataStore.data
+        .map { it[KEY_LOVENSE_NAME] ?: "" }
+
+    suspend fun toyKeepAliveMode(): String =
+        context.dataStore.data.first()[KEY_TOY_KEEPALIVE_MODE] ?: KeepAliveMode.DEFAULT.id
+    suspend fun toyKeepAliveIntervalS(): Int =
+        context.dataStore.data.first()[KEY_TOY_KEEPALIVE_INTERVAL_S] ?: KeepAliveMode.DEFAULT_INTERVAL_S
+    suspend fun setToyKeepAlive(mode: KeepAliveMode, intervalS: Int) = edit {
+        it[KEY_TOY_KEEPALIVE_MODE] = mode.id
+        it[KEY_TOY_KEEPALIVE_INTERVAL_S] = intervalS
+    }
+
+    /** The last few ended toy links, newest first. */
+    suspend fun toyDisconnects(): List<ToyDisconnectRecord> =
+        ToyLabFormat.parseHistory(context.dataStore.data.first()[KEY_TOY_DISCONNECTS] ?: "")
+    suspend fun addToyDisconnect(rec: ToyDisconnectRecord) = edit {
+        it[KEY_TOY_DISCONNECTS] = ToyLabFormat.appendHistory(it[KEY_TOY_DISCONNECTS] ?: "", rec)
+    }
+
+    /** True once the one-time "allow background use" dialog has been shown. */
+    suspend fun batteryOptAsked(): Boolean = context.dataStore.data.first()[KEY_BATTERY_OPT_ASKED] ?: false
+    suspend fun setBatteryOptAsked() = edit { it[KEY_BATTERY_OPT_ASKED] = true }
+
+    suspend fun setDeviceType(value: String) = edit {
+        it[KEY_DEVICE_TYPE] = if (value == DEVICE_LOVENSE) DEVICE_LOVENSE else DEVICE_HANDY
+    }
+    suspend fun setLovenseToy(address: String, name: String) = edit {
+        it[KEY_LOVENSE_ADDRESS] = address
+        it[KEY_LOVENSE_NAME] = name
+    }
+    suspend fun clearLovenseToy() = edit {
+        it.remove(KEY_LOVENSE_ADDRESS)
+        it.remove(KEY_LOVENSE_NAME)
+    }
+
     suspend fun setConnectionKey(value: String) = edit { it[KEY_CONNECTION_KEY] = value }
     suspend fun setListeningMode(value: String) = edit { it[KEY_LISTENING_MODE] = value }
-    suspend fun setGlobalMaxSpeed(value: Int) = edit { it[KEY_GLOBAL_MAX_SPEED] = value.coerceIn(1, 100) }
+    /** Writes the max speed of the currently selected device type. */
+    suspend fun setGlobalMaxSpeed(value: Int) = edit {
+        val key = if (it[KEY_DEVICE_TYPE] == DEVICE_LOVENSE) KEY_LOVENSE_MAX_SPEED else KEY_GLOBAL_MAX_SPEED
+        it[key] = value.coerceIn(1, 100)
+    }
     suspend fun setMatchThreshold(value: Float) = edit { it[KEY_MATCH_THRESHOLD] = value }
     suspend fun setOnboarded(value: Boolean) = edit { it[KEY_ONBOARDED] = value }
     suspend fun setGlobalMinStroke(value: Int) = edit { it[KEY_GLOBAL_MIN_STROKE] = value.coerceIn(0, 100) }
@@ -105,13 +174,14 @@ class PreferencesManager(private val context: Context) {
     suspend fun setManualStrokeMin(value: Int) = edit { it[KEY_MANUAL_STROKE_MIN] = value.coerceIn(0, 100) }
     suspend fun setManualStrokeMax(value: Int) = edit { it[KEY_MANUAL_STROKE_MAX] = value.coerceIn(0, 100) }
     suspend fun setManualSpeed(value: Int) = edit { it[KEY_MANUAL_SPEED] = value.coerceIn(0, 100) }
+    suspend fun setToyIntensity(value: Int) = edit { it[KEY_TOY_INTENSITY] = value.coerceIn(0, 100) }
     suspend fun setHumanizeStrength(value: Int) = edit { it[KEY_HUMANIZE_STRENGTH] = value.coerceIn(0, 100) }
 
     suspend fun snapshot(): Snapshot = context.dataStore.data.first().let {
         Snapshot(
             connectionKey = it[KEY_CONNECTION_KEY] ?: "",
             listeningMode = it[KEY_LISTENING_MODE] ?: MODE_BUTTON,
-            globalMaxSpeed = it[KEY_GLOBAL_MAX_SPEED] ?: DEFAULT_GLOBAL_MAX_SPEED,
+            globalMaxSpeed = maxSpeedOf(it),
             matchThreshold = it[KEY_MATCH_THRESHOLD] ?: DEFAULT_THRESHOLD,
             onboarded = it[KEY_ONBOARDED] ?: false,
             globalMinStroke = it[KEY_GLOBAL_MIN_STROKE] ?: DEFAULT_GLOBAL_MIN_STROKE,
@@ -122,6 +192,12 @@ class PreferencesManager(private val context: Context) {
             manualStrokeMax = it[KEY_MANUAL_STROKE_MAX] ?: DEFAULT_MANUAL_STROKE_MAX,
             manualSpeed = it[KEY_MANUAL_SPEED] ?: DEFAULT_MANUAL_SPEED,
             humanizeStrength = it[KEY_HUMANIZE_STRENGTH] ?: DEFAULT_HUMANIZE_STRENGTH,
+            toyIntensity = it[KEY_TOY_INTENSITY] ?: DEFAULT_TOY_INTENSITY,
+            deviceType = it[KEY_DEVICE_TYPE] ?: DEVICE_HANDY,
+            lovenseAddress = it[KEY_LOVENSE_ADDRESS] ?: "",
+            lovenseName = it[KEY_LOVENSE_NAME] ?: "",
+            toyKeepAliveMode = it[KEY_TOY_KEEPALIVE_MODE] ?: KeepAliveMode.DEFAULT.id,
+            toyKeepAliveIntervalS = it[KEY_TOY_KEEPALIVE_INTERVAL_S] ?: KeepAliveMode.DEFAULT_INTERVAL_S,
         )
     }
 
@@ -143,5 +219,13 @@ class PreferencesManager(private val context: Context) {
         val manualStrokeMax: Int,
         val manualSpeed: Int,
         val humanizeStrength: Int,
-    )
+        val deviceType: String = DEVICE_HANDY,
+        val lovenseAddress: String = "",
+        val lovenseName: String = "",
+        val toyIntensity: Int = DEFAULT_TOY_INTENSITY,
+        val toyKeepAliveMode: String = KeepAliveMode.DEFAULT.id,
+        val toyKeepAliveIntervalS: Int = KeepAliveMode.DEFAULT_INTERVAL_S,
+    ) {
+        val isLovense: Boolean get() = deviceType == DEVICE_LOVENSE
+    }
 }

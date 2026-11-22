@@ -1,33 +1,39 @@
 package com.handyvoice.v2.api
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PUT
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 enum class ConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
 
 /**
- * @param api the REST service. Defaults to the real Retrofit one; tests pass
- * an in-memory fake so the client's ramp / epoch logic runs without network.
+ * Transport-agnostic device client: ramps, epochs, invert, band, state flows.
+ * Wire access goes through a [DeviceTransport] (Handy REST by default, or
+ * Lovense BLE); swap it with [useTransport] while disconnected.
+ *
+ * @param transport the active wire transport.
  */
 class HandyV2ApiClient(
-    private val api: HandyV2ApiService = createDefaultService(),
+    transport: DeviceTransport = HandyRestTransport(),
 ) {
 
+    /**
+     * Convenience for tests: wrap an in-memory fake REST service so the
+     * client's ramp / epoch logic runs without network.
+     */
+    constructor(api: HandyV2ApiService) : this(HandyRestTransport(api))
+
     companion object {
-        private const val BASE_URL = "https://www.handyfeeling.com/api/handy/v2/"
         private const val MAX_LOG_LINES = 50
 
         // Smooth-ramp tuning for rampSpeed (faster / slower). The transition
@@ -49,23 +55,6 @@ class HandyV2ApiClient(
         // would give a ~300 ms ramp that reads as instant.
         private const val STOP_RAMP_MS = 1500L
         private const val STOP_RAMP_STEPS = 12
-
-        private fun createDefaultService(): HandyV2ApiService {
-            val okHttpClient = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .writeTimeout(15, TimeUnit.SECONDS)
-                .addInterceptor(HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BASIC
-                })
-                .build()
-            return Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .client(okHttpClient)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(HandyV2ApiService::class.java)
-        }
     }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -89,7 +78,99 @@ class HandyV2ApiClient(
     private val _debugLog = MutableStateFlow<List<String>>(emptyList())
     val debugLog: StateFlow<List<String>> = _debugLog.asStateFlow()
 
+    private val _battery = MutableStateFlow<Int?>(null)
+    /** Battery percent when the active transport reports one (Lovense), else null. */
+    val battery: StateFlow<Int?> = _battery.asStateFlow()
+
+    private val _deviceName = MutableStateFlow<String?>(null)
+    /** Friendly name of the connected device when the transport knows it (Lovense), else null. */
+    val deviceName: StateFlow<String?> = _deviceName.asStateFlow()
+
+    private val _warning = MutableStateFlow<String?>(null)
+    /** Non-fatal warning from the transport for the current connection, else null. */
+    val warning: StateFlow<String?> = _warning.asStateFlow()
+
+    /**
+     * True from connect / disconnect until the next successful [start]. While
+     * set, positive velocity writes are refused, so a motion loop that outlived
+     * a lost connection (or a speed edit before any start) can never restart
+     * the device on its own after a reconnect.
+     */
+    @Volatile private var startRequired = true
+
     private var connectionKey: String = ""
+
+    private var transport: DeviceTransport = transport
+
+    /**
+     * Orders a link drop against connect()'s success commit. A drop reported
+     * while CONNECTING sets [droppedDuringConnect]; connect() then fails
+     * instead of overwriting the DISCONNECTED it published with CONNECTED.
+     */
+    private val connectLock = Any()
+    private var droppedDuringConnect = false
+
+    private val transportListener = object : TransportListener {
+        override fun onLog(message: String) = log(message)
+        override fun onBattery(percent: Int?) { _battery.value = percent }
+        override fun onDeviceName(name: String?) { _deviceName.value = name }
+        override fun onWarning(message: String) { _warning.value = message }
+        override fun onUnexpectedDisconnect(reason: String) {
+            bumpVelocityEpoch()
+            startRequired = true
+            _warning.value = null
+            _isRunning.value = false
+            _currentSpeed.value = 0
+            _battery.value = null
+            _deviceName.value = null
+            _lastError.value = reason
+            log(reason)
+            synchronized(connectLock) {
+                droppedDuringConnect = true
+                _connectionState.value = ConnectionState.DISCONNECTED
+            }
+        }
+    }
+
+    init {
+        this.transport.listener = transportListener
+    }
+
+    /** "handy" or "lovense". */
+    val transportKind: String get() = transport.kind
+
+    // ---- Lovense test panel passthroughs (no-ops on other transports) -------
+
+    /** Send one allow-listed raw probe command; see [LovenseProtocol.parseProbe]. */
+    suspend fun probe(cmd: String): ProbeResult =
+        if (_connectionState.value != ConnectionState.CONNECTED) ProbeResult(false, null, "Not connected.")
+        else try { transport.probe(cmd) } catch (e: Exception) { ProbeResult(false, null, "Probe error: ${e.message}") }
+
+    /** Zero every probe candidate and resume the normal keep-alive. */
+    suspend fun probeStopAll() {
+        if (_connectionState.value == ConnectionState.CONNECTED) runCatching { transport.probeStopAll() }
+    }
+
+    fun setToyKeepAlive(mode: KeepAliveMode, intervalS: Int) = transport.setKeepAlive(mode, intervalS)
+
+    fun toyDiagnostics(): ToyDiagnostics? = transport.diagnostics()
+
+    /**
+     * Swap the wire transport. Only allowed while DISCONNECTED; returns false
+     * (and changes nothing) otherwise.
+     */
+    fun useTransport(t: DeviceTransport): Boolean {
+        if (_connectionState.value != ConnectionState.DISCONNECTED) return false
+        if (t === transport) return true
+        transport.listener = null
+        transport = t
+        t.listener = transportListener
+        t.setConnectionKey(connectionKey)
+        _battery.value = null
+        _deviceName.value = null
+        _lastError.value = null
+        return true
+    }
 
     /**
      * When true, "user-coord 0" is the device's fully-extended end and
@@ -128,6 +209,7 @@ class HandyV2ApiClient(
 
     fun setConnectionKey(key: String) {
         connectionKey = key.trim()
+        transport.setConnectionKey(connectionKey)
     }
 
     fun getConnectionKey(): String = connectionKey
@@ -152,39 +234,65 @@ class HandyV2ApiClient(
         _debugLog.value = current
     }
 
+    /**
+     * Runs at the start of every [connect], before anything else. The app sets
+     * it to cancel and join the pattern / humanize loops, so no connect path
+     * (home, toy page, setup panel, splash, bootstrap, test panel) can come up
+     * with a stale motion loop still alive.
+     */
+    @Volatile var preConnect: (suspend () -> Unit)? = null
+
     suspend fun connect(): Boolean {
-        if (connectionKey.isBlank()) {
-            _lastError.value = "Connection key required"
+        preConnect?.invoke()
+        transport.preflightError()?.let {
+            _lastError.value = it
             return false
         }
 
-        _connectionState.value = ConnectionState.CONNECTING
+        synchronized(connectLock) {
+            droppedDuringConnect = false
+            _connectionState.value = ConnectionState.CONNECTING
+        }
+        _warning.value = null
+        startRequired = true
         log("Connecting...")
 
         return try {
-            val response = api.checkConnection(connectionKey)
-            if (response.isSuccessful && response.body()?.connected == true) {
-                log("Connected.")
-                val modeResponse = api.setMode(connectionKey, ModeRequest(0))
-                if (modeResponse.isSuccessful) {
-                    log("HAMP mode set.")
-                    _connectionState.value = ConnectionState.CONNECTED
-                    _lastError.value = null
-                    refreshState()
-                    parkAtRetracted()
-                    true
-                } else {
-                    log("Failed to set mode: ${modeResponse.code()}")
-                    _connectionState.value = ConnectionState.DISCONNECTED
-                    _lastError.value = "Failed to set mode"
-                    false
-                }
+            val result = transport.connect()
+            val committed = result.ok && synchronized(connectLock) {
+                if (droppedDuringConnect) false
+                else { _connectionState.value = ConnectionState.CONNECTED; true }
+            }
+            if (result.ok && !committed) {
+                // The link dropped after the transport's last check; the drop
+                // handler already published DISCONNECTED and the reason.
+                log("Connection dropped during setup.")
+                _warning.value = null
+                false
+            } else if (result.ok) {
+                startRequired = true
+                _lastError.value = null
+                refreshState()
+                parkAtRetracted()
+                true
             } else {
-                log("Device not connected")
                 _connectionState.value = ConnectionState.DISCONNECTED
-                _lastError.value = "Device not connected. Make sure your Handy is online."
+                _warning.value = null
+                _lastError.value = result.error
                 false
             }
+        } catch (e: CancellationException) {
+            // Cancelled mid-connect: leave nothing half-open, then propagate.
+            withContext(NonCancellable) {
+                runCatching { transport.disconnect() }
+                startRequired = true
+                _warning.value = null
+                _battery.value = null
+                _deviceName.value = null
+                _connectionState.value = ConnectionState.DISCONNECTED
+            }
+            log("Connect cancelled")
+            throw e
         } catch (e: Exception) {
             log("Connection error: ${e.message}")
             _connectionState.value = ConnectionState.DISCONNECTED
@@ -195,7 +303,12 @@ class HandyV2ApiClient(
 
     suspend fun disconnect() {
         stop()
+        runCatching { transport.disconnect() }
+        startRequired = true
+        _warning.value = null
         _connectionState.value = ConnectionState.DISCONNECTED
+        _battery.value = null
+        _deviceName.value = null
         log("Disconnected")
     }
 
@@ -209,16 +322,16 @@ class HandyV2ApiClient(
 
         return try {
             log("Starting...")
-            val response = api.hampStart(connectionKey)
-            if (response.isSuccessful) {
+            val result = transport.start()
+            if (result.ok) {
+                startRequired = false
                 _isRunning.value = true
                 _lastError.value = null
                 log("Started.")
                 true
             } else {
-                val body = response.errorBody()?.string() ?: "no body"
-                _lastError.value = "Start failed: ${response.code()}"
-                log("Start failed: code=${response.code()} body=$body")
+                _lastError.value = result.error
+                result.detail?.let { log(it) }
                 false
             }
         } catch (e: Exception) {
@@ -233,11 +346,18 @@ class HandyV2ApiClient(
         bumpVelocityEpoch()
         return try {
             log("Stopping...")
-            val response = api.hampStop(connectionKey)
+            val result = transport.stop()
             _isRunning.value = false
-            _lastError.value = null
-            log("Stopped.")
-            response.isSuccessful
+            if (result.ok) {
+                _lastError.value = null
+                log("Stopped.")
+            } else {
+                // Never report an unconfirmed stop as a clean one.
+                _lastError.value = result.error ?: "Stop not confirmed"
+                result.detail?.let { log(it) }
+                log("Stop not confirmed.")
+            }
+            result.ok
         } catch (e: Exception) {
             _isRunning.value = false
             _lastError.value = "Stop error: ${e.message}"
@@ -257,9 +377,13 @@ class HandyV2ApiClient(
             return false
         }
 
+        val velocity = percent.coerceIn(0, 100)
+        if (velocity > 0 && startRequired) {
+            log("Ignoring speed $velocity%: start() first.")
+            return false
+        }
         // A direct speed set (e.g. begin's velocity write) supersedes a ramp.
         bumpVelocityEpoch()
-        val velocity = percent.coerceIn(0, 100)
         log("Setting speed to $velocity%")
         return putVelocity(velocity)
     }
@@ -282,6 +406,10 @@ class HandyV2ApiClient(
     suspend fun rampSpeed(target: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) {
             _lastError.value = "Not connected"
+            return false
+        }
+        if (target > 0 && startRequired) {
+            log("Ignoring ramp to $target%: start() first.")
             return false
         }
         val myEpoch = bumpVelocityEpoch()
@@ -355,13 +483,13 @@ class HandyV2ApiClient(
      */
     suspend fun setSpeedModulated(velocity: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) return false
+        if (velocity > 0 && startRequired) return false
         // The humanize loop owns velocity once running; its first write here
         // supersedes a draining stop-ramp (begin-with-humanize doesn't call
         // start() when the device is still flagged running mid-wind-down).
         bumpVelocityEpoch()
         return try {
-            api.setVelocity(connectionKey, VelocityRequest(velocity.coerceIn(0, 100).toDouble()))
-                .isSuccessful
+            transport.setVelocity(velocity.coerceIn(0, 100)).ok
         } catch (_: Exception) {
             false
         }
@@ -391,7 +519,7 @@ class HandyV2ApiClient(
         val devMin = if (invertStroke) 100 - userMax else userMin
         val devMax = if (invertStroke) 100 - userMin else userMax
         return try {
-            api.setSlide(connectionKey, SlideRangeRequest(devMin, devMax)).isSuccessful
+            transport.setSlide(devMin, devMax).ok
         } catch (_: Exception) {
             false
         }
@@ -403,15 +531,14 @@ class HandyV2ApiClient(
      */
     private suspend fun putVelocity(velocity: Int): Boolean {
         return try {
-            val response = api.setVelocity(connectionKey, VelocityRequest(velocity.toDouble()))
-            if (response.isSuccessful) {
+            val result = transport.setVelocity(velocity)
+            if (result.ok) {
                 _currentSpeed.value = velocity
                 _lastError.value = null
                 true
             } else {
-                val body = response.errorBody()?.string() ?: "no body"
-                _lastError.value = "Set speed failed: ${response.code()}"
-                log("Speed failed: code=${response.code()} body=$body")
+                _lastError.value = result.error
+                result.detail?.let { log(it) }
                 false
             }
         } catch (e: Exception) {
@@ -452,16 +579,15 @@ class HandyV2ApiClient(
         return try {
             val tag = if (invertStroke) " (inv → dev $devMin-$devMax)" else ""
             log("Setting stroke: $userMin-$userMax%$tag")
-            val response = api.setSlide(connectionKey, SlideRangeRequest(devMin, devMax))
-            if (response.isSuccessful) {
+            val result = transport.setSlide(devMin, devMax)
+            if (result.ok) {
                 _strokeMin.value = userMin
                 _strokeMax.value = userMax
                 _lastError.value = null
                 true
             } else {
-                val body = response.errorBody()?.string() ?: "no body"
-                _lastError.value = "Set stroke failed (code=${response.code()})"
-                log("Stroke failed: code=${response.code()} body=$body")
+                _lastError.value = result.error
+                result.detail?.let { log(it) }
                 false
             }
         } catch (e: Exception) {
@@ -502,94 +628,13 @@ class HandyV2ApiClient(
             devMax = userMax
             target = devMin  // user's "retracted" = device's retracted end
         }
-        log("Parking to user-coord 0 (device $target, band $devMin..$devMax)...")
-        val durationMs = 2500
-
-        // HDSP position is clamped by the active slide range. Open the
-        // range to the global safety band first so "position $target"
-        // means what we expect.
-        runCatching {
-            val openRange = api.setSlide(connectionKey, SlideRangeRequest(devMin, devMax))
-            if (openRange.isSuccessful) {
-                _strokeMin.value = userMin
-                _strokeMax.value = userMax
-                log("Slide range set to device $devMin..$devMax for park.")
-            } else {
-                log("Park: set-range failed code=${openRange.code()}")
-            }
-        }
-
-        val parked = tryHdspPark(target, durationMs)
-        if (!parked) {
-            log("HDSP path failed; trying HAMP slide($target,$target) fallback.")
-            tryHampZeroPark(target)
-        }
-        // Ensure we leave the device in HAMP for the rest of the app.
-        val backToHamp = runCatching { api.setMode(connectionKey, ModeRequest(0)) }
-        backToHamp.getOrNull()?.let {
-            if (!it.isSuccessful) log("Park: restore HAMP failed code=${it.code()}")
+        val rangeOpened = transport.park(devMin, devMax, target)
+        if (rangeOpened) {
+            _strokeMin.value = userMin
+            _strokeMax.value = userMax
         }
         _isRunning.value = false
         _currentSpeed.value = 0
-    }
-
-    private suspend fun tryHdspPark(target: Int, durationMs: Int): Boolean {
-        return try {
-            val hdspMode = api.setMode(connectionKey, ModeRequest(2))
-            if (!hdspMode.isSuccessful) {
-                log("Park: HDSP mode switch failed code=${hdspMode.code()}")
-                return false
-            }
-            log("HDSP mode set; sending xpt position=$target duration=${durationMs}ms.")
-            // Small breath after the mode switch — some firmwares need a
-            // moment before they accept HDSP commands.
-            delay(120)
-            val resp = api.hdspXpt(
-                connectionKey,
-                HdspPositionRequest(position = target, duration = durationMs)
-            )
-            if (!resp.isSuccessful) {
-                val body = resp.errorBody()?.string() ?: "no body"
-                log("Park: hdsp/xpt failed code=${resp.code()} body=$body")
-                return false
-            }
-            log("hdsp/xpt accepted; waiting ${durationMs}ms for slide.")
-            delay((durationMs + 200).toLong())
-            log("Parked via HDSP.")
-            true
-        } catch (e: Exception) {
-            log("Park HDSP error: ${e.message}")
-            false
-        }
-    }
-
-    /**
-     * Fallback for firmwares without working HDSP: ask HAMP for a zero-width
-     * range at the target end (0,0 or 100,100). On the Handy this collapses
-     * the stroke and the firmware parks at that position. Velocity is
-     * dropped to 0 so we never pump even briefly.
-     */
-    private suspend fun tryHampZeroPark(target: Int): Boolean {
-        return try {
-            val hampMode = api.setMode(connectionKey, ModeRequest(0))
-            if (!hampMode.isSuccessful) {
-                log("Park: HAMP mode failed code=${hampMode.code()}")
-                return false
-            }
-            delay(120)
-            val slide = api.setSlide(connectionKey, SlideRangeRequest(target, target))
-            if (!slide.isSuccessful) {
-                log("Park: HAMP slide($target,$target) failed code=${slide.code()}")
-                return false
-            }
-            // Velocity 0 means no pumping even if firmware briefly starts.
-            api.setVelocity(connectionKey, VelocityRequest(0.0))
-            log("Parked via HAMP slide($target,$target).")
-            true
-        } catch (e: Exception) {
-            log("Park HAMP error: ${e.message}")
-            false
-        }
     }
 
     suspend fun adjustSpeed(delta: Int): Boolean {
@@ -599,10 +644,7 @@ class HandyV2ApiClient(
 
     private suspend fun refreshState() {
         try {
-            val velocityResponse = api.getVelocity(connectionKey)
-            if (velocityResponse.isSuccessful) {
-                velocityResponse.body()?.let { _currentSpeed.value = it.velocity.toInt() }
-            }
+            transport.readVelocity()?.let { _currentSpeed.value = it }
         } catch (_: Exception) {
             // best-effort
         }

@@ -146,22 +146,26 @@ The 12 envelopes:
 | `bounce` | sine 0.40..0.90 over 2 s, 16 steps | 2 s |
 | `climax` | 0.30 → 0.50 → 0.70 → 0.85 (3 s each) → 1.0 hold (8 s) → reset (2 s) | ~22 s |
 
-No envelope is reachable by voice. All twelve are tap-only on the Manual tab, each with its own stroke range that's set just before the envelope starts (see `ControlActivity.TapPattern` for the data class). `tick` is the old `pulse` metronome envelope, renamed back when `pulse` was dropped from the spoken set.
+No envelope is reachable by voice. All twelve are tap-only on the Manual tab, each with its own stroke range that's set just before the envelope starts (the specs live in `dispatch/TapPatterns.kt`, shared by the Manual grid and the Lovense toy page). `tick` is the old `pulse` metronome envelope, renamed back when `pulse` was dropped from the spoken set.
 
 ### Lifecycle and interaction
 
-- `PatternEngine.start(name, intensity)` cancels any prior pattern, calls `api.start()` if `isRunning` is false, and launches the envelope on the activity's `lifecycleScope`. Returns `false` on unknown name or `api.start()` failure.
+- `PatternEngine.start(name, intensity)` cancels any prior pattern, calls `api.start()` if `isRunning` is false, and launches the envelope on the process-wide `appScope` (the engine is owned by `HandyVoiceApp`). Returns `false` on unknown name or `api.start()` failure.
 - `PatternEngine.cancel()` cancels the job without stopping the device.
 - `PatternEngine.stop()` cancels and calls `api.stop()`.
 - The STOP button on `ControlActivity` calls `patternEngine.cancel()` then `api.stop()`. Voice `Stop` action does the same through dispatch.
-- Activity destruction implicitly cancels everything via `lifecycleScope`.
+- The loops live on `appScope`, so they survive the activity. They are cancelled by `HandyVoiceApp.awaitMotionTeardown()` (on DISCONNECTED and before every connect), by every stop path, and, for the Handy, by `ControlActivity.onDestroy`. With a Lovense toy the foreground service keeps them alive after the activity goes.
 
 ### Adding a new pattern
 
 1. Add a `suspend fun newpattern(api: HandyV2ApiClient, intensity: Int)` to `PatternEngine.companion` that loops forever emitting `(envelope, durationMs)` via the shared `emit()` helper.
 2. Add the entry to the `PATTERNS` map: `"newpattern" to ::newpattern`.
 3. To bind it to a voice label, add a row to `Dispatch.TABLE`: `"newword" to VoiceAction.Pattern("newpattern")`. Then add `"newword"` to `LABELS` + `PROMPTS` and re-record. (Weigh that against the collision cost — every extra label narrows the gaps in MFCC space. Tap-only on the Manual tab is the cheaper default.)
-4. To bind it to a Manual tap button, add a grid button to `activity_control.xml`, an entry to `ControlActivity.tapOnlyPatterns` with its stroke range, and click-wire it in `wireManualPatterns`.
+4. To bind it to a Manual tap button, add a grid button to `activity_control.xml`, an entry to `TapPatterns.ALL` with its stroke range, and click-wire it in `ControlActivity.wireManualPatterns` (and the toy page's grid in `ToyPanel` if wanted).
+
+## Commands on a Lovense toy
+
+The same labels and dispatch table drive a Lovense toy when it is selected in Settings; only the transport under `HandyV2ApiClient` changes. Speeds 0..100 map to `Vibrate:0..20;`, and stroke-range actions (`SetRange`, the range part of `Preset` / `Pattern`) are ignored because a vibrator has no stroke. The speed cap is the per-device `lovense_max_speed` (default 100), not the Handy's. Voice is not auto-started on the toy page; the toy page has its own intensity and pattern controls. See [LOVENSE.md](LOVENSE.md).
 
 ## Divergence from vega's vocabulary
 

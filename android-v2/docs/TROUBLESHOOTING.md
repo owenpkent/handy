@@ -276,6 +276,42 @@ By design. Android caps the PiP control bar at `getMaxNumPictureInPictureActions
 
 `onPictureInPictureModeChanged` should swap the home / More screens (`homePanel`, `mainScroll`) for the `pipOverlay` status text. If you see the full layout, the activity was likely recreated on the PiP resize — confirm `ControlActivity` still has `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` in the manifest.
 
+## Lovense toy
+
+Lovense support (v0.23) has not been tested on a real toy yet, so expect surprises. The debug log (More controls, Show Debug, Copy) or the test panel's Copy report is the first thing to capture. Background and checklist: [LOVENSE.md](LOVENSE.md).
+
+### `Bluetooth permission is required to connect to the toy.` or `Bluetooth permission needed to connect to the toy.`
+
+The Bluetooth permission was denied. Android 12+ needs **Nearby devices** (`BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`); Android 11 and below need Location for the scan. Allow it in Android Settings, Apps, this app, Permissions, then tap Connect again. Android 13+ also asks for **Notifications**: that one is optional (the toy still works), it only hides the "Connected to ..." notification and its Stop button.
+
+### `Bluetooth is off. Turn it on and try again.`
+
+Turn Bluetooth on and tap Connect.
+
+### `No Lovense toy found. Turn it on (hold the button until it blinks) and try again.`
+
+The first connect scans for about 10 seconds for a device named `LVS-` or `LOVE-`. Turn the toy on and keep it close, and make sure no other app (the Lovense Remote app, a computer) is connected to it: a toy normally accepts only one Bluetooth connection at a time.
+
+### `Could not reach the saved toy. Turn it on, or use Forget toy in Settings to pair a new one.`
+
+Later connects go straight to the saved address and never scan, so the app cannot pair someone else's toy by mistake. Turn the saved toy on and retry. To pair a different toy, use **Settings, Connection, Forget toy**, then Connect. `Saved toy address is invalid` means the same thing: Forget toy.
+
+### `Link-loss protection not confirmed: the toy may keep vibrating if Bluetooth drops.`
+
+The app writes `AutoSwith:On:Off;` (stop on an accidental disconnect, do not resume on reconnect) and reads it back with `GetAS;`. This warning means the toy did not reply `OK;` or did not read back `1:0`. The toy still connects and works, but a dropped link may leave it vibrating until you switch it off by hand. Capture the `AutoSwith` and `GetAS` lines from the log or the test panel's Copy report.
+
+### `Stop not confirmed by toy`
+
+A stop (`Vibrate:0;`) failed to write even after retries at 150, 300 and 600 ms. The app keeps resending `Vibrate:0;` every 2 seconds until one lands and the message clears. If it persists, switch the toy off at the button; the link is probably down.
+
+### The toy turns itself off
+
+Two possible causes. (1) The app side: Android froze or killed the background app. Check the "Connected to ..." notification is showing, and use **Settings, Connection, Allow background use** (or accept the one-time "Keep the toy connected?" prompt) so battery optimization does not cut the link; some phone makers have extra battery savers to exempt it from. (2) The toy's own firmware idle timer, which no app can override. The test panel (Settings, Toy test panel) lets you try the keep-alive modes and intervals, and its idle timer and disconnect history show when and after how much idle the toy dropped. Copy report puts it all on the clipboard.
+
+### Gush 2 vibrates but the oscillation motor does not move
+
+Only `Vibrate:N;` is sent today. The oscillation command is undocumented; use the test panel's probe rows to find which command the toy accepts (an `ERR;` reply means the toy does not know that command).
+
 ## Updating the app
 
 ### `App not installed as package conflicts with an existing package`
@@ -321,7 +357,7 @@ Wipes prefs and templates. Next launch is exactly like first install.
 
 ### Run unit tests
 
-The MFCC + DTW math (plus the updater's version compare) has 21 unit tests that run on the JVM (no emulator):
+The 90 JVM unit tests (MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest

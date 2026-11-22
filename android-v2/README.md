@@ -4,7 +4,7 @@ An Android client for The Handy that recognises voice commands by matching again
 
 ## Status
 
-🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live. Recent additions: **humanized regular motion** (organic speed + depth drift), a **wind-down stop** (eases to 0 instead of a hard halt), a **reject/noise class** that stops the device's own motor sound from false-firing commands, (v0.20) **mic off stops the device** in both listening modes, and (v0.21) a **one-button home screen** with the full controls behind "More controls".
+🟢 **Phase 1 + 2 complete on-device.** Verified working on the Android emulator and real devices. Voice training, MFCC + CMN + banded DTW matching, the full HA-derived pattern engine (12 envelopes), tab-based UI, an HDSP-driven connect-time park, and a **Picture-in-Picture** control bar are all live. Recent additions: **humanized regular motion** (organic speed + depth drift), a **wind-down stop** (eases to 0 instead of a hard halt), a **reject/noise class** that stops the device's own motor sound from false-firing commands, (v0.20) **mic off stops the device** in both listening modes, (v0.21) a **one-button home screen** with the full controls behind "More controls", and (v0.23) **Lovense BLE toy support**: Settings can switch the device from The Handy to a Lovense toy, which gets its own toy page, a background foreground service and a test panel. v0.23 is a test build published from the unmerged `feat/lovense-ble` branch; **nothing has been tested on a real toy yet** (see [docs/LOVENSE.md](docs/LOVENSE.md)).
 
 ## Why a second Android app
 
@@ -41,7 +41,8 @@ mic ─► AudioCapture (16 kHz mono int16, AudioSource.MIC)
        (drop the match if label == __noise__ reject class)
        │
        ▼
-       Dispatch.dispatch(label, ..., patternEngine, humanizeEngine) ─► HandyV2ApiClient ─► REST v2
+       Dispatch.dispatch(label, ..., patternEngine, humanizeEngine) ─► HandyV2ApiClient ─► DeviceTransport ─► Handy REST v2 (default)
+                                                                                    └─► Lovense BLE (toy chosen in Settings)
                                   │
                                   ├─► VoiceAction.Pattern → PatternEngine.start(name, peak)
                                   │                           loop (envelope, duration) → api.setSpeed
@@ -55,7 +56,8 @@ Each piece is documented in detail in [docs/](docs/):
 - **[VOICE_ENGINE.md](docs/VOICE_ENGINE.md)** — every MFCC and DTW parameter explained, why these choices, how to tune the threshold, the margin gate, swappable-engine contract.
 - **[COMMANDS.md](docs/COMMANDS.md)** — vocabulary, dispatch table, pattern envelopes, how to add a new command end-to-end.
 - **[TRAINING.md](docs/TRAINING.md)** — user-facing recording guide. Auto-advance, cross-validation, reading match scores.
-- **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — build and runtime issues with concrete fixes (including the emulator microphone gotcha).
+- **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: build and runtime issues with concrete fixes (including the emulator microphone gotcha and Lovense toy problems).
+- **[LOVENSE.md](docs/LOVENSE.md)**: Lovense toy support: protocol, keep-alive, test panel, hardware test checklist.
 
 ## Quick start
 
@@ -90,7 +92,7 @@ JVM unit tests for the audio math run without the emulator:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 30 tests, a few seconds.
+These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 90 tests, a few seconds. They also cover the Lovense protocol, the Lovense transport against a fake toy, the toy page intensity maths, the test-panel formatting and the device-identity check.
 
 ## Vocabulary
 
@@ -205,9 +207,13 @@ Float the app into a small always-on-top window so you can keep controlling the 
 
 Each button routes through the same `Dispatch.dispatch(label)` path as voice and the in-app tap shortcuts, so caps, the faster/slower glide, and stop-cancels-pattern all behave identically. A PiP tap also notes activity (pushing back the idle auto-stop) and plays the ack beep, since the icons are silent. Implemented in [`ui/PipController.kt`](app/src/main/java/com/handyvoice/v2/ui/PipController.kt); the activity declares `supportsPictureInPicture` + the PiP `configChanges` in the manifest.
 
+## Lovense toy (v0.23, untested on hardware)
+
+**Settings, Connection** chooses the device: **The Handy** (default) or **Lovense toy (Bluetooth)**. With a toy selected the app opens on a dedicated **toy page** instead of the voice home: Connect, START / STOP, an intensity minus / plus / slider, the 12 patterns, and a "Voice & more" link to the full UI. Connect needs the Bluetooth (and, on Android 13+, notification) permission; the first connect scans for an `LVS-` / `LOVE-` toy and saves its address, and **Forget toy** in Settings clears it. Velocity 0..100 maps to `Vibrate:0..20;`; max speed is stored per device (default 100 for a toy). While a toy is connected a foreground service (notification with a Stop action, partial wake lock) keeps the link alive with the screen off or another app in front, and a silent `Vibrate:0;` keep-alive runs while stopped. **Settings, Toy test panel** has a command probe (for the Gush 2 oscillation command), keep-alive mode / interval, an idle timer with disconnect history, and a Copy report button. Full details and the hardware checklist: [docs/LOVENSE.md](docs/LOVENSE.md). Problems: [TROUBLESHOOTING](docs/TROUBLESHOOTING.md#lovense-toy).
+
 ## Safety caps
 
-- **Global max speed** *(default 30%)*. Every speed sent to the device is scaled by this percentage. `Dispatch.dispatch()` applies it before `setSpeed`; pattern envelopes scale their peak by it; "faster" / "slower" deltas are clamped to `[0, globalMaxSpeed]` so repeated taps can't sneak past the cap, and glide to the clamped target via `rampSpeed` rather than jumping. Configurable in Settings.
+- **Global max speed** *(default 30% for the Handy, 100% for a Lovense toy; stored per device)*. Every speed sent to the device is scaled by this percentage. `Dispatch.dispatch()` applies it before `setSpeed`; pattern envelopes scale their peak by it; "faster" / "slower" deltas are clamped to `[0, globalMaxSpeed]` so repeated taps can't sneak past the cap, and glide to the clamped target via `rampSpeed` rather than jumping. Configurable in Settings.
 - **Global stroke band** *(default 0–100)*. Hard floor and ceiling on stroke position. Manual sliders are physically bounded to this band; pattern range fields are squashed into it. Configurable in Settings.
 - **Invert stroke**. Toggle in Settings flips user-coord 0 to device-coord 100 (and vice versa) at the API client boundary. All callers think in user coords; the flip happens once in `setStrokeRange` and `parkAtRetracted`.
 - **Connect-time park**. After a successful connect, the client switches to HDSP, sends a single `xpt` command to position 0 (or 100 inverted, clamped by the global band), and switches back to HAMP. Slow controlled slide instead of a stroke.
@@ -217,8 +223,12 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 
 | Path | Purpose |
 | --- | --- |
-| `app/src/main/java/com/handyvoice/v2/HandyVoiceApp.kt` | `Application` subclass. Future place for DI. |
-| `app/src/main/java/com/handyvoice/v2/api/HandyV2ApiClient.kt` | Handy REST v2 client. `connect / start / stop / setSpeed / setStrokeRange / hdspXpt`. Maintains StateFlows for UI binding and a ring buffer of debug log lines. Owns the connect-time park and the invert + global-band transforms. |
+| `app/src/main/java/com/handyvoice/v2/HandyVoiceApp.kt` | `Application` subclass. Holds the process-shared `HandyV2ApiClient`, the `PatternEngine` / `HumanizeEngine` (so loops outlive an activity), `awaitMotionTeardown()` / `stopMotion()`, `configureDevice()` (installs the Handy or Lovense transport from prefs), and starts / stops the toy foreground service from the client's connection state. |
+| `app/src/main/java/com/handyvoice/v2/DeviceIdentity.kt` | Pure check that the installed transport still matches the saved device prefs (handles the just-paired-toy race). |
+| `app/src/main/java/com/handyvoice/v2/api/HandyV2ApiClient.kt` | The one device object the app uses. Owns the motion policy (`connect / start / stop / setSpeed / rampSpeed / rampStop / setStrokeRange`, velocity epoch, invert + global-band transforms), StateFlows for UI binding and a ring buffer of debug log lines. Wire work is delegated to a `DeviceTransport`. |
+| `app/src/main/java/com/handyvoice/v2/api/DeviceTransport.kt` | Wire-level interface under the client, plus keep-alive modes and toy diagnostics types. |
+| `app/src/main/java/com/handyvoice/v2/api/HandyRestTransport.kt` | The Handy REST implementation (mode set, connect-time park, hamp start / stop / velocity, `/slide`). |
+| `app/src/main/java/com/handyvoice/v2/api/LovenseBleTransport.kt`, `LovenseGatt.kt`, `AndroidLovenseGattPort.kt`, `LovenseProtocol.kt` | Lovense BLE: the Android-free transport core, the GATT seam, the real `BluetoothGatt` port, and the protocol helpers (levels, commands, reply parsing). See [docs/LOVENSE.md](docs/LOVENSE.md). |
 | `app/src/main/java/com/handyvoice/v2/audio/AudioCapture.kt` | Thin `AudioRecord` wrapper using `AudioSource.MIC` (not `VOICE_RECOGNITION` — see TROUBLESHOOTING for why). `readWindow(seconds, onPeak)` for fixed captures with live peak callback, `stream(...)` for the always-on loop. |
 | `app/src/main/java/com/handyvoice/v2/audio/Vad.kt` | Energy + ZCR voice activity detector. Used by the always-on / tap-mic loop. |
 | `app/src/main/java/com/handyvoice/v2/voice/Mfcc.kt` | Hand-rolled MFCC + cepstral mean normalization: pre-emphasis, Hamming window, radix-2 FFT, mel filterbank, log, DCT, then subtract per-coefficient mean across the utterance. |
@@ -230,19 +240,25 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 | `app/src/main/java/com/handyvoice/v2/dispatch/VoiceAction.kt` | Sealed class: `Stop / SetSpeed / AdjustSpeed / SetRange / Preset / Pattern`. `Stop` eases to 0 before halting. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/Dispatch.kt` | `LABELS`, `PROMPTS`, `TABLE`, the reserved `NOISE_LABEL` reject class, and a suspending `dispatch(label, api, ..., patternEngine, humanizeEngine)`. Routes regular motion through the humanize engine when it's enabled. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/PatternEngine.kt` | 12-pattern looping envelope engine. Ported from `homeassistant/.../patterns.py`. |
+| `app/src/main/java/com/handyvoice/v2/dispatch/TapPatterns.kt` | The 12 tap-able pattern specs (name, label, stroke range as percent of the band), shared by the Manual grid and the toy page. |
 | `app/src/main/java/com/handyvoice/v2/dispatch/HumanizeEngine.kt` | Organic drift for regular (non-pattern) motion: modulates speed + stroke depth around the base while running. Strength-scaled (0 = off). Sibling to `PatternEngine`. |
-| `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, listening mode, global max speed, humanize strength, global stroke band, invert toggle, match threshold, onboarded flag. |
+| `app/src/main/java/com/handyvoice/v2/data/PreferencesManager.kt` | DataStore prefs: connection key, device type (Handy / Lovense) and paired toy, per-device max speed, listening mode, humanize strength, global stroke band, invert toggle, match threshold, onboarded flag, toy keep-alive settings and disconnect history. |
 | `app/src/main/java/com/handyvoice/v2/ui/TrainingActivity.kt` | First-run onboarding + re-recording. Auto-advance session, per-label cross-validation gate (offers inline re-record of an outlier take). Build templates sets `onboarded=true` and returns to Control. Ack tone on every saved take. |
-| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Opens on a simple home screen (one Start / Stop listening button, status, "Heard:", More controls link); More controls shows the full UI with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Owns the `PatternEngine`, the `HumanizeEngine` (strength from prefs, passed to every dispatch), and the `PipController`. Drops matches on the `__noise__` reject class before dispatching. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
+| `app/src/main/java/com/handyvoice/v2/ui/ControlActivity.kt` | Opens on a simple home screen (one Start / Stop listening button, status, "Heard:", More controls link); More controls shows the full UI with Voice / Manual tabs. Voice tab: mic toggle, peak meter, "Heard:" readout, tap-shortcut buttons for every voice label (Begin/Stop, Slower/Faster), debug log. Manual tab: stroke + speed sliders and all 12 pattern buttons. START / STOP row below (Manual tab only). Uses the process-owned `PatternEngine` and `HumanizeEngine` (strength from prefs, passed to every dispatch) and owns the `PipController`. With a Lovense toy selected it shows `ToyPanel` instead of the simple home. Drops matches on the `__noise__` reject class before dispatching. Ack tone on voice match. Floats into PiP on the header button or on Home-while-running. |
 | `app/src/main/java/com/handyvoice/v2/ui/ConnectGuard.kt` | Android-free single-flight guard for user-initiated connects (setup Connect button + home button), so a double tap can't fire two connects. |
 | `app/src/main/java/com/handyvoice/v2/ui/PipController.kt` | Picture-in-Picture: feature detection, building the system RemoteAction control bar (a fixed Slower/Stop/Faster trio, inside the guaranteed 3-action floor, so Stop is always present), registering the not-exported broadcast receiver the buttons fire, and entering PiP. Each control is a `Dispatch` label, routed back through the same dispatch path as voice. |
-| `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Humanize-strength slider under Motion limits. Re-record voice samples (opens Training, preserves takes), Record device sound to ignore (trains just the `__noise__` reject class), and Clear all recordings (wipes with confirmation, then opens Training) live here. |
+| `app/src/main/java/com/handyvoice/v2/ui/ToyPanel.kt` | The Lovense toy page (replaces the home screen when a toy is selected): Connect, START / STOP, intensity, 12 patterns, link to More. |
+| `app/src/main/java/com/handyvoice/v2/ui/ToyLabActivity.kt` | Lovense toy test panel: command probe, keep-alive mode / interval, idle timer, disconnect history, Copy report. Opened from Settings. Helpers: `ToyIntensity.kt`, `ToyLabFormat.kt`. |
+| `app/src/main/java/com/handyvoice/v2/service/ToyConnectionService.kt`, `BatteryOptimization.kt` | Foreground service (notification with Stop, partial wake lock) that keeps a connected toy alive in the background, and the battery-optimization exemption helpers. |
+| `app/src/main/java/com/handyvoice/v2/ui/SettingsActivity.kt` | Settings form. ← Home button in the header. Device choice (Handy / Lovense toy), Forget toy, Allow background use and Toy test panel. Humanize-strength slider under Motion limits. Re-record voice samples (opens Training, preserves takes), Record device sound to ignore (trains just the `__noise__` reject class), and Clear all recordings (wipes with confirmation, then opens Training) live here. |
 | `app/src/main/java/com/handyvoice/v2/ui/ListeningSession.kt` | Android-free lifecycle of one listening session (capture loop + its recognition jobs under one `Job`). `cancelThen` joins the old session before the mic-off / idle stop, so a command spoken just before can't abort the wind-down. |
 | `app/src/test/java/com/handyvoice/v2/voice/*Test.kt` | JVM unit tests covering MFCC, DTW, and engine behaviour. |
+| `app/src/test/java/com/handyvoice/v2/api/Lovense*Test.kt`, `ui/Toy*Test.kt`, `DeviceIdentityTest.kt` | Lovense protocol and transport (fake toy on virtual time), toy page maths, test-panel formatting, device identity. |
 | `app/src/test/java/com/handyvoice/v2/ui/ListeningSessionTest.kt`, `ConnectGuardTest.kt`, `dispatch/MicOffStopRegressionTest.kt` | Session lifecycle and connect-guard tests, and the end-to-end mic-off stop race (real dispatch, engines and API client against a fake device on virtual time). |
 | `app/src/main/res/layout/activity_training.xml` | Training UI: prompt text, take-progress dots (3), peak bar, record button. |
 | `app/src/main/res/layout/activity_control.xml` | `homePanel` (simple one-button home, default) plus `mainScroll` (the "More controls" screen: combined voice + manual UI with TabLayout). `startStopRow` (Manual tab only) holds the big START/STOP pair. |
-| `app/src/main/res/layout/activity_settings.xml` | Settings form with the ← Home header button. |
+| `app/src/main/res/layout/activity_settings.xml` | Settings form with the ← Home header button and the Handy / Lovense device choice. |
+| `app/src/main/res/layout/panel_toy.xml`, `activity_toy_lab.xml` | The Lovense toy page (included in `activity_control.xml`) and the toy test panel. |
 
 ## Differences from `../android/`
 
@@ -263,6 +279,7 @@ Each button routes through the same `Dispatch.dispatch(label)` path as voice and
 
 - **TFLite embedding engine** behind `TfliteEmbeddingEngine`. Extract EfficientWord-Net's Resnet50_Arc_loss TFLite model, write the Kotlin audio-preprocessing path, persist average embeddings per label. Drop-in replacement; training UX unchanged.
 - **Wake-word label**. Recording one extra template called `wake` lets always-on mode use the matcher itself as the wake stage, replacing VAD. Closer to vega's design once matching proves reliable.
+- **Lovense hardware tests** (see the checklist in [docs/LOVENSE.md](docs/LOVENSE.md)): connect, link-loss behaviour, Gush 2 oscillation command, a 2+ hour idle test.
 - **Haptic feedback** alongside the ack tone, for users running the device with the phone in their hand.
 
 ## License

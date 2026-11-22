@@ -10,6 +10,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.View
@@ -33,12 +34,15 @@ import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.api.HandyV2ApiClient
+import com.handyvoice.v2.api.LovenseBle
 import com.handyvoice.v2.audio.AudioCapture
 import com.handyvoice.v2.audio.Vad
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.Dispatch
+import com.handyvoice.v2.service.BatteryOptimization
 import com.handyvoice.v2.dispatch.HumanizeEngine
 import com.handyvoice.v2.dispatch.PatternEngine
+import com.handyvoice.v2.dispatch.TapPatterns
 import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.MfccDtwEngine
 import com.handyvoice.v2.voice.TemplateEngine
@@ -47,6 +51,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,6 +75,9 @@ import java.util.Locale
 class ControlActivity : AppCompatActivity() {
 
     companion object {
+        /** Longest a device swap waits for an in-flight connect to settle. */
+        private const val DEVICE_SWAP_WAIT_MS = 30_000L
+
         // MUST match TrainingActivity.WINDOW_SECONDS — the matcher aligns
         // query MFCC frames against stored templates, and DTW's band ratio
         // can't bridge a 60-70% length mismatch. If you bump one, bump
@@ -123,10 +132,11 @@ class ControlActivity : AppCompatActivity() {
     // Shared with SplashActivity (held on the Application) so a connection
     // the splash started while animating carries over here intact.
     private val api: HandyV2ApiClient by lazy { (application as HandyVoiceApp).api }
-    private val patternEngine: PatternEngine by lazy { PatternEngine(api, lifecycleScope) }
+    // Process-owned (HandyVoiceApp) so loops outlive this activity while a toy service keeps the link up.
+    private val patternEngine: PatternEngine by lazy { (application as HandyVoiceApp).patternEngine }
     /** Adds organic speed + depth drift to regular (non-pattern) motion so a
      *  steady speed doesn't feel robotic. Strength (0 = off) comes from prefs. */
-    private val humanizeEngine: HumanizeEngine by lazy { HumanizeEngine(api, lifecycleScope) }
+    private val humanizeEngine: HumanizeEngine by lazy { (application as HandyVoiceApp).humanizeEngine }
     /** Picture-in-Picture: builds the floating control bar and routes its
      *  taps back through the same dispatch path as voice / tap shortcuts. */
     private val pip: PipController by lazy { PipController(this) { label -> onPipControl(label) } }
@@ -184,6 +194,10 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var homeListenButton: MaterialButton
     private lateinit var homeHeardText: TextView
     private var showingMore = false
+    /** Dedicated Lovense page (panel_toy.xml); replaces homePanel while a toy is selected. */
+    private lateinit var toyPanel: ToyPanel
+    /** True while the toy page (not More) is on screen: voice must not auto-arm then. */
+    private val toyPageShowing: Boolean get() = deviceIsLovense && !showingMore
     private val connectGuard = ConnectGuard()
     /** Mirrors the mic button's on/off look so the home button matches it. */
     private var micOn = false
@@ -242,6 +256,19 @@ class ControlActivity : AppCompatActivity() {
     private var manualStrokeMax: Int = PreferencesManager.DEFAULT_MANUAL_STROKE_MAX
     private var manualSpeed: Int = PreferencesManager.DEFAULT_MANUAL_SPEED
     private var humanizeStrength: Int = PreferencesManager.DEFAULT_HUMANIZE_STRENGTH
+
+    /** True when Settings selects a Lovense toy (no connection key needed). */
+    private var deviceIsLovense = false
+
+    private val requestBle = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        // Notifications are optional (the toy service runs without them); only
+        // the BLE grant gates the connect.
+        if (LovenseBle.hasPermissions(this)) {
+            onConnectTapped()
+        } else {
+            toast("Bluetooth permission is required to connect to the toy.")
+        }
+    }
 
     private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -338,6 +365,17 @@ class ControlActivity : AppCompatActivity() {
         wireTabs()
         wireManualSliders()
         wireManualPatterns()
+        toyPanel = ToyPanel(this, api, patternEngine, humanizeEngine, prefs, object : ToyPanel.Host {
+            override fun onConnect() = onConnectTapped()
+            override fun onSettings() = startActivity(Intent(this@ControlActivity, SettingsActivity::class.java))
+            override fun onPip() = pip.enter()
+            override fun onMore() = showMore(true)
+            override val connectInFlight get() = connectGuard.inFlight
+            override val globalMaxSpeed get() = this@ControlActivity.globalMaxSpeed
+            override val globalMinStroke get() = this@ControlActivity.globalMinStroke
+            override val globalMaxStroke get() = this@ControlActivity.globalMaxStroke
+            override val pipSupported get() = pip.isSupported
+        })
 
         connectButton.setOnClickListener { onConnectTapped() }
         // The gear goes straight to Settings — no intermediate menu. We're
@@ -387,7 +425,13 @@ class ControlActivity : AppCompatActivity() {
                 // at speed 0 there's nothing to modulate, so just start.
                 val device = (manualSpeed * globalMaxSpeed.coerceIn(1, 100) / 100).coerceIn(0, 100)
                 if (humanizeEngine.enabled && device > 0) humanizeEngine.start(device)
-                else api.start()
+                // Speed AFTER start: the client refuses positive speed until a
+                // start, so a slider move made before START never reached the device.
+                else if (device > 0) { if (api.start()) api.setSpeed(device) }
+                // Slider at zero: write 0 BEFORE start so start can't resume a
+                // remembered level (Lovense keeps one across stop; the Handy
+                // keeps its last velocity). Zero is allowed before start.
+                else { api.setSpeed(0); api.start() }
             }
         }
         stopButton.setOnClickListener {
@@ -452,6 +496,10 @@ class ControlActivity : AppCompatActivity() {
         lifecycleScope.launch {
             api.isRunning.collectLatest { updatePipStatus() }
         }
+        // Lovense: keep the "Connected: name, battery N%" line current.
+        lifecycleScope.launch { api.battery.collectLatest { refreshConnectedStatus() } }
+        lifecycleScope.launch { api.deviceName.collectLatest { refreshConnectedStatus() } }
+        lifecycleScope.launch { api.warning.collectLatest { refreshConnectedStatus() } }
         lifecycleScope.launch {
             api.currentSpeed.collectLatest { updatePipStatus() }
         }
@@ -466,12 +514,13 @@ class ControlActivity : AppCompatActivity() {
                 showConnecting(false)
                 setupPanel.visibility = View.GONE
                 controlPanel.visibility = View.VISIBLE
-                statusText.setText(R.string.status_connected)
+                setConnectedStatusText()
                 statusText.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
                 // Offer the float button only once connected (and only where
                 // the device actually supports PiP).
                 pipButton.visibility = if (pip.isSupported) View.VISIBLE else View.GONE
                 applyListeningMode()
+                if (api.transportKind == "lovense") maybeAskBatteryOptimization()
             }
             ConnectionState.CONNECTING -> {
                 statusText.text = "Connecting..."
@@ -505,6 +554,8 @@ class ControlActivity : AppCompatActivity() {
                     )
                 }
                 stopAlwaysOn()
+                // Motion-loop teardown on a lost connection is owned by the app
+                // (HandyVoiceApp collector + api.preConnect), not this activity.
             }
         }
         homeStatusText.text = statusText.text
@@ -512,11 +563,107 @@ class ControlActivity : AppCompatActivity() {
         updateHomeButton()
     }
 
+    private var batteryAskStarted = false
+
+    /**
+     * Once ever, the first time a toy connects: explain that Android may
+     * freeze the app in the background and offer the system exemption prompt.
+     * The "asked" flag is stored before showing, so it never nags again.
+     */
+    private fun maybeAskBatteryOptimization() {
+        if (batteryAskStarted || BatteryOptimization.isExempt(this)) return
+        batteryAskStarted = true
+        lifecycleScope.launch {
+            if (prefs.batteryOptAsked()) return@launch
+            prefs.setBatteryOptAsked()
+            if (isFinishing || isDestroyed) return@launch
+            androidx.appcompat.app.AlertDialog.Builder(this@ControlActivity)
+                .setTitle("Keep the toy connected?")
+                .setMessage(
+                    "To stay connected with the screen off or while you use another app, " +
+                        "Android needs to let this app run in the background. " +
+                        "Allow it on the next screen.",
+                )
+                .setPositiveButton("Open") { _, _ ->
+                    runCatching { startActivity(BatteryOptimization.requestIntent(this@ControlActivity)) }
+                }
+                .setNegativeButton("Not now", null)
+                .show()
+        }
+    }
+
+    /** "Connected", or for a Lovense toy "Connected: <name>, battery N%". */
+    private fun setConnectedStatusText() {
+        val name = api.deviceName.value
+        val battery = api.battery.value
+        val warning = api.warning.value
+        if (api.transportKind != "lovense" || name == null) {
+            statusText.setText(R.string.status_connected)
+            if (warning != null) statusText.text = "${statusText.text}\n$warning"
+            return
+        }
+        statusText.text = buildString {
+            append("Connected: ").append(name)
+            if (battery != null) append(", battery ").append(battery).append("%")
+            if (warning != null) append("\n").append(warning)
+        }
+    }
+
+    /** Re-render only the connected status line (battery / name changed). */
+    private fun refreshConnectedStatus() {
+        if (api.connectionState.value != ConnectionState.CONNECTED) return
+        setConnectedStatusText()
+        homeStatusText.text = statusText.text
+    }
+
+    /** Show the connection-key field only for the Handy. */
+    private fun applyDeviceTypeUi() {
+        val keyVisibility = if (deviceIsLovense) View.GONE else View.VISIBLE
+        connectionKeyInput.visibility = keyVisibility
+        findViewById<View>(R.id.connectionKeyLabel).visibility = keyVisibility
+    }
+
+    /**
+     * Pick the transport the prefs ask for. Returns true if the installed
+     * transport now matches [snap]; only then does the caller adopt the selected
+     * device's speed cap (the old device keeps its cap until the swap succeeds).
+     * A connect still in flight is waited out first; a live connection is wound
+     * down and disconnected, since the transport can only be swapped while
+     * disconnected. If the swap cannot happen, nothing about the screen changes
+     * and the next onResume retries.
+     */
+    private suspend fun syncDevice(snap: PreferencesManager.Snapshot): Boolean {
+        val app = application as HandyVoiceApp
+        if (app.deviceChanged(snap)) {
+            if (api.connectionState.value == ConnectionState.CONNECTING) {
+                val settled = withTimeoutOrNull(DEVICE_SWAP_WAIT_MS) {
+                    api.connectionState.first { it != ConnectionState.CONNECTING }
+                }
+                if (settled == null) return false
+            }
+            if (api.connectionState.value == ConnectionState.CONNECTED) {
+                humanizeEngine.cancel()
+                patternEngine.cancel()
+                stopAlwaysOn()
+                api.disconnect()
+            }
+            app.awaitMotionTeardown()
+        }
+        if (!app.configureDevice(snap)) return false
+        deviceIsLovense = snap.isLovense
+        applyDeviceTypeUi()
+        updateHomeButton()
+        // Swap between the voice home screen and the toy page.
+        showMore(showingMore)
+        return true
+    }
+
     /** Switch between the one-button home screen and "More controls". */
     private fun showMore(more: Boolean) {
         showingMore = more
         mainScroll.visibility = if (more) View.VISIBLE else View.GONE
-        homePanel.visibility = if (more) View.GONE else View.VISIBLE
+        homePanel.visibility = if (more || deviceIsLovense) View.GONE else View.VISIBLE
+        toyPanel.root.visibility = if (!more && deviceIsLovense) View.VISIBLE else View.GONE
         // System Back returns home from More; on home it behaves normally.
         backToHome.isEnabled = more
     }
@@ -533,7 +680,7 @@ class ControlActivity : AppCompatActivity() {
             ConnectionState.CONNECTING -> Unit
             ConnectionState.DISCONNECTED -> when {
                 connectGuard.inFlight -> Unit
-                connectionKeyInput.text.isNullOrBlank() -> showMore(true)
+                !deviceIsLovense && connectionKeyInput.text.isNullOrBlank() -> showMore(true)
                 else -> onConnectTapped()
             }
         }
@@ -550,6 +697,7 @@ class ControlActivity : AppCompatActivity() {
                 else "Start\nlistening" to R.color.primary
             else -> "Connect" to R.color.primary
         }
+        if (::toyPanel.isInitialized) toyPanel.refresh()
         homeListenButton.isEnabled = !connecting
         homeListenButton.text = label
         homeListenButton.backgroundTintList =
@@ -578,7 +726,6 @@ class ControlActivity : AppCompatActivity() {
     private fun bootstrap() {
         lifecycleScope.launch {
             val snap = prefs.snapshot()
-            globalMaxSpeed = snap.globalMaxSpeed
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
@@ -586,11 +733,13 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
+            if (::toyPanel.isInitialized) toyPanel.setIntensity(snap.toyIntensity)
             invertStroke = snap.invertStroke
             humanizeStrength = snap.humanizeStrength
             humanizeEngine.setStrength(snap.humanizeStrength)
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
+            if (syncDevice(snap)) globalMaxSpeed = snap.globalMaxSpeed
             applyManualCaps()
 
             // Onboarding gate: only force training on first run. After the user
@@ -612,10 +761,15 @@ class ControlActivity : AppCompatActivity() {
             // connect while it animates, so only start one here if it didn't
             // (no key at splash time, or the shared client is still idle).
             connectionKeyInput.setText(snap.connectionKey)
-            if (snap.connectionKey.isNotBlank() &&
-                api.connectionState.value == ConnectionState.DISCONNECTED) {
-                api.setConnectionKey(snap.connectionKey)
-                api.connect()
+            if (api.connectionState.value == ConnectionState.DISCONNECTED) {
+                if (snap.isLovense) {
+                    // Toy: no key. Auto-connect only if BLE permission is
+                    // already granted; otherwise the first tap asks for it.
+                    if (LovenseBle.hasPermissions(this@ControlActivity)) api.connect()
+                } else if (snap.connectionKey.isNotBlank()) {
+                    api.setConnectionKey(snap.connectionKey)
+                    api.connect()
+                }
             }
         }
     }
@@ -630,7 +784,6 @@ class ControlActivity : AppCompatActivity() {
             val invertChanged = invertStroke != snap.invertStroke
             val bandChanged = globalMinStroke != snap.globalMinStroke ||
                 globalMaxStroke != snap.globalMaxStroke
-            globalMaxSpeed = snap.globalMaxSpeed
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
@@ -638,6 +791,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
+            if (::toyPanel.isInitialized) toyPanel.setIntensity(snap.toyIntensity)
             invertStroke = snap.invertStroke
             humanizeStrength = snap.humanizeStrength
             // Live-apply a strength change from Settings. If the user turned
@@ -645,6 +799,7 @@ class ControlActivity : AppCompatActivity() {
             // back onto the plain constant speed / user band.
             humanizeEngine.setStrength(snap.humanizeStrength)
             if (snap.humanizeStrength == 0 && humanizeEngine.isRunning) humanizeEngine.cancel()
+            if (syncDevice(snap)) globalMaxSpeed = snap.globalMaxSpeed
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -685,7 +840,8 @@ class ControlActivity : AppCompatActivity() {
             //     since button listening is tap-gated and must not auto-start.
             if (api.connectionState.value == ConnectionState.CONNECTED) {
                 if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
-                    if (!listening.isActive) applyListeningMode()
+                    // Never auto-arm voice while the toy page is showing.
+                    if (!listening.isActive && !toyPageShowing) applyListeningMode()
                 } else if (modeChanged) {
                     applyListeningMode()
                 }
@@ -733,6 +889,13 @@ class ControlActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // The motion engines are process-owned now. With a toy, the foreground
+        // service keeps the link (and any running loop) alive on purpose; for the
+        // Handy keep the old behaviour: loops end with the activity.
+        if (!deviceIsLovense) {
+            val app = application as HandyVoiceApp
+            app.appScope.launch { app.humanizeEngine.cancel(); app.patternEngine.cancel() }
+        }
         keepAwake(false)
         pip.unregister()
         ackTone?.release()
@@ -772,6 +935,7 @@ class ControlActivity : AppCompatActivity() {
         if (isInPictureInPictureMode) {
             mainScroll.visibility = View.GONE
             homePanel.visibility = View.GONE
+            toyPanel.root.visibility = View.GONE
             pipOverlay.visibility = View.VISIBLE
             pipHintText.text = "Tap to open"
             updatePipStatus()
@@ -884,8 +1048,14 @@ class ControlActivity : AppCompatActivity() {
 
     private fun onConnectTapped() {
         val key = connectionKeyInput.text.toString().trim()
-        if (key.isBlank()) {
+        if (!deviceIsLovense && key.isBlank()) {
             toast("Connection key required.")
+            return
+        }
+        if (deviceIsLovense && !LovenseBle.hasPermissions(this)) {
+            val ask = if (Build.VERSION.SDK_INT >= 33) LovenseBle.requiredPermissions() + Manifest.permission.POST_NOTIFICATIONS
+            else LovenseBle.requiredPermissions()
+            requestBle.launch(ask)
             return
         }
         // Flip the UI to its busy state immediately on tap, before the
@@ -901,8 +1071,10 @@ class ControlActivity : AppCompatActivity() {
                 updateHomeButton()
             },
         ) {
-            prefs.setConnectionKey(key)
-            api.setConnectionKey(key)
+            if (!deviceIsLovense) {
+                prefs.setConnectionKey(key)
+                api.setConnectionKey(key)
+            }
             val ok = api.connect()
             if (!ok) {
                 // The DISCONNECTED state already paints the reason on the
@@ -937,7 +1109,12 @@ class ControlActivity : AppCompatActivity() {
     private fun applyListeningMode() {
         stopAlwaysOn()
         when (listeningMode) {
-            PreferencesManager.MODE_ALWAYS_ON -> {
+            // The toy page is not voice-first: even in always-on mode the mic
+            // stays off until the user opens More and taps it.
+            PreferencesManager.MODE_ALWAYS_ON -> if (toyPageShowing) {
+                voiceModeLabel.text = "Tap mic to listen"
+                setMicListening(false)
+            } else {
                 voiceModeLabel.text = "Always listening"
                 setMicListening(true)
                 ensureMicThenRun { startAlwaysOn() }
@@ -1368,84 +1545,35 @@ class ControlActivity : AppCompatActivity() {
         })
     }
 
-    // Tap-only pattern buttons. Each one runs a [PatternEngine] envelope,
+    // Manual pattern grid. Each button runs a [PatternEngine] envelope,
     // bracketed by a stroke-range set so the pattern's position feels
-    // distinct (rangeMin / rangeMax in user-percent of the global band).
-    private data class TapPattern(
-        val patternName: String,
-        val displayName: String,
-        val rangeMin: Int,
-        val rangeMax: Int,
-    )
-
-    private val tapOnlyPatterns: Map<Int, TapPattern> = mapOf(
-        // The old "pulse" metronome was renamed to "tick" so the "pulse"
-        // name could move to the (formerly heartbeat) lub-dub envelope used
-        // by the voice command.
-        R.id.patternTick    to TapPattern("tick",    "Tick",    40, 60),
-        // Surge and Breathe used to be voice commands but were dropped from
-        // the spoken set for acoustic distinctness. They keep their envelopes
-        // here as tap-only patterns with the same wide range Dispatch used.
-        R.id.patternSurge   to TapPattern("surge",   "Surge",   0,  100),
-        R.id.patternBreathe to TapPattern("breathe", "Breathe", 0,  100),
-        R.id.patternTease   to TapPattern("tease",   "Tease",   0,  50),
-        R.id.patternEdge    to TapPattern("edge",    "Edge",    70, 90),
-        R.id.patternRush    to TapPattern("rush",    "Rush",    0,  100),
-        R.id.patternThrob   to TapPattern("throb",   "Throb",   40, 70),
-        R.id.patternBounce  to TapPattern("bounce",  "Bounce",  20, 80),
-        R.id.patternClimax  to TapPattern("climax",  "Climax",  30, 90),
-    )
-
-    /**
-     * Manual-grid buttons that route through [Dispatch] using a voice label.
-     * Tapping them produces exactly the same device state as the voice match
-     * would, including the full stroke band and globalMaxSpeed scaling.
-     */
-    private val voicePatternIds: Map<Int, String> = mapOf(
+    // distinct. The specs (shared with the toy page) live in [TapPatterns].
+    // None of the twelve is a voice command, so none goes through Dispatch
+    // (Thunder / Ripple / Pulse used to, and silently did nothing once their
+    // labels left Dispatch.TABLE).
+    private val patternButtonIds: Map<Int, String> = mapOf(
         R.id.patternThunder to "thunder",
         R.id.patternRipple  to "ripple",
         R.id.patternPulse   to "pulse",
+        R.id.patternTick    to "tick",
+        R.id.patternSurge   to "surge",
+        R.id.patternBreathe to "breathe",
+        R.id.patternTease   to "tease",
+        R.id.patternEdge    to "edge",
+        R.id.patternRush    to "rush",
+        R.id.patternThrob   to "throb",
+        R.id.patternBounce  to "bounce",
+        R.id.patternClimax  to "climax",
     )
 
     private fun wireManualPatterns() {
-        voicePatternIds.forEach { (id, label) ->
-            findViewById<MaterialButton>(id).setOnClickListener { runVoicePattern(label) }
-        }
-        tapOnlyPatterns.forEach { (id, spec) ->
+        patternButtonIds.forEach { (id, name) ->
+            val spec = TapPatterns.byName(name)
             findViewById<MaterialButton>(id).setOnClickListener { runTapPattern(spec) }
         }
     }
 
-    private fun runVoicePattern(label: String) {
-        lifecycleScope.launch {
-            if (api.connectionState.value != ConnectionState.CONNECTED) {
-                manualFeedbackText.text = "Not connected"
-                return@launch
-            }
-            val result = runCatching {
-                Dispatch.dispatch(
-                    label = label,
-                    api = api,
-                    globalMaxSpeed = globalMaxSpeed,
-                    globalMinStroke = globalMinStroke,
-                    globalMaxStroke = globalMaxStroke,
-                    patternEngine = patternEngine,
-                    humanizeEngine = humanizeEngine,
-                )
-            }
-            val ok = result.getOrDefault(false)
-            val err = result.exceptionOrNull()
-            manualFeedbackText.text = when {
-                ok -> "Pattern: ${label.replaceFirstChar { it.uppercase() }}"
-                err != null -> "Pattern $label error: ${err.message ?: err::class.simpleName}"
-                else -> "Pattern $label failed (start refused?)"
-            }
-            if (err != null) appLog("Pattern $label threw: ${err.message}")
-            else if (!ok) appLog("Pattern $label dispatch returned false.")
-        }
-    }
-
-    private fun runTapPattern(spec: TapPattern) {
+    private fun runTapPattern(spec: TapPatterns.Spec) {
         val band = (globalMaxStroke - globalMinStroke).coerceAtLeast(0)
         val sMin = globalMinStroke + spec.rangeMin * band / 100
         val sMax = globalMinStroke + spec.rangeMax * band / 100
@@ -1460,14 +1588,14 @@ class ControlActivity : AppCompatActivity() {
             humanizeEngine.cancel()
             val strokeOk = api.setStrokeRange(sMin, sMax)
             if (!strokeOk) {
-                manualFeedbackText.text = "Pattern ${spec.displayName}: stroke set failed"
+                manualFeedbackText.text = "Pattern ${spec.label}: stroke set failed"
                 return@launch
             }
-            val ok = patternEngine.start(spec.patternName, peak)
+            val ok = patternEngine.start(spec.name, peak)
             manualFeedbackText.text = if (ok) {
-                "Pattern: ${spec.displayName} (peak $peak%)"
+                "Pattern: ${spec.label} (peak $peak%)"
             } else {
-                "Pattern ${spec.displayName} failed (start refused?)"
+                "Pattern ${spec.label} failed (start refused?)"
             }
         }
     }
