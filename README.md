@@ -4,7 +4,7 @@ Accessible control apps for The Handy device, designed for users with disabiliti
 
 ## Status
 
-**Active Development** — all current work is in [`android-v2/`](android-v2/). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only.
+**Active Development** — all current work is in [`android-v2/`](android-v2/). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
 
 ## Active app: android-v2
 
@@ -35,6 +35,14 @@ cd android-v2
 
 Every debug build drops a version-named APK into [`apks/`](apks/) for sideloading.
 
+## Wearable device (early stage)
+
+A DIY wearable meant to be worn under trousers while seated and to work around an external condom catheter, controlled by the same app over BLE. Vibration first (five LRAs in an open C-shaped silicone sleeve, one DRV2605L each), soft pneumatics later. Nothing physical is built yet.
+
+- Research, safety constraints, parts and build plan: [docs/WEARABLE_DEVICE_RESEARCH.md](docs/WEARABLE_DEVICE_RESEARCH.md)
+- CAD assembly ([nl-cad](https://github.com/owenpkent/nl-cad) project, v5): [hardware/wearable-sleeve/](hardware/wearable-sleeve/)
+- Vendor CAD sources: [hardware/cad/README.md](hardware/cad/README.md)
+
 ## Legacy apps
 
 Moved to [`legacy/`](legacy/) — see [legacy/README.md](legacy/README.md):
@@ -60,7 +68,11 @@ handy/
 │   ├── DEEPGRAM_GUIDE.md
 │   ├── ALEXA_GUIDE.md
 │   ├── HOME_ASSISTANT_GUIDE.md
-│   └── CONSTELLATION_INTEGRATION_GUIDE.md
+│   ├── CONSTELLATION_INTEGRATION_GUIDE.md
+│   └── WEARABLE_DEVICE_RESEARCH.md
+├── hardware/               # Wearable device CAD
+│   ├── cad/                # Vendor CAD source list (files gitignored)
+│   └── wearable-sleeve/    # nl-cad project: brief, parts, assembly, builds
 ├── legacy/                 # Archived apps (see legacy/README.md)
 ├── CLAUDE.md               # AI assistant reference (auto-loaded by Claude Code)
 ├── README.md               # This file

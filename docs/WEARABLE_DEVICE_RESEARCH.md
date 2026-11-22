@@ -2,7 +2,7 @@
 
 How we could build our own low-profile device that is worn under trousers while seated, works around an external condom catheter, and is controlled by the `android-v2` app the same way The Handy is.
 
-Status: research only (2026-11-21). Nothing built yet. Sources are listed at the end; items marked *unverified* come from general knowledge, not a source we checked.
+Status (2026-11-21): research done, motor sample order carted (not yet placed), CAD assembly at v5 in [`hardware/wearable-sleeve/`](../hardware/wearable-sleeve/) (see [CAD assembly](#cad-assembly)). Nothing physical built yet. Sources are listed at the end; items marked *unverified* come from general knowledge, not a source we checked.
 
 ---
 
@@ -25,6 +25,12 @@ Status: research only (2026-11-21). Nothing built yet. Sources are listed at the
 | Lovense Max | Air-pump contraction sleeve | Proves pneumatic contraction works. It has an open BLE protocol and is supported by Buttplug/Intiface. Too bulky to wear. |
 | Arcwave Ion | Air-pressure pulses in a sealed chamber | Needs a seal over the glans, which a catheter tip prevents. |
 | Bump'n, Liberator Wanda, Sportsheets thigh harness | Hands-free mounts and harnesses | Shows the conventions for mounting a device without straps around the penis. |
+| We-Vibe Bond (owner used it) | App-controlled wearable | It powers itself off after about 2 h of no use, and the owner can't reach it to switch it back on. Ours must never auto power-off while idle (see Hands-off usability). |
+| Lovense Diamo | App-controlled vibrating ring | Closed ring, so it breaks our no-ring rule with a catheter. No auto-off timer documented. Open BLE protocol (see App integration). |
+| LELO Tor 3 | App-controlled vibrating ring | Closed ring. Auto power-off is set in the app to 10 to 20 min, worse than the Bond. About 85 min battery. |
+| We-Vibe Verge / Pivot | App-controlled vibrating rings | Closed rings. Same maker and app as the Bond, so expect the same idle shut-off (*unverified*). |
+| Hot Octopuss Pulse Duo (Lux) | Wrap-around shaft vibrator with remote | Open wrap, not a closed ring. Auto-off not documented. |
+| Lovense Gush 2 | Open vibrating/oscillating sleeve, hands-free with an optional band | Not a ring. No auto-off documented. Open BLE protocol. |
 | OSR2 / SR6 + TCode | Open-source stroker with an open control protocol | Not wearable, but the protocol is a reference for command design. |
 | Programmable Air, Soft Robotics Toolkit, CU Haptic Pneumatics Toolkit | Open DIY pump/valve/bladder kits | A ready-made base for the pneumatic part. |
 
@@ -35,7 +41,7 @@ Status: research only (2026-11-21). Nothing built yet. Sources are listed at the
 A **soft pouch insert** in snug briefs. Nothing is strapped around the penis.
 
 - **Sleeve:** a C-shaped medical-silicone shell that sits along the underside and sides of the shaft over the sheath. It is held in place by the briefs' pouch, like packing underwear, not by a band. **Leaving the C open means it can never close into a ring**, which removes the constriction/tourniquet risk the safety research ranks as worst.
-- **Phase 1 actuators:** 2 to 4 coin LRAs (or small ERMs) cast into the shell and driven by a DRV2605L. These are thin, quiet, and give a full waveform library.
+- **Phase 1 actuators:** small LRAs in outward pads on the shell (2 underside, 2 flanks) plus a 100 Hz LRA in a pod at the base, five in all. **One DRV2605L per motor** behind a TCA9548A I2C mux, because the DRV2605L has a fixed I2C address. Each motor then has its own waveform and rated voltage, which allows a wave along the shaft.
 - **Phase 2 actuators:** thin air bladders in the C-shell that inflate and deflate in rhythm for a squeezing feel. They are soft, flat when idle, and they **vent by default** (a normally-open valve), so a power loss or fault releases the pressure.
 - **Drain path:** the tip and tube leave the pouch through a bottom opening, with no contact or pressure on the tip connection. This guards against kinks, twisting and blow-off.
 - **Electronics pack:** **mount it on the wheelchair frame, not the body.** A thin tube (pneumatic) or cable (vibration) runs to the sleeve. This keeps the battery and hard parts out of the seat and thigh pressure zone, and away from urine if there's a leak. A belt pack is the fallback.
@@ -45,7 +51,7 @@ Android app (voice, patterns, humanize)
         | BLE
         v
 Chair-mounted pack: XIAO ESP32-C3 / nRF52840
-   |- I2C  -> DRV2605L -> LRAs in sleeve            (phase 1)
+   |- I2C  -> TCA9548A mux -> 5 x DRV2605L -> 5 LRAs in sleeve   (phase 1)
    |- PWM  -> MOSFET   -> mini pump -> bladders     (phase 2)
    |- GPIO -> MOSFET   -> normally-open vent valve
    |- I2C  -> MPRLS pressure sensor (tee on the line)
@@ -77,6 +83,25 @@ Chair-mounted pack: XIAO ESP32-C3 / nRF52840
 
 ---
 
+## Hands-off usability (lessons from commercial devices)
+
+Commercial app-controlled toys assume you can reach the device and your phone at any time. These are the failures that break that assumption, and what this build does instead.
+
+| Failure seen in commercial devices | Requirement for this build | Source |
+|---|---|---|
+| Powers itself off after a period idle (We-Vibe Bond: about 2 h), and turning it back on needs a button you can't reach | No idle auto power-off. The board stays awake and reconnectable (low-power BLE advertising). The session cap and watchdog stop the motors only. | Owner experience |
+| Power-on is a long press on a small button on the worn part | Nothing on the sleeve needs pressing. Power and STOP live on the chair box, big and reachable. Waking from the app needs no hands at all. | Owner need, accessibility guides |
+| BLE drops when the phone screen locks or the app is backgrounded | The app holds the BLE link in a foreground service with a battery-optimization exemption, so screen-off and other apps don't break it. | User reviews (We-Vibe, Lovense support) |
+| Has to be re-paired after the app closes, sometimes by forgetting it in phone Bluetooth settings | Bond once. The device auto-reconnects to the last phone and the app reconnects on launch with no pairing screen. | We-Vibe app reviews |
+| Loses the link and keeps vibrating at full strength until turned off by hand | Link-loss watchdog stops the motors (already in Safety constraints). | Lovense App Store review |
+| Boots or reconnects at the last (or max) intensity | Always boot and reconnect with the motors off. Starting needs a fresh command and ramps up from low. | Design judgement |
+| Fiddly charging pins or a magnetic tip that must be lined up on the toy | Never charge the sleeve itself. The battery lives in the chair box, on a large magnetic or barrel connector, or runs off the wheelchair battery. | Accessibility guides (magnetic snap charging) |
+| Battery dies mid-session with no warning | Report battery level to the app and warn early. On low battery, wind the motors down instead of cutting out. | Design judgement |
+| Buttons on the body get pressed by sitting or leaning | No buttons on the worn part. Box buttons are recessed, except the STOP button. | Owner need (seated all day) |
+| App needs an account, cloud or internet, and updates break the connection | Local only, no account, works offline (as android-v2 already does). Firmware updates are opt-in. | Lovense user reports |
+
+---
+
 ## App integration
 
 The engines (`Dispatch`, `PatternEngine`, `HumanizeEngine`) currently call `HandyV2ApiClient` directly. Extract an interface and have both clients implement it:
@@ -103,6 +128,7 @@ interface HapticDevice {
 - **Mapping:** speed becomes vibration intensity or pump rhythm rate. Stroke range becomes the bladder fill window, or is a no-op on the vibration-only build.
 - **BLE protocol:** start with our own GATT service. One write characteristic takes the command (mode, intensity, pressure target, session limit, heartbeat). One notify characteristic reports pressure, state and faults. Buttplug/Intiface compatibility can come later: Buttplug only allows new devices that reuse an existing protocol, such as Lovense.
 - The voice vocabulary stays the same: `begin` / `stop` / `faster` / `slower`.
+- **Commercial devices as a stopgap (Lovense):** Lovense toys use an open, documented BLE protocol, so a `LovenseClient : HapticDevice` could drive one from android-v2 before our own sleeve exists. Toys advertise as `LVS-*` / `LOVE-*`, using one of three GATT services (Nordic UART `6e400001-...` on gen 2). Commands are ASCII ending in `;`: `Vibrate:0..20;`, `Battery;`, `DeviceType;`, `PowerOff;`. `AutoSwith:<a>:<b>;` (read with `GetAS;`) sets (a) stop vibrating on an accidental disconnect, and (b) return to the last level on reconnect. Set a on and b off, so a dropped link stops the toy and it never restarts by surprise. No idle power-off timer is documented, but neither is a way to disable one. A periodic `Battery;` poll while connected is the likely keep-awake, still to be tested. The Diamo and Gush 2 are not in the protocol page's model table, so check their device type and service generation on real hardware.
 
 ---
 
@@ -164,6 +190,7 @@ Parts to compare by feel before any design is locked. Prices and stock were chec
 DigiKey is about $86 with shipping and tax, and Adafruit is $21.65 plus shipping. Dropped: JYLRA1030X (no size or voltage listed), PMD 307-103 ($13.65 sample, separate shipment from the UK, replaced by VJP20), and Dayton DAEX19SL-4 (replaced by VG2230001H).
 
 - **The low-frequency parts are bigger than DigiKey suggests** (from the datasheets, now nl-cad library entries): VL32158H-L25 is 35.2 x 15 x 8 mm and 13.6 g; VG2230001H is 22 mm dia x 30 mm and 36 g; VJP20 is 20.4 mm dia x 40.5 mm. None fits a 3 to 4 mm shell. They are for the feel test. If one wins, the sleeve gets a thicker pod at the base for it, rather than the motor being embedded along the shaft.
+- **Still to buy for the v5 box** (the carts above have only one driver): 4 more Adafruit 2305 DRV2605L, 1 x [Adafruit 2717 TCA9548A mux](https://www.adafruit.com/product/2717), 1 x [Adafruit 559 16 mm STOP button](https://www.adafruit.com/product/559), STEMMA QT cables, a 1S LiPo (about 1000 mAh, part TBD), and a PG7 cable gland.
 - The DRV2605L's auto-resonance tracking may not lock onto the 100 Hz and 70 Hz LRAs. If it doesn't, use its open-loop LRA mode with a set drive period. Confirm this on the bench.
 
 ### Bladders and materials
@@ -197,10 +224,27 @@ DigiKey is about $86 with shipping and tax, and Adafruit is $21.65 plus shipping
 
 ---
 
+## CAD assembly
+
+[`hardware/wearable-sleeve/`](../hardware/wearable-sleeve/) is an [nl-cad](https://github.com/owenpkent/nl-cad) project: [Brief v3.md](../hardware/wearable-sleeve/Brief%20v3.md), one build123d file per part in `parts/`, `assembly.yaml`, and numbered builds in `builds/vN/` with checks, BOM, JPG renders, and STEP/GLB (STEP/GLB gitignored, regenerated by each build). Bought parts are stand-ins from nl-cad's shared `library/`. Build from the nl-cad repo:
+
+```powershell
+cd W:\dev\nl-cad; uv run python -m nlcad.build W:\dev\handy\hardware\wearable-sleeve --note "what changed"
+```
+
+v5 (32 checks pass, 3 accepted warns for the off-body box, 0 fail):
+
+- **Sleeve:** open C-shell (240 degrees, the build asserts it stays under 300) in Ecoflex-class silicone, 3.5 mm wall, 0.5 mm off a 32 mm reference shaft. Four small LRAs sit in pockets that open outward through pads on the outside (pressed in, sealed with adhesive), so the inner surface stays smooth. A base pod holds the 100 Hz LRA. Shell to catheter tip 13.8 mm, to drain tube 22 mm.
+- **Box:** printed PETG, 114.6 x 89.2 x 30.4 mm. Five DRV2605L, TCA9548A, XIAO, battery, a 16 mm STOP button in the lid, a USB-C charging slot and a PG7 cable exit.
+- **Reference anatomy** (shaft, catheter tip, drain tube) is an estimated, adjustable stand-in, used only for clearances.
+- **Open:** STOP button wiring (firmware interrupt and a hardware cut of motor power), the real button and connector positions, the battery part, and the cable. Listed in the brief.
+
+Vendor STEP files and datasheets for the motors are downloaded to [`hardware/cad/`](../hardware/cad/) (gitignored; [README](../hardware/cad/README.md) lists sources).
+
 ## Build plan
 
 1. **Talk to the continence nurse or urologist.** Ask about over-the-sheath use versus sheath-off sessions, and about any pressure limits.
-2. **Bench prototype, not worn:** XIAO + DRV2605L + LRAs on a breadboard, plus a BLE GATT firmware with a watchdog and session cap.
+2. **Bench prototype, not worn:** XIAO + DRV2605L + LRAs on a breadboard, plus a BLE GATT firmware with a watchdog and session cap. *(Motor samples carted 2026-11-21; CAD at v5.)*
 3. **App:** extract `HapticDevice`, add `BleWearableClient`, add a device picker in Settings. The Handy path stays unchanged.
 4. **Sleeve v1:** cast an open C-shell in silicone with the LRAs embedded, wear it in a pouch, short sessions. Check the sheath for leaks and the skin afterwards.
 5. **Pneumatic v2:** pump + normally-open vent + MPRLS + relief valve. Validate on a pressure gauge and a dummy load before it is ever worn.
@@ -211,6 +255,7 @@ DigiKey is about $86 with shipping and tax, and Adafruit is $21.65 plus shipping
 - With sensation intact, does LRA amplitude through a silicone sheath feel like enough, or would we need a larger ERM or a voice-coil actuator?
 - Does vibration loosen the sheath adhesive over 30 minutes? No data exists, so a bench test (and a real test) will have to tell us.
 - What pressure limit does the clinician want for the pneumatic version?
+- Idle battery life with BLE advertising always on: is the XIAO nRF52840 needed (rather than the ESP32-C3) to last a full day, or does the chair box run off the wheelchair battery?
 
 ---
 
@@ -222,7 +267,9 @@ DigiKey is about $86 with shipping and tax, and Adafruit is $21.65 plus shipping
 - Thermal limits: https://www.ele.uri.edu/Courses/bme484/iec60601-1ed3.0_parts.pdf
 - Penile vibratory stimulation: https://pubmed.ncbi.nlm.nih.gov/32665708/, https://pmc.ncbi.nlm.nih.gov/articles/PMC5129398, https://www.nature.com/articles/sc201760
 - Hot Octopuss: https://disabilityhorizons.com/2015/08/pulse-ii-the-sex-toy-developed-with-disabled-people-in-mind/
+- Commercial device failures: https://justuseapp.com/en/app/890526071/we-connect-by-we-vibe/reviews, https://mv-support.knowledgeowl.com/help/why-does-my-lovense-toy-have-a-weak-connection, https://apps.apple.com/us/app/lovense-remote/id1027312824
 - Accessible devices: https://newmobility.com/the-quest-for-accessible-sex-toys/, https://www.issm.info/sexual-health-qa/what-are-some-sex-enhancement-devices-for-people-with-disabilities
+- Comparable devices: https://www.reviewed.com/products/lovense-diamo, https://fcc.report/FCC-ID/2AXNT-DIAMO/5049085.pdf, https://lyko.com/en/lelo/lelo-tor-3-black, https://testix.co.uk/test/best-cock-ring, https://shop.sexwithemily.com/products/hot-octopuss-pulse-duo-lux, https://www.insidehook.com/sex-and-dating/we-vibe-bond/amp
 - Buttplug / Intiface: https://buttplug.io, https://buttplug.io/docs/dev-guide/inflating-buttplug/devices/device-configuration-file, https://buttplug.io/stpihkal/protocols/lovense/
 - TCode: https://github.com/multiaxis/tcode-spec
 - Soft robotics: https://softroboticstoolkit.com/book/parts-and-materials, https://www.colorado.edu/atlas/haptic-pneumatics-toolkit, https://hackaday.com/2019/06/14/pneumatics-for-the-masses

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="498" height="487" font-family="sans-serif">
+<rect width="100%" height="100%" fill="#fff"/>
+<text x="20" y="28" font-size="16" font-weight="bold">wearable-sleeve, Brief v2 sketch: electronics box, top view, lid removed (4 px per mm)</text>
+<rect x="20.0" y="60.0" width="458.4" height="356.8" fill="#dfe6ee" stroke="#2c5f8a" stroke-width="2"/>
+<rect x="28.0" y="68.0" width="442.4" height="340.8" fill="#fff" stroke="#2c5f8a" />
+<rect x="36.0" y="76.0" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="36.0" y="211.2" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="36.0" y="108.0" width="71.2" height="103.2" fill="#c0504d" stroke="#222" /><text x="71.6" y="162.6" font-size="9" text-anchor="middle">DRV1</text>
+<rect x="115.2" y="76.0" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="115.2" y="211.2" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="115.2" y="108.0" width="71.2" height="103.2" fill="#c0504d" stroke="#222" /><text x="150.8" y="162.6" font-size="9" text-anchor="middle">DRV2</text>
+<rect x="194.4" y="76.0" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="194.4" y="211.2" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="194.4" y="108.0" width="71.2" height="103.2" fill="#c0504d" stroke="#222" /><text x="230.0" y="162.6" font-size="9" text-anchor="middle">DRV3</text>
+<rect x="273.6" y="76.0" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="273.6" y="211.2" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="273.6" y="108.0" width="71.2" height="103.2" fill="#c0504d" stroke="#222" /><text x="309.2" y="162.6" font-size="9" text-anchor="middle">DRV4</text>
+<rect x="352.8" y="76.0" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="352.8" y="211.2" width="71.2" height="32.0" fill="#fde9c8" stroke="#d08a00" stroke-dasharray="3 2"/>
+<rect x="352.8" y="108.0" width="71.2" height="103.2" fill="#c0504d" stroke="#222" /><text x="388.4" y="162.6" font-size="9" text-anchor="middle">DRV5</text>
+<rect x="36.0" y="251.2" width="84.0" height="71.2" fill="#c0504d" stroke="#222" /><text x="78.0" y="289.8" font-size="9" text-anchor="middle">XIAO</text>
+<rect x="36.0" y="330.4" width="122.4" height="70.4" fill="#c0504d" stroke="#222" /><text x="97.2" y="368.6" font-size="9" text-anchor="middle">TCA9548A</text>
+<rect x="166.4" y="251.2" width="200.0" height="136.0" fill="#7a8aa0" stroke="#222" /><text x="266.4" y="322.2" font-size="9" text-anchor="middle">battery 50 x 34</text>
+<circle cx="418.4" cy="319.2" r="36.0" fill="#fff" stroke="#d00" stroke-width="2"/>
+<text x="418.4" y="322.2" font-size="9" text-anchor="middle" fill="#d00">STOP</text>
+<circle cx="418.4" cy="319.2" r="32.0" fill="none" stroke="#d00" stroke-dasharray="3 2"/>
+<rect x="16.0" y="286.8" width="16.0" height="44.0" fill="#2a8a2a" stroke="#2a8a2a" />
+<text x="18.0" y="320.8" font-size="9" text-anchor="end">USB-C slot 11 x 5</text>
+<circle cx="230.0" cy="64.0" r="25.0" fill="#2a8a2a" stroke="#222"/>
+<text x="230.0" y="52.0" font-size="9" text-anchor="middle">PG7 cable exit, 12.5 mm hole (+Y wall)</text>
+<text x="20" y="437" font-size="10">Outside 114.6 x 89.2 mm, 28.4 mm tall (tray), lid 4 mm with lip, button head 5 mm proud. Orange dashed: 8 mm cable-bend keepouts at the DRV2605L ends.</text>
+<text x="20" y="453" font-size="10">+X right, +Y up. Boards on 3 x 3 x 2 mm posts; battery on the floor; free column under the STOP button (shank 24.4 mm deep).</text>
+</svg>

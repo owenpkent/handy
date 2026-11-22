@@ -1,4 +1,5 @@
-# wearable-sleeve v1: a clinical assistive sleeve (open C-shell, 4 shaft LRAs, base pod LRA) plus a chair-mounted electronics pack.
+# wearable-sleeve v4: a clinical assistive sleeve (open C-shell, 4 shaft LRAs, base pod LRA) plus a chair-mounted electronics pack
+# (5 DRV2605L drivers behind a TCA9548A mux, XIAO, LiPo, lid STOP button, USB-C slot, PG7 cable exit).
 # Millimetres. Z up, X forward (distal), Y left. Origin: base datum at the proximal end of the shaft reference, on the shaft axis.
 # Datums first (joints before geometry): every mount is a named world frame; parts are authored about their own frames.
 project: wearable-sleeve
@@ -31,6 +32,9 @@ parts:
   - {id: lid,      module: enclosure_lid}
   - {id: mcu,      module: mcu_xiao}
   - {id: drv,      module: driver_drv2605l}
+  - {id: mux,      module: mux_tca9548a}
+  - {id: stop_btn, module: button_stop}
+  - {id: stop_nut, module: nut_stop}
   - {id: bat,      module: battery_lipo}
 
 instances:
@@ -48,7 +52,14 @@ instances:
   - {id: lid,    part: lid,    subassembly: pack, place: {self: bottom, to: tray.lid_seat}}
   - {id: bat,    part: bat,    subassembly: electronics, place: {self: bottom, to: tray.bat_seat}}
   - {id: mcu,    part: mcu,    subassembly: electronics, place: {self: bottom, to: tray.mcu_seat}}
-  - {id: drv,    part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat}}
+  - {id: drv1,   part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat_1, rotate: 90}}
+  - {id: drv2,   part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat_2, rotate: 90}}
+  - {id: drv3,   part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat_3, rotate: 90}}
+  - {id: drv4,   part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat_4, rotate: 90}}
+  - {id: drv5,   part: drv,    subassembly: electronics, place: {self: bottom, to: tray.drv_seat_5, rotate: 90}}
+  - {id: mux,    part: mux,    subassembly: electronics, place: {self: bottom, to: tray.mux_seat}}
+  - {id: stop,   part: stop_btn, subassembly: pack, place: {self: seat, to: lid.button_seat}}
+  - {id: stop_nut, part: stop_nut, subassembly: pack, place: {self: seat, to: lid.nut_seat}}
 
 steps:
   - {name: Reference anatomy, subassemblies: [ref]}
@@ -56,9 +67,13 @@ steps:
   - {name: Sleeve motors, subassemblies: [motors]}
   - {name: Pack tray, paths: [pack/tray]}
   - {name: Pack contents, subassemblies: [electronics]}
-  - {name: Pack lid, paths: [pack/lid]}
+  # The button is retained by a nut on its rear thread, so it is fitted to the loose lid first (button through the hole from above, nut
+  # screwed on from below), and the lid with its button is lowered onto the tray as one piece. The `order:` here is only for qa.insert, which
+  # tests against the tray already present: a nut cannot be shown reaching the lid underside through a closed tray, so the nut is listed
+  # first (it clears upward), then the lid, then the button. The real bench order is button in loose lid, nut from below, lid onto tray.
+  - {name: Pack lid with STOP button, paths: [pack/lid, pack/stop, pack/stop_nut], order: [pack/stop_nut, pack/lid, pack/stop]}
 
-# All joints are fixed in v1: the sleeve is held by a garment pouch (not modelled) and nothing moves.
+# All joints are fixed: the sleeve is held by a garment pouch (not modelled) and nothing moves.
 # The pack joins the shaft only to keep one tree; its origin sits 300 mm away on purpose (cable not modelled).
 joints:
   - {name: fx_tip,    type: fixed, parent: shaft, child: tip,   frame: world.tip_start}
@@ -74,7 +89,6 @@ joints:
   - {name: fx_lid,    type: fixed, parent: tray,  child: lid,   frame: tray.lid_seat}
   - {name: fx_bat,    type: fixed, parent: tray,  child: bat,   frame: tray.bat_seat}
   - {name: fx_mcu,    type: fixed, parent: tray,  child: mcu,   frame: tray.mcu_seat}
-  - {name: fx_drv,    type: fixed, parent: tray,  child: drv,   frame: tray.drv_seat}
 
 checks:
   interference:
@@ -93,6 +107,6 @@ checks:
     - check: qa.joints
       reason: "fx_tray joins the chair-mounted pack to the shaft reference to keep one tree; the pack sits 300 mm away by design (brief D), the cable is not modelled"
     - check: qa.connected
-      reason: "the electronics pack is a separate chair-mounted sub-assembly 300 mm from the sleeve; the cable between them is not modelled in v1"
+      reason: "the electronics pack is a separate chair-mounted sub-assembly 300 mm from the sleeve; the cable between them is not modelled"
     - check: qa.joint_contact
-      reason: "fx_tray is 294 mm apart by design: the pack is chair-mounted, not touching the sleeve (brief D)"
+      reason: "fx_tray is about 270 mm apart by design: the pack is chair-mounted, not touching the sleeve (brief D)"
