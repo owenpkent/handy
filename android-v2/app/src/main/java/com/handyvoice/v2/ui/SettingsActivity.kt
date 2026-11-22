@@ -18,6 +18,7 @@ import com.handyvoice.v2.BuildConfig
 import com.handyvoice.v2.R
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.Dispatch
+import com.handyvoice.v2.service.BatteryOptimization
 import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.TemplateStore
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var lovenseGroup: View
     private lateinit var lovenseToyText: TextView
     private lateinit var forgetToyButton: MaterialButton
+    private lateinit var batteryOptButton: MaterialButton
     private lateinit var modeGroup: RadioGroup
     private lateinit var modeButton: RadioButton
     private lateinit var modeAlwaysOn: RadioButton
@@ -82,6 +84,7 @@ class SettingsActivity : AppCompatActivity() {
         lovenseGroup = findViewById(R.id.lovenseGroup)
         lovenseToyText = findViewById(R.id.lovenseToyText)
         forgetToyButton = findViewById(R.id.forgetToyButton)
+        batteryOptButton = findViewById(R.id.batteryOptButton)
         modeGroup = findViewById(R.id.modeGroup)
         modeButton = findViewById(R.id.modeButton)
         modeAlwaysOn = findViewById(R.id.modeAlwaysOn)
@@ -173,6 +176,11 @@ class SettingsActivity : AppCompatActivity() {
                 lovenseToyText.text = NO_TOY
             }
         }
+        batteryOptButton.setOnClickListener {
+            if (!BatteryOptimization.isExempt(this)) {
+                runCatching { startActivity(BatteryOptimization.requestIntent(this)) }
+            }
+        }
         invertSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (!ready) return@setOnCheckedChangeListener
             persist { prefs.setInvertStroke(isChecked) }
@@ -193,6 +201,19 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch { populate() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshBatteryOptButton()
+    }
+
+    /** Lovense-only row: shows whether the app is already exempt from battery optimization. */
+    private fun refreshBatteryOptButton() {
+        if (!::batteryOptButton.isInitialized) return
+        val exempt = BatteryOptimization.isExempt(this)
+        batteryOptButton.text = if (exempt) "Background use allowed" else "Allow background use"
+        batteryOptButton.isEnabled = !exempt
     }
 
     override fun onPause() {

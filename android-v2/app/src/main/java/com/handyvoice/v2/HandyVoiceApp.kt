@@ -4,7 +4,12 @@ import android.app.Application
 import com.handyvoice.v2.api.HandyRestTransport
 import com.handyvoice.v2.api.HandyV2ApiClient
 import com.handyvoice.v2.api.LovenseBle
+import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.data.PreferencesManager
+import com.handyvoice.v2.dispatch.HumanizeEngine
+import com.handyvoice.v2.dispatch.PatternEngine
+import com.handyvoice.v2.service.ToyConnectionService
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +34,40 @@ class HandyVoiceApp : Application() {
      * stuck in CONNECTING.
      */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /**
+     * Motion engines live on the process (appScope), not on ControlActivity, so
+     * a pattern / humanize loop survives the activity being destroyed while the
+     * toy service keeps the link up, and the service's Stop action can cancel
+     * them without an activity.
+     */
+    val patternEngine: PatternEngine by lazy { PatternEngine(api, appScope) }
+    val humanizeEngine: HumanizeEngine by lazy { HumanizeEngine(api, appScope) }
+
+    /**
+     * The one stop path for callers with no activity (the toy notification's
+     * Stop action): cancel humanize + pattern, then the rampStop wind-down.
+     */
+    suspend fun stopMotion() {
+        humanizeEngine.cancel()
+        patternEngine.cancel()
+        api.rampStop()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Foreground service while a Lovense toy is connected: keeps the BLE
+        // link and its keep-alive alive with the screen off or the app in the
+        // background. Driven from the shared client's state so it follows the
+        // connection however it was made (splash, Control, any activity).
+        appScope.launch {
+            api.connectionState.collectLatest { state ->
+                val toy = api.transportKind == "lovense"
+                if (state == ConnectionState.CONNECTED && toy) ToyConnectionService.start(this@HandyVoiceApp)
+                else if (state != ConnectionState.CONNECTING) ToyConnectionService.stop(this@HandyVoiceApp)
+            }
+        }
+    }
 
     // Identifies the wire transport currently installed on [api]: "handy" or
     // "lovense:<saved address>". A different signature means a new transport.

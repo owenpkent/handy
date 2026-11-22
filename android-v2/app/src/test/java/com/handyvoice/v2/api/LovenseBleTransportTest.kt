@@ -338,6 +338,37 @@ class LovenseBleTransportTest {
         assertEquals(0, e.port.motor)
     }
 
+    // ---- 6b. silent keep-alive ------------------------------------------------
+
+    @Test
+    fun keepAlive_stopped_writesVibrateZeroEachPoll() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        val mark = e.port.writes.size
+        advanceTimeBy(30_001)
+        runCurrent()
+        val after = e.port.writes.drop(mark)
+        assertTrue("keep-alive expected: $after", after.contains("Vibrate:0;"))
+        assertEquals(0, e.port.motor)
+    }
+
+    @Test
+    fun keepAlive_running_doesNotStopTheMotor() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        assertTrue(e.transport.start().ok)
+        assertTrue(e.transport.setVelocity(60).ok)
+        assertEquals(12, e.port.motor)
+        val mark = e.port.writes.size
+        advanceTimeBy(30_001)
+        runCurrent()
+        val after = e.port.writes.drop(mark)
+        assertFalse("no Vibrate:0; while running: $after", after.contains("Vibrate:0;"))
+        assertEquals(12, e.port.motor)
+    }
+
     // ---- 7. paired address kept ---------------------------------------------------
 
     @Test

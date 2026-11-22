@@ -275,7 +275,16 @@ class LovenseBleTransport(
         pollJob?.cancel()
         pollJob = scope.launch {
             while (isActive && connected) {
-                val reply = opMutex.withLock { sendLocked(LovenseProtocol.CMD_BATTERY, awaitReply = true) }
+                val reply = opMutex.withLock {
+                    val r = sendLocked(LovenseProtocol.CMD_BATTERY, awaitReply = true)
+                    // Silent keep-alive: while the motor is stopped, also write
+                    // Vibrate:0; so the link never idles (the toy sleeps on a
+                    // quiet link). Checked inside the mutex so it can never
+                    // race a start() and stop a running toy; forced past the
+                    // level dedupe; sendLevel keeps lastLevel correct.
+                    if (connected && !running) sendLevel(0, force = true)
+                    r
+                }
                 val pct = reply?.let { LovenseProtocol.parseBattery(it) }
                 if (pct != null && pct != lastBattery) {
                     lastBattery = pct

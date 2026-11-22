@@ -10,6 +10,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.View
@@ -38,8 +39,10 @@ import com.handyvoice.v2.audio.AudioCapture
 import com.handyvoice.v2.audio.Vad
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.Dispatch
+import com.handyvoice.v2.service.BatteryOptimization
 import com.handyvoice.v2.dispatch.HumanizeEngine
 import com.handyvoice.v2.dispatch.PatternEngine
+import com.handyvoice.v2.dispatch.TapPatterns
 import com.handyvoice.v2.update.Updater
 import com.handyvoice.v2.voice.MfccDtwEngine
 import com.handyvoice.v2.voice.TemplateEngine
@@ -129,10 +132,11 @@ class ControlActivity : AppCompatActivity() {
     // Shared with SplashActivity (held on the Application) so a connection
     // the splash started while animating carries over here intact.
     private val api: HandyV2ApiClient by lazy { (application as HandyVoiceApp).api }
-    private val patternEngine: PatternEngine by lazy { PatternEngine(api, lifecycleScope) }
+    // Process-owned (HandyVoiceApp) so loops outlive this activity while a toy service keeps the link up.
+    private val patternEngine: PatternEngine by lazy { (application as HandyVoiceApp).patternEngine }
     /** Adds organic speed + depth drift to regular (non-pattern) motion so a
      *  steady speed doesn't feel robotic. Strength (0 = off) comes from prefs. */
-    private val humanizeEngine: HumanizeEngine by lazy { HumanizeEngine(api, lifecycleScope) }
+    private val humanizeEngine: HumanizeEngine by lazy { (application as HandyVoiceApp).humanizeEngine }
     /** Picture-in-Picture: builds the floating control bar and routes its
      *  taps back through the same dispatch path as voice / tap shortcuts. */
     private val pip: PipController by lazy { PipController(this) { label -> onPipControl(label) } }
@@ -260,7 +264,9 @@ class ControlActivity : AppCompatActivity() {
     private var motionTeardown: Job? = null
 
     private val requestBle = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-        if (grants.values.all { it }) {
+        // Notifications are optional (the toy service runs without them); only
+        // the BLE grant gates the connect.
+        if (LovenseBle.hasPermissions(this)) {
             onConnectTapped()
         } else {
             toast("Bluetooth permission is required to connect to the toy.")
@@ -517,6 +523,7 @@ class ControlActivity : AppCompatActivity() {
                 // the device actually supports PiP).
                 pipButton.visibility = if (pip.isSupported) View.VISIBLE else View.GONE
                 applyListeningMode()
+                if (api.transportKind == "lovense") maybeAskBatteryOptimization()
             }
             ConnectionState.CONNECTING -> {
                 statusText.text = "Connecting..."
@@ -563,6 +570,35 @@ class ControlActivity : AppCompatActivity() {
         homeStatusText.text = statusText.text
         homeStatusText.setTextColor(statusText.currentTextColor)
         updateHomeButton()
+    }
+
+    private var batteryAskStarted = false
+
+    /**
+     * Once ever, the first time a toy connects: explain that Android may
+     * freeze the app in the background and offer the system exemption prompt.
+     * The "asked" flag is stored before showing, so it never nags again.
+     */
+    private fun maybeAskBatteryOptimization() {
+        if (batteryAskStarted || BatteryOptimization.isExempt(this)) return
+        batteryAskStarted = true
+        lifecycleScope.launch {
+            if (prefs.batteryOptAsked()) return@launch
+            prefs.setBatteryOptAsked()
+            if (isFinishing || isDestroyed) return@launch
+            androidx.appcompat.app.AlertDialog.Builder(this@ControlActivity)
+                .setTitle("Keep the toy connected?")
+                .setMessage(
+                    "To stay connected with the screen off or while you use another app, " +
+                        "Android needs to let this app run in the background. " +
+                        "Allow it on the next screen.",
+                )
+                .setPositiveButton("Open") { _, _ ->
+                    runCatching { startActivity(BatteryOptimization.requestIntent(this@ControlActivity)) }
+                }
+                .setNegativeButton("Not now", null)
+                .show()
+        }
     }
 
     /** "Connected", or for a Lovense toy "Connected: <name>, battery N%". */
@@ -864,6 +900,13 @@ class ControlActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // The motion engines are process-owned now. With a toy, the foreground
+        // service keeps the link (and any running loop) alive on purpose; for the
+        // Handy keep the old behaviour: loops end with the activity.
+        if (!deviceIsLovense) {
+            val app = application as HandyVoiceApp
+            app.appScope.launch { app.humanizeEngine.cancel(); app.patternEngine.cancel() }
+        }
         keepAwake(false)
         pip.unregister()
         ackTone?.release()
@@ -1021,7 +1064,9 @@ class ControlActivity : AppCompatActivity() {
             return
         }
         if (deviceIsLovense && !LovenseBle.hasPermissions(this)) {
-            requestBle.launch(LovenseBle.requiredPermissions())
+            val ask = if (Build.VERSION.SDK_INT >= 33) LovenseBle.requiredPermissions() + Manifest.permission.POST_NOTIFICATIONS
+            else LovenseBle.requiredPermissions()
+            requestBle.launch(ask)
             return
         }
         // Flip the UI to its busy state immediately on tap, before the
@@ -1512,84 +1557,35 @@ class ControlActivity : AppCompatActivity() {
         })
     }
 
-    // Tap-only pattern buttons. Each one runs a [PatternEngine] envelope,
+    // Manual pattern grid. Each button runs a [PatternEngine] envelope,
     // bracketed by a stroke-range set so the pattern's position feels
-    // distinct (rangeMin / rangeMax in user-percent of the global band).
-    private data class TapPattern(
-        val patternName: String,
-        val displayName: String,
-        val rangeMin: Int,
-        val rangeMax: Int,
-    )
-
-    private val tapOnlyPatterns: Map<Int, TapPattern> = mapOf(
-        // The old "pulse" metronome was renamed to "tick" so the "pulse"
-        // name could move to the (formerly heartbeat) lub-dub envelope used
-        // by the voice command.
-        R.id.patternTick    to TapPattern("tick",    "Tick",    40, 60),
-        // Surge and Breathe used to be voice commands but were dropped from
-        // the spoken set for acoustic distinctness. They keep their envelopes
-        // here as tap-only patterns with the same wide range Dispatch used.
-        R.id.patternSurge   to TapPattern("surge",   "Surge",   0,  100),
-        R.id.patternBreathe to TapPattern("breathe", "Breathe", 0,  100),
-        R.id.patternTease   to TapPattern("tease",   "Tease",   0,  50),
-        R.id.patternEdge    to TapPattern("edge",    "Edge",    70, 90),
-        R.id.patternRush    to TapPattern("rush",    "Rush",    0,  100),
-        R.id.patternThrob   to TapPattern("throb",   "Throb",   40, 70),
-        R.id.patternBounce  to TapPattern("bounce",  "Bounce",  20, 80),
-        R.id.patternClimax  to TapPattern("climax",  "Climax",  30, 90),
-    )
-
-    /**
-     * Manual-grid buttons that route through [Dispatch] using a voice label.
-     * Tapping them produces exactly the same device state as the voice match
-     * would, including the full stroke band and globalMaxSpeed scaling.
-     */
-    private val voicePatternIds: Map<Int, String> = mapOf(
+    // distinct. The specs (shared with the toy page) live in [TapPatterns].
+    // None of the twelve is a voice command, so none goes through Dispatch
+    // (Thunder / Ripple / Pulse used to, and silently did nothing once their
+    // labels left Dispatch.TABLE).
+    private val patternButtonIds: Map<Int, String> = mapOf(
         R.id.patternThunder to "thunder",
         R.id.patternRipple  to "ripple",
         R.id.patternPulse   to "pulse",
+        R.id.patternTick    to "tick",
+        R.id.patternSurge   to "surge",
+        R.id.patternBreathe to "breathe",
+        R.id.patternTease   to "tease",
+        R.id.patternEdge    to "edge",
+        R.id.patternRush    to "rush",
+        R.id.patternThrob   to "throb",
+        R.id.patternBounce  to "bounce",
+        R.id.patternClimax  to "climax",
     )
 
     private fun wireManualPatterns() {
-        voicePatternIds.forEach { (id, label) ->
-            findViewById<MaterialButton>(id).setOnClickListener { runVoicePattern(label) }
-        }
-        tapOnlyPatterns.forEach { (id, spec) ->
+        patternButtonIds.forEach { (id, name) ->
+            val spec = TapPatterns.byName(name)
             findViewById<MaterialButton>(id).setOnClickListener { runTapPattern(spec) }
         }
     }
 
-    private fun runVoicePattern(label: String) {
-        lifecycleScope.launch {
-            if (api.connectionState.value != ConnectionState.CONNECTED) {
-                manualFeedbackText.text = "Not connected"
-                return@launch
-            }
-            val result = runCatching {
-                Dispatch.dispatch(
-                    label = label,
-                    api = api,
-                    globalMaxSpeed = globalMaxSpeed,
-                    globalMinStroke = globalMinStroke,
-                    globalMaxStroke = globalMaxStroke,
-                    patternEngine = patternEngine,
-                    humanizeEngine = humanizeEngine,
-                )
-            }
-            val ok = result.getOrDefault(false)
-            val err = result.exceptionOrNull()
-            manualFeedbackText.text = when {
-                ok -> "Pattern: ${label.replaceFirstChar { it.uppercase() }}"
-                err != null -> "Pattern $label error: ${err.message ?: err::class.simpleName}"
-                else -> "Pattern $label failed (start refused?)"
-            }
-            if (err != null) appLog("Pattern $label threw: ${err.message}")
-            else if (!ok) appLog("Pattern $label dispatch returned false.")
-        }
-    }
-
-    private fun runTapPattern(spec: TapPattern) {
+    private fun runTapPattern(spec: TapPatterns.Spec) {
         val band = (globalMaxStroke - globalMinStroke).coerceAtLeast(0)
         val sMin = globalMinStroke + spec.rangeMin * band / 100
         val sMax = globalMinStroke + spec.rangeMax * band / 100
@@ -1604,14 +1600,14 @@ class ControlActivity : AppCompatActivity() {
             humanizeEngine.cancel()
             val strokeOk = api.setStrokeRange(sMin, sMax)
             if (!strokeOk) {
-                manualFeedbackText.text = "Pattern ${spec.displayName}: stroke set failed"
+                manualFeedbackText.text = "Pattern ${spec.label}: stroke set failed"
                 return@launch
             }
-            val ok = patternEngine.start(spec.patternName, peak)
+            val ok = patternEngine.start(spec.name, peak)
             manualFeedbackText.text = if (ok) {
-                "Pattern: ${spec.displayName} (peak $peak%)"
+                "Pattern: ${spec.label} (peak $peak%)"
             } else {
-                "Pattern ${spec.displayName} failed (start refused?)"
+                "Pattern ${spec.label} failed (start refused?)"
             }
         }
     }

@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Keeps the toy link and its keep-alive running (foreground service + wake lock) while connected. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Lovense BLE. API 31+ uses the new runtime permissions; older uses legacy + location (scan). -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
@@ -56,6 +61,11 @@
             android:exported="false"
             android:label="@string/settings_title"
             android:parentActivityName=".ui.ControlActivity" />
+
+        <service
+            android:name=".service.ToyConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <!-- Serves the downloaded update APK to the system package installer
              via a content:// URI (a file:// URI would throw on API 24+). -->

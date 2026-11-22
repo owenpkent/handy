@@ -18,6 +18,7 @@ import com.handyvoice.v2.api.HandyV2ApiClient
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.HumanizeEngine
 import com.handyvoice.v2.dispatch.PatternEngine
+import com.handyvoice.v2.dispatch.TapPatterns
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -52,22 +53,7 @@ class ToyPanel(
         val pipSupported: Boolean
     }
 
-    private data class Pattern(val name: String, val label: String, val rangeMin: Int, val rangeMax: Int)
-
-    private val patterns = listOf(
-        Pattern("pulse", "Pulse", 0, 100),
-        Pattern("ripple", "Ripple", 0, 100),
-        Pattern("thunder", "Thunder", 0, 100),
-        Pattern("tick", "Tick", 40, 60),
-        Pattern("surge", "Surge", 0, 100),
-        Pattern("breathe", "Breathe", 0, 100),
-        Pattern("tease", "Tease", 0, 50),
-        Pattern("edge", "Edge", 70, 90),
-        Pattern("rush", "Rush", 0, 100),
-        Pattern("throb", "Throb", 40, 70),
-        Pattern("bounce", "Bounce", 20, 80),
-        Pattern("climax", "Climax", 30, 90),
-    )
+    private val patterns = TapPatterns.ALL
 
     val root: View = activity.findViewById(R.id.toyPanel)
     private val statusText: TextView = root.findViewById(R.id.toyStatusText)
@@ -237,7 +223,7 @@ class ToyPanel(
         }
     }
 
-    private fun onPatternTapped(pattern: Pattern) {
+    private fun onPatternTapped(pattern: TapPatterns.Spec) {
         if (patternEngine.isRunning && patternEngine.current == pattern.name) {
             stopAll()
             return
@@ -253,7 +239,7 @@ class ToyPanel(
     }
 
     /** Same path as the Manual tap-pattern grid: cancel humanize, set the range, start the envelope. */
-    private suspend fun startPattern(pattern: Pattern) {
+    private suspend fun startPattern(pattern: TapPatterns.Spec) {
         if (api.connectionState.value != ConnectionState.CONNECTED) return
         val band = (host.globalMaxStroke - host.globalMinStroke).coerceAtLeast(0)
         val sMin = host.globalMinStroke + pattern.rangeMin * band / 100

@@ -37,6 +37,7 @@ class PreferencesManager(private val context: Context) {
         private val KEY_DEVICE_TYPE = stringPreferencesKey("device_type")
         private val KEY_LOVENSE_ADDRESS = stringPreferencesKey("lovense_address")
         private val KEY_LOVENSE_NAME = stringPreferencesKey("lovense_name")
+        private val KEY_BATTERY_OPT_ASKED = booleanPreferencesKey("battery_opt_asked")
 
         const val DEVICE_HANDY = "handy"
         const val DEVICE_LOVENSE = "lovense"
@@ -116,6 +117,10 @@ class PreferencesManager(private val context: Context) {
 
     val lovenseName: Flow<String> = context.dataStore.data
         .map { it[KEY_LOVENSE_NAME] ?: "" }
+
+    /** True once the one-time "allow background use" dialog has been shown. */
+    suspend fun batteryOptAsked(): Boolean = context.dataStore.data.first()[KEY_BATTERY_OPT_ASKED] ?: false
+    suspend fun setBatteryOptAsked() = edit { it[KEY_BATTERY_OPT_ASKED] = true }
 
     suspend fun setDeviceType(value: String) = edit {
         it[KEY_DEVICE_TYPE] = if (value == DEVICE_LOVENSE) DEVICE_LOVENSE else DEVICE_HANDY
