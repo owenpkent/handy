@@ -33,6 +33,7 @@ import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.api.HandyV2ApiClient
+import com.handyvoice.v2.api.LovenseBleTransport
 import com.handyvoice.v2.audio.AudioCapture
 import com.handyvoice.v2.audio.Vad
 import com.handyvoice.v2.data.PreferencesManager
@@ -243,6 +244,17 @@ class ControlActivity : AppCompatActivity() {
     private var manualSpeed: Int = PreferencesManager.DEFAULT_MANUAL_SPEED
     private var humanizeStrength: Int = PreferencesManager.DEFAULT_HUMANIZE_STRENGTH
 
+    /** True when Settings selects a Lovense toy (no connection key needed). */
+    private var deviceIsLovense = false
+
+    private val requestBle = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants.values.all { it }) {
+            onConnectTapped()
+        } else {
+            toast("Bluetooth permission is required to connect to the toy.")
+        }
+    }
+
     private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             applyListeningMode()
@@ -452,6 +464,9 @@ class ControlActivity : AppCompatActivity() {
         lifecycleScope.launch {
             api.isRunning.collectLatest { updatePipStatus() }
         }
+        // Lovense: keep the "Connected: name, battery N%" line current.
+        lifecycleScope.launch { api.battery.collectLatest { refreshConnectedStatus() } }
+        lifecycleScope.launch { api.deviceName.collectLatest { refreshConnectedStatus() } }
         lifecycleScope.launch {
             api.currentSpeed.collectLatest { updatePipStatus() }
         }
@@ -466,7 +481,7 @@ class ControlActivity : AppCompatActivity() {
                 showConnecting(false)
                 setupPanel.visibility = View.GONE
                 controlPanel.visibility = View.VISIBLE
-                statusText.setText(R.string.status_connected)
+                setConnectedStatusText()
                 statusText.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
                 // Offer the float button only once connected (and only where
                 // the device actually supports PiP).
@@ -512,6 +527,53 @@ class ControlActivity : AppCompatActivity() {
         updateHomeButton()
     }
 
+    /** "Connected", or for a Lovense toy "Connected: <name>, battery N%". */
+    private fun setConnectedStatusText() {
+        val name = api.deviceName.value
+        val battery = api.battery.value
+        if (api.transportKind != "lovense" || name == null) {
+            statusText.setText(R.string.status_connected)
+            return
+        }
+        statusText.text = buildString {
+            append("Connected: ").append(name)
+            if (battery != null) append(", battery ").append(battery).append("%")
+        }
+    }
+
+    /** Re-render only the connected status line (battery / name changed). */
+    private fun refreshConnectedStatus() {
+        if (api.connectionState.value != ConnectionState.CONNECTED) return
+        setConnectedStatusText()
+        homeStatusText.text = statusText.text
+    }
+
+    /** Show the connection-key field only for the Handy. */
+    private fun applyDeviceTypeUi() {
+        val keyVisibility = if (deviceIsLovense) View.GONE else View.VISIBLE
+        connectionKeyInput.visibility = keyVisibility
+        findViewById<View>(R.id.connectionKeyLabel).visibility = keyVisibility
+    }
+
+    /**
+     * Pick the transport the prefs ask for. If the device type (or paired
+     * toy) changed while connected, wind everything down and disconnect first,
+     * since the transport can only be swapped while disconnected.
+     */
+    private suspend fun syncDevice(snap: PreferencesManager.Snapshot) {
+        val app = application as HandyVoiceApp
+        deviceIsLovense = snap.isLovense
+        if (app.deviceChanged(snap) && api.connectionState.value == ConnectionState.CONNECTED) {
+            humanizeEngine.cancel()
+            patternEngine.cancel()
+            stopAlwaysOn()
+            api.disconnect()
+        }
+        app.configureDevice(snap)
+        applyDeviceTypeUi()
+        updateHomeButton()
+    }
+
     /** Switch between the one-button home screen and "More controls". */
     private fun showMore(more: Boolean) {
         showingMore = more
@@ -533,7 +595,7 @@ class ControlActivity : AppCompatActivity() {
             ConnectionState.CONNECTING -> Unit
             ConnectionState.DISCONNECTED -> when {
                 connectGuard.inFlight -> Unit
-                connectionKeyInput.text.isNullOrBlank() -> showMore(true)
+                !deviceIsLovense && connectionKeyInput.text.isNullOrBlank() -> showMore(true)
                 else -> onConnectTapped()
             }
         }
@@ -592,6 +654,7 @@ class ControlActivity : AppCompatActivity() {
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
+            syncDevice(snap)
 
             // Onboarding gate: only force training on first run. After the user
             // has been through (or deliberately bailed out of) onboarding, trust
@@ -612,10 +675,15 @@ class ControlActivity : AppCompatActivity() {
             // connect while it animates, so only start one here if it didn't
             // (no key at splash time, or the shared client is still idle).
             connectionKeyInput.setText(snap.connectionKey)
-            if (snap.connectionKey.isNotBlank() &&
-                api.connectionState.value == ConnectionState.DISCONNECTED) {
-                api.setConnectionKey(snap.connectionKey)
-                api.connect()
+            if (api.connectionState.value == ConnectionState.DISCONNECTED) {
+                if (snap.isLovense) {
+                    // Toy: no key. Auto-connect only if BLE permission is
+                    // already granted; otherwise the first tap asks for it.
+                    if (LovenseBleTransport.hasPermissions(this@ControlActivity)) api.connect()
+                } else if (snap.connectionKey.isNotBlank()) {
+                    api.setConnectionKey(snap.connectionKey)
+                    api.connect()
+                }
             }
         }
     }
@@ -645,6 +713,7 @@ class ControlActivity : AppCompatActivity() {
             // back onto the plain constant speed / user band.
             humanizeEngine.setStrength(snap.humanizeStrength)
             if (snap.humanizeStrength == 0 && humanizeEngine.isRunning) humanizeEngine.cancel()
+            syncDevice(snap)
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -884,8 +953,12 @@ class ControlActivity : AppCompatActivity() {
 
     private fun onConnectTapped() {
         val key = connectionKeyInput.text.toString().trim()
-        if (key.isBlank()) {
+        if (!deviceIsLovense && key.isBlank()) {
             toast("Connection key required.")
+            return
+        }
+        if (deviceIsLovense && !LovenseBleTransport.hasPermissions(this)) {
+            requestBle.launch(LovenseBleTransport.requiredPermissions())
             return
         }
         // Flip the UI to its busy state immediately on tap, before the
@@ -901,8 +974,10 @@ class ControlActivity : AppCompatActivity() {
                 updateHomeButton()
             },
         ) {
-            prefs.setConnectionKey(key)
-            api.setConnectionKey(key)
+            if (!deviceIsLovense) {
+                prefs.setConnectionKey(key)
+                api.setConnectionKey(key)
+            }
             val ok = api.connect()
             if (!ok) {
                 // The DISCONNECTED state already paints the reason on the

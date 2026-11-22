@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
+import com.handyvoice.v2.api.LovenseBleTransport
 import com.handyvoice.v2.data.PreferencesManager
 import kotlinx.coroutines.launch
 
@@ -106,7 +107,14 @@ class SplashActivity : AppCompatActivity() {
         // cancelled connect would leave the client stuck in CONNECTING.
         app.appScope.launch {
             val snap = PreferencesManager(applicationContext).snapshot()
-            if (snap.connectionKey.isBlank()) return@launch
+            if (!app.configureDevice(snap)) return@launch
+            if (snap.isLovense) {
+                // No key for a toy; but a BLE connect needs the runtime
+                // permissions, which Control asks for on the first tap.
+                if (!LovenseBleTransport.hasPermissions(applicationContext)) return@launch
+            } else if (snap.connectionKey.isBlank()) {
+                return@launch
+            }
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             api.setConnectionKey(snap.connectionKey)

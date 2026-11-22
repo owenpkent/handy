@@ -1,7 +1,11 @@
 package com.handyvoice.v2
 
 import android.app.Application
+import com.handyvoice.v2.api.HandyRestTransport
 import com.handyvoice.v2.api.HandyV2ApiClient
+import com.handyvoice.v2.api.LovenseBleTransport
+import com.handyvoice.v2.data.PreferencesManager
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
@@ -25,4 +29,35 @@ class HandyVoiceApp : Application() {
      * stuck in CONNECTING.
      */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // Identifies the wire transport currently installed on [api]: "handy" or
+    // "lovense:<saved address>". A different signature means a new transport.
+    private var transportSig = "handy"
+
+    private fun sigFor(snap: PreferencesManager.Snapshot) =
+        if (snap.isLovense) "lovense:${snap.lovenseAddress}" else "handy"
+
+    /** True if the saved device settings no longer match the installed transport. */
+    fun deviceChanged(snap: PreferencesManager.Snapshot): Boolean = sigFor(snap) != transportSig
+
+    /**
+     * Install the transport the prefs ask for (Handy REST or Lovense BLE).
+     * Only possible while the client is disconnected; returns true if the
+     * installed transport now matches the prefs.
+     */
+    fun configureDevice(snap: PreferencesManager.Snapshot): Boolean {
+        val sig = sigFor(snap)
+        if (sig == transportSig) return true
+        val t = if (snap.isLovense) {
+            LovenseBleTransport(this, snap.lovenseAddress.ifBlank { null }) { address, name ->
+                transportSig = "lovense:$address"
+                appScope.launch { PreferencesManager(applicationContext).setLovenseToy(address, name) }
+            }
+        } else {
+            HandyRestTransport()
+        }
+        if (!api.useTransport(t)) return false
+        transportSig = sig
+        return true
+    }
 }

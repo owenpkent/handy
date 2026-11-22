@@ -260,6 +260,15 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 
 **Ramp supersession (`velocityEpoch`).** `rampSpeed`/`rampStop` write velocity across ~1.5 s in their own coroutines. A monotonic epoch, bumped by every single-shot velocity write (`start`/`stop`/`setSpeed`/`setSpeedModulated`) and captured by each ramp, lets a ramp abandon its remaining legs — and skip its terminal `hamp/stop` — the instant a newer command bumps it. Without this, a "begin" landing while a "stop" ramp was still draining would be overwritten back to 0 a beat later, so the device appeared to refuse to restart.
 
+## Device transports
+
+`HandyV2ApiClient` owns all motion policy (velocity epoch, `rampSpeed` / `rampStop`, invert, global band, transient writes, state flows, debug log, `lastError`) and is the single device object the rest of the app uses. Below it sits a small `DeviceTransport` (`api/DeviceTransport.kt`) that does only wire work:
+
+- `HandyRestTransport`: the Handy V2 REST calls (default).
+- `LovenseBleTransport`: a Lovense toy over BLE GATT (`Vibrate:N;`, levels 0..20; protocol helpers in the Android-free `LovenseProtocol`).
+
+`HandyVoiceApp.configureDevice(prefs snapshot)` installs the transport chosen in Settings; `useTransport` only works while DISCONNECTED. Transports report back through `TransportListener` (log lines, battery, device name, and an unexpected link drop, which flips the client to DISCONNECTED with a `lastError` so the usual red status line shows it). GATT operations are serialized inside the Lovense transport (one Mutex, suspend until callback, ~1 s timeout); a 30 s `Battery;` poll doubles as keep-awake.
+
 ## Things deliberately missing
 
 - **No background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.

@@ -66,6 +66,36 @@
                     style="@style/SettingsSectionHeader"
                     android:text="Connection" />
 
+                <RadioGroup
+                    android:id="@+id/deviceTypeGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/deviceHandy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:text="The Handy"
+                        android:textColor="@color/text_primary" />
+
+                    <RadioButton
+                        android:id="@+id/deviceLovense"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:text="Lovense toy (Bluetooth)"
+                        android:textColor="@color/text_primary" />
+                </RadioGroup>
+
+                <LinearLayout
+                    android:id="@+id/handyConnectionGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -86,6 +116,39 @@
                     android:textColor="@color/text_primary"
                     android:textColorHint="@color/text_secondary"
                     android:textSize="18sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/lovenseGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/lovenseToyText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="No toy paired yet"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Turn the toy on, then tap Connect on the home screen. The first toy found is paired."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/forgetToyButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Forget toy" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

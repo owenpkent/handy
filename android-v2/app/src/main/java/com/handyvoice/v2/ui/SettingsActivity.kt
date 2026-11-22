@@ -30,6 +30,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var store: TemplateStore
 
     private lateinit var keyInput: EditText
+    private lateinit var deviceTypeGroup: RadioGroup
+    private lateinit var deviceHandy: RadioButton
+    private lateinit var deviceLovense: RadioButton
+    private lateinit var handyConnectionGroup: View
+    private lateinit var lovenseGroup: View
+    private lateinit var lovenseToyText: TextView
+    private lateinit var forgetToyButton: MaterialButton
     private lateinit var modeGroup: RadioGroup
     private lateinit var modeButton: RadioButton
     private lateinit var modeAlwaysOn: RadioButton
@@ -68,6 +75,13 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.homeButton).setOnClickListener { goHome() }
 
         keyInput = findViewById(R.id.connectionKeyInput)
+        deviceTypeGroup = findViewById(R.id.deviceTypeGroup)
+        deviceHandy = findViewById(R.id.deviceHandy)
+        deviceLovense = findViewById(R.id.deviceLovense)
+        handyConnectionGroup = findViewById(R.id.handyConnectionGroup)
+        lovenseGroup = findViewById(R.id.lovenseGroup)
+        lovenseToyText = findViewById(R.id.lovenseToyText)
+        forgetToyButton = findViewById(R.id.forgetToyButton)
         modeGroup = findViewById(R.id.modeGroup)
         modeButton = findViewById(R.id.modeButton)
         modeAlwaysOn = findViewById(R.id.modeAlwaysOn)
@@ -139,6 +153,26 @@ class SettingsActivity : AppCompatActivity() {
                 )
             }
         }
+        deviceTypeGroup.setOnCheckedChangeListener { _, checkedId ->
+            val lovense = checkedId == R.id.deviceLovense
+            showDeviceGroup(lovense)
+            if (!ready) return@setOnCheckedChangeListener
+            persist {
+                prefs.setDeviceType(
+                    if (lovense) PreferencesManager.DEVICE_LOVENSE else PreferencesManager.DEVICE_HANDY
+                )
+                // Each device keeps its own max speed; show the new device's.
+                val max = prefs.snapshot().globalMaxSpeed
+                globalMaxSlider.progress = max
+                globalMaxValue.text = max.toString()
+            }
+        }
+        forgetToyButton.setOnClickListener {
+            persist {
+                prefs.clearLovenseToy()
+                lovenseToyText.text = NO_TOY
+            }
+        }
         invertSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (!ready) return@setOnCheckedChangeListener
             persist { prefs.setInvertStroke(isChecked) }
@@ -168,9 +202,17 @@ class SettingsActivity : AppCompatActivity() {
         persistKey()
     }
 
+    private companion object {
+        const val NO_TOY = "No toy paired yet"
+    }
+
     private suspend fun populate() {
         val snap = prefs.snapshot()
         keyInput.setText(snap.connectionKey)
+        if (snap.isLovense) deviceLovense.isChecked = true else deviceHandy.isChecked = true
+        showDeviceGroup(snap.isLovense)
+        lovenseToyText.text = if (snap.lovenseAddress.isBlank()) NO_TOY
+        else "Paired: ${snap.lovenseName.ifBlank { snap.lovenseAddress }}"
         if (snap.listeningMode == PreferencesManager.MODE_ALWAYS_ON) modeAlwaysOn.isChecked = true
         else modeButton.isChecked = true
         globalMaxSlider.progress = snap.globalMaxSpeed
@@ -188,6 +230,12 @@ class SettingsActivity : AppCompatActivity() {
         idleTimeoutValue.text = snap.idleTimeoutMin.toString()
         // Saved values are in place; from here, listener changes are the user's.
         ready = true
+    }
+
+    /** Handy shows the connection key; Lovense shows the paired toy. */
+    private fun showDeviceGroup(lovense: Boolean) {
+        handyConnectionGroup.visibility = if (lovense) View.GONE else View.VISIBLE
+        lovenseGroup.visibility = if (lovense) View.VISIBLE else View.GONE
     }
 
     /** Persist the global stroke band (both thumbs) after a band edit. */
