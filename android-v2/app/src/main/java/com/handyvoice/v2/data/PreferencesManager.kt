@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.handyvoice.v2.api.KeepAliveMode
+import com.handyvoice.v2.ui.ToyDisconnectRecord
+import com.handyvoice.v2.ui.ToyLabFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -37,6 +40,9 @@ class PreferencesManager(private val context: Context) {
         private val KEY_DEVICE_TYPE = stringPreferencesKey("device_type")
         private val KEY_LOVENSE_ADDRESS = stringPreferencesKey("lovense_address")
         private val KEY_LOVENSE_NAME = stringPreferencesKey("lovense_name")
+        private val KEY_TOY_KEEPALIVE_MODE = stringPreferencesKey("toy_keepalive_mode")
+        private val KEY_TOY_KEEPALIVE_INTERVAL_S = intPreferencesKey("toy_keepalive_interval_s")
+        private val KEY_TOY_DISCONNECTS = stringPreferencesKey("toy_disconnect_history")
         private val KEY_BATTERY_OPT_ASKED = booleanPreferencesKey("battery_opt_asked")
 
         const val DEVICE_HANDY = "handy"
@@ -118,6 +124,22 @@ class PreferencesManager(private val context: Context) {
     val lovenseName: Flow<String> = context.dataStore.data
         .map { it[KEY_LOVENSE_NAME] ?: "" }
 
+    suspend fun toyKeepAliveMode(): String =
+        context.dataStore.data.first()[KEY_TOY_KEEPALIVE_MODE] ?: KeepAliveMode.DEFAULT.id
+    suspend fun toyKeepAliveIntervalS(): Int =
+        context.dataStore.data.first()[KEY_TOY_KEEPALIVE_INTERVAL_S] ?: KeepAliveMode.DEFAULT_INTERVAL_S
+    suspend fun setToyKeepAlive(mode: KeepAliveMode, intervalS: Int) = edit {
+        it[KEY_TOY_KEEPALIVE_MODE] = mode.id
+        it[KEY_TOY_KEEPALIVE_INTERVAL_S] = intervalS
+    }
+
+    /** The last few ended toy links, newest first. */
+    suspend fun toyDisconnects(): List<ToyDisconnectRecord> =
+        ToyLabFormat.parseHistory(context.dataStore.data.first()[KEY_TOY_DISCONNECTS] ?: "")
+    suspend fun addToyDisconnect(rec: ToyDisconnectRecord) = edit {
+        it[KEY_TOY_DISCONNECTS] = ToyLabFormat.appendHistory(it[KEY_TOY_DISCONNECTS] ?: "", rec)
+    }
+
     /** True once the one-time "allow background use" dialog has been shown. */
     suspend fun batteryOptAsked(): Boolean = context.dataStore.data.first()[KEY_BATTERY_OPT_ASKED] ?: false
     suspend fun setBatteryOptAsked() = edit { it[KEY_BATTERY_OPT_ASKED] = true }
@@ -174,6 +196,8 @@ class PreferencesManager(private val context: Context) {
             deviceType = it[KEY_DEVICE_TYPE] ?: DEVICE_HANDY,
             lovenseAddress = it[KEY_LOVENSE_ADDRESS] ?: "",
             lovenseName = it[KEY_LOVENSE_NAME] ?: "",
+            toyKeepAliveMode = it[KEY_TOY_KEEPALIVE_MODE] ?: KeepAliveMode.DEFAULT.id,
+            toyKeepAliveIntervalS = it[KEY_TOY_KEEPALIVE_INTERVAL_S] ?: KeepAliveMode.DEFAULT_INTERVAL_S,
         )
     }
 
@@ -199,6 +223,8 @@ class PreferencesManager(private val context: Context) {
         val lovenseAddress: String = "",
         val lovenseName: String = "",
         val toyIntensity: Int = DEFAULT_TOY_INTENSITY,
+        val toyKeepAliveMode: String = KeepAliveMode.DEFAULT.id,
+        val toyKeepAliveIntervalS: Int = KeepAliveMode.DEFAULT_INTERVAL_S,
     ) {
         val isLovense: Boolean get() = deviceType == DEVICE_LOVENSE
     }

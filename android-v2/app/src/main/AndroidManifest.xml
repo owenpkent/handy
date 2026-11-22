@@ -62,6 +62,12 @@
             android:label="@string/settings_title"
             android:parentActivityName=".ui.ControlActivity" />
 
+        <activity
+            android:name=".ui.ToyLabActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:parentActivityName=".ui.SettingsActivity" />
+
         <service
             android:name=".service.ToyConnectionService"
             android:exported="false"

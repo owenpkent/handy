@@ -115,6 +115,8 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
         private var rx: BluetoothGattCharacteristic? = null
 
         override val deviceName: String? get() = gatt?.device?.name
+        @Volatile override var serviceUuid: String? = null
+            private set
 
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
@@ -171,6 +173,7 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
                 if (t != null && rr != null) {
                     tx = t
                     rx = rr
+                    serviceUuid = svc.uuid.toString()
                     return Discovery.OK
                 }
             }

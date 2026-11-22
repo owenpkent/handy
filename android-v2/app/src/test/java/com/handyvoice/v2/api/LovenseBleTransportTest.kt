@@ -28,6 +28,7 @@ class LovenseBleTransportTest {
     private class FakeSession(val port: FakePort, val sink: GattSink) : LovenseGattSession {
         /** Drop the link while the transport reads the device name (last setup step). */
         var dropOnName = false
+        override val serviceUuid: String? = "6e400001-test"
         override val deviceName: String?
             get() {
                 if (dropOnName) { dropOnName = false; port.dropLink(this) }
@@ -38,6 +39,7 @@ class LovenseBleTransportTest {
 
         /** Drop the link while this command is awaiting its reply. */
         var dropOnCommand: String? = null
+        var silent = false // the toy answers nothing to probe commands
         var autoSwitchWriteReply: String? = "OK;"
         var getAsReply: String? = "1:0;"
 
@@ -77,6 +79,9 @@ class LovenseBleTransportTest {
                 text == LovenseProtocol.CMD_AUTO_SWITCH -> autoSwitchWriteReply?.let { sink.onNotify(it) }
                 text == LovenseProtocol.CMD_GET_AUTO_SWITCH -> getAsReply?.let { sink.onNotify(it) }
                 text == LovenseProtocol.CMD_BATTERY -> sink.onNotify("85;")
+            }
+            if (!silent) LovenseProtocol.parseProbe(text)?.let { (name, _) ->
+                sink.onNotify(if (name == "Rotate") "ERR;" else "OK;")
             }
             if (holdNextWrite && text.startsWith("Vibrate:")) {
                 holdNextWrite = false
@@ -123,7 +128,10 @@ class LovenseBleTransportTest {
 
     private class Env(scope: TestScope, saved: String? = "AA:01", val port: FakePort = FakePort()) {
         val paired = mutableListOf<String>()
-        val transport = LovenseBleTransport(port, saved, { a, _ -> paired += a }, scope.backgroundScope)
+        val transport = LovenseBleTransport(
+            port, saved, { a, _ -> paired += a }, scope.backgroundScope,
+            clock = { scope.testScheduler.currentTime },
+        )
         val api = HandyV2ApiClient(transport)
     }
 
@@ -385,5 +393,181 @@ class LovenseBleTransportTest {
         assertEquals(1, e.port.scanCount)
         assertEquals(listOf("TOY:A", "TOY:A"), e.port.opened)
         assertEquals(listOf("TOY:A"), e.paired)
+    }
+
+    // ---- 8. test panel: probe ----------------------------------------------------
+
+    @Test
+    fun probe_sendsCommandAndReturnsRawReply() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        val ok = e.api.probe("Oscillate:5;")
+        assertTrue(ok.sent)
+        assertEquals("OK;", ok.reply)
+        assertTrue(e.port.writes.contains("Oscillate:5;"))
+        val err = e.api.probe("Rotate:10;")
+        assertEquals("ERR;", err.reply)
+    }
+
+    @Test
+    fun probe_unansweredCommandGivesNullReply() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        // The fake toy ignores Vibrate1 only if we remove its reply path; use a toy that never answers.
+        e.port.current!!.silent = true
+        val r = e.api.probe("Vibrate1:5;")
+        assertTrue(r.sent)
+        assertNull(r.reply)
+    }
+
+    @Test
+    fun probe_rejectsAnythingNotOnTheAllowList_andSendsNothing() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        val mark = e.port.writes.size
+        for (cmd in listOf("PowerOff;", "Vibrate:21;", "Battery;", "Vibrate:5;Vibrate:6;", "AutoSwith:On:Off;")) {
+            val r = e.api.probe(cmd)
+            assertFalse(cmd, r.sent)
+        }
+        assertEquals(emptyList<String>(), e.port.writes.drop(mark))
+    }
+
+    @Test
+    fun probe_whenDisconnected_isNotSent() = runTest {
+        val e = Env(this)
+        assertFalse(e.api.probe("Vibrate:5;").sent)
+        assertEquals(emptyList<String>(), e.port.writes)
+    }
+
+    @Test
+    fun probeNonzero_pausesForcedVibrateZero_untilStopAll() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        assertTrue(e.api.probe("Vibrate:10;").sent)
+        assertEquals(10, e.port.motor)
+        var mark = e.port.writes.size
+        advanceTimeBy(95_000)
+        runCurrent()
+        val during = e.port.writes.drop(mark)
+        assertTrue("polls continue: $during", during.contains("Battery;"))
+        assertFalse("no forced stop during a probe: $during", during.contains("Vibrate:0;"))
+        assertEquals(10, e.port.motor)
+
+        e.api.probeStopAll()
+        val w = e.port.writes
+        for (n in LovenseProtocol.PROBE_NAMES) assertTrue("$n:0; sent", w.contains("$n:0;"))
+        assertEquals("Vibrate:0; goes last", "Vibrate:0;", w.last())
+        assertEquals(0, e.port.motor)
+
+        mark = e.port.writes.size
+        advanceTimeBy(30_001)
+        runCurrent()
+        assertTrue("keep-alive resumed", e.port.writes.drop(mark).contains("Vibrate:0;"))
+    }
+
+    // ---- 9. test panel: keep-alive modes ---------------------------------------------
+
+    @Test
+    fun keepAlive_off_sendsNothing() = runTest {
+        val e = Env(this)
+        e.transport.setKeepAlive(KeepAliveMode.OFF, 30)
+        assertTrue(e.api.connect())
+        runCurrent()
+        val mark = e.port.writes.size
+        advanceTimeBy(125_000)
+        runCurrent()
+        assertEquals(emptyList<String>(), e.port.writes.drop(mark))
+        assertFalse(e.port.writes.contains("Battery;"))
+    }
+
+    @Test
+    fun keepAlive_batteryOnly_neverWritesVibrate() = runTest {
+        val e = Env(this)
+        e.transport.setKeepAlive(KeepAliveMode.BATTERY_ONLY, 30)
+        assertTrue(e.api.connect())
+        runCurrent()
+        val mark = e.port.writes.size
+        advanceTimeBy(95_000)
+        runCurrent()
+        val after = e.port.writes.drop(mark)
+        assertTrue(after.isNotEmpty() && after.all { it == "Battery;" })
+    }
+
+    @Test
+    fun keepAlive_default_alsoWritesSilentVibrateZeroWhileStopped() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        val mark = e.port.writes.size
+        advanceTimeBy(30_001)
+        runCurrent()
+        val after = e.port.writes.drop(mark)
+        assertTrue(after.contains("Battery;") && after.contains("Vibrate:0;"))
+    }
+
+    @Test
+    fun keepAlive_intervalChange_appliesWithoutReconnect() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        runCurrent()
+        e.transport.setKeepAlive(KeepAliveMode.BATTERY_ONLY, 300)
+        runCurrent()
+        assertEquals(1, e.port.opened.size)
+        var mark = e.port.writes.size
+        advanceTimeBy(250_000)
+        runCurrent()
+        assertEquals("slow interval: nothing yet", emptyList<String>(), e.port.writes.drop(mark))
+        advanceTimeBy(55_000)
+        runCurrent()
+        assertEquals(listOf("Battery;"), e.port.writes.drop(mark))
+
+        e.transport.setKeepAlive(KeepAliveMode.BATTERY_ONLY, 30)
+        runCurrent()
+        mark = e.port.writes.size
+        advanceTimeBy(65_000)
+        runCurrent()
+        assertTrue("fast interval: ${e.port.writes.drop(mark)}", e.port.writes.drop(mark).count { it == "Battery;" } >= 2)
+        assertEquals(1, e.port.opened.size)
+    }
+
+    // ---- 10. test panel: diagnostics --------------------------------------------------
+
+    @Test
+    fun diagnostics_trackConnectIdleAndUnexpectedDrop() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        val d0 = e.api.toyDiagnostics()!!
+        assertEquals("6e400001-test", d0.serviceUuid)
+        assertEquals("C:11:0082059AD3BD;", d0.deviceTypeReply)
+        assertEquals("OK;", d0.autoSwithReply)
+        assertEquals("1:0;", d0.getAsReply)
+        assertEquals(0L, d0.connectedAtMs)
+        assertNull(d0.lastMotionAtMs)
+
+        advanceTimeBy(5_000)
+        assertTrue(e.api.start())
+        assertTrue(e.api.setSpeed(60))
+        assertEquals(5_000L, e.api.toyDiagnostics()!!.lastMotionAtMs)
+
+        advanceTimeBy(10_000)
+        e.port.dropLink(e.port.current!!)
+        runCurrent()
+        val d1 = e.api.toyDiagnostics()!!
+        assertEquals(15_000L, d1.disconnectedAtMs)
+        assertEquals(true, d1.disconnectUnexpected)
+        val rec = com.handyvoice.v2.ui.ToyLabFormat.recordFrom(d1)!!
+        assertEquals(15_000L, rec.connectedMs)
+        assertEquals(10_000L, rec.idleMs)
+        assertTrue(rec.unexpected)
+    }
+
+    @Test
+    fun diagnostics_userDisconnectIsNotUnexpected() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        e.api.disconnect()
+        assertEquals(false, e.api.toyDiagnostics()!!.disconnectUnexpected)
     }
 }

@@ -32,6 +32,9 @@ interface GattSink {
 interface LovenseGattSession {
     val deviceName: String?
 
+    /** The GATT service UUID in use (which protocol generation), once discovered. */
+    val serviceUuid: String? get() = null
+
     /** Discover services and pick the Lovense TX/RX channel. */
     suspend fun discover(): Discovery
 

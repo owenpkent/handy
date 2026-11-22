@@ -11,6 +11,44 @@ data class TransportResult(
     }
 }
 
+/** Keep-alive traffic a toy transport sends while connected (Lovense test panel setting). */
+enum class KeepAliveMode(val id: String) {
+    /** Poll Battery; only. */
+    BATTERY_ONLY("battery"),
+
+    /** Battery; plus a silent Vibrate:0; while stopped (default). */
+    BATTERY_AND_VIBRATE0("battery_vibrate0"),
+
+    /** Send nothing. */
+    OFF("off");
+
+    companion object {
+        val DEFAULT = BATTERY_AND_VIBRATE0
+        const val DEFAULT_INTERVAL_S = 30
+        fun fromId(id: String?): KeepAliveMode = entries.firstOrNull { it.id == id } ?: DEFAULT
+    }
+}
+
+/** Outcome of a raw probe command: [sent] false means nothing went on the wire ([error] says why). */
+data class ProbeResult(val sent: Boolean, val reply: String?, val error: String? = null)
+
+/** Point-in-time facts about a toy link, for the test panel. Times are epoch millis. */
+data class ToyDiagnostics(
+    val serviceUuid: String?,
+    val deviceTypeReply: String?,
+    val autoSwithReply: String?,
+    val getAsReply: String?,
+    val connectedAtMs: Long?,
+    val lastMotionAtMs: Long?,
+    val lastKeepAliveAtMs: Long?,
+    val lastKeepAliveOk: Boolean?,
+    val keepAliveMode: KeepAliveMode,
+    val keepAliveIntervalS: Int,
+    /** Set when the last link ended; null while connected or never connected. */
+    val disconnectedAtMs: Long?,
+    val disconnectUnexpected: Boolean?,
+)
+
 /** Callbacks a transport uses to reach the client (log, battery, unsolicited disconnect). */
 interface TransportListener {
     fun onLog(message: String)
@@ -60,4 +98,15 @@ interface DeviceTransport {
      * Returns true if the slide range was applied (so the client may cache it).
      */
     suspend fun park(devMin: Int, devMax: Int, target: Int): Boolean = false
+
+    /** Send one allow-listed raw command and await its reply (Lovense only). */
+    suspend fun probe(cmd: String): ProbeResult = ProbeResult(false, null, "Not supported by this device.")
+
+    /** Zero every probe candidate (Lovense only) and resume the normal keep-alive. */
+    suspend fun probeStopAll() {}
+
+    /** Change keep-alive behaviour live, no reconnect (Lovense only). */
+    fun setKeepAlive(mode: KeepAliveMode, intervalS: Int) {}
+
+    fun diagnostics(): ToyDiagnostics? = null
 }

@@ -35,6 +35,25 @@ object LovenseProtocol {
     const val CMD_GET_AUTO_SWITCH = "GetAS;"
     const val CMD_STOP = "Vibrate:0;"
 
+    /** Candidate command names the test panel may probe. Vibrate is the baseline. */
+    val PROBE_NAMES = listOf("Vibrate", "Oscillate", "Vibrate1", "Vibrate2", "Rotate", "Thrusting")
+
+    /** `<Name>:<N>;` for an allow-listed name and N in 0..MAX_LEVEL, else null. */
+    fun probeCommand(name: String, level: Int): String? =
+        if (name in PROBE_NAMES && level in 0..MAX_LEVEL) "$name:$level;" else null
+
+    /** Parses an allow-listed probe command to (name, level); null for anything else. */
+    fun parseProbe(cmd: String): Pair<String, Int>? {
+        if (!cmd.endsWith(";")) return null
+        val parts = cmd.removeSuffix(";").split(":")
+        if (parts.size != 2) return null
+        val level = parts[1].toIntOrNull() ?: return null
+        if (level.toString() != parts[1]) return null // canonical digits only
+        return if (probeCommand(parts[0], level) == cmd) parts[0] to level else null
+    }
+
+    fun isAllowedProbe(cmd: String): Boolean = parseProbe(cmd) != null
+
     /** Velocity 0..100 to level 0..20, rounded, but any non-zero velocity is at least level 1. */
     fun levelForVelocity(velocity: Int): Int {
         val v = velocity.coerceIn(0, 100)

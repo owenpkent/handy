@@ -32,11 +32,11 @@ class LovenseBleTransport(
     savedAddress: String?,
     private val onPaired: (address: String, name: String) -> Unit,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : DeviceTransport {
 
     companion object {
         private const val OP_TIMEOUT_MS = 1_000L
-        private const val BATTERY_POLL_MS = 30_000L
         private const val DROPPED = "Toy disconnected during setup. Try again."
     }
 
@@ -66,6 +66,26 @@ class LovenseBleTransport(
     private var lastBattery: Int? = null
     private var pollJob: Job? = null
 
+    // Keep-alive config; read by the poll loop each pass, changed live by setKeepAlive.
+    @Volatile private var keepAliveMode = KeepAliveMode.DEFAULT
+    @Volatile private var keepAliveIntervalS = KeepAliveMode.DEFAULT_INTERVAL_S
+
+    // Probe names currently sent at a nonzero level; guarded by opMutex. While
+    // non-empty the keep-alive never forces Vibrate:0; (it would end the experiment).
+    private val probing = HashSet<String>()
+
+    // Diagnostics for the test panel.
+    @Volatile private var diagService: String? = null
+    @Volatile private var diagDeviceType: String? = null
+    @Volatile private var diagAutoSwith: String? = null
+    @Volatile private var diagGetAs: String? = null
+    @Volatile private var connectedAtMs: Long? = null
+    @Volatile private var lastMotionAtMs: Long? = null
+    @Volatile private var lastKeepAliveAtMs: Long? = null
+    @Volatile private var lastKeepAliveOk: Boolean? = null
+    @Volatile private var disconnectedAtMs: Long? = null
+    @Volatile private var disconnectUnexpected: Boolean? = null
+
     private val replyBuffer = LovenseProtocol.ReplyBuffer()
     private val replies = Channel<String>(16, BufferOverflow.DROP_OLDEST)
 
@@ -92,6 +112,9 @@ class LovenseBleTransport(
         lastLevel = -1
         running = false
         desiredLevel = 0
+        probing.clear()
+        disconnectedAtMs = clock()
+        disconnectUnexpected = true
         listener?.onUnexpectedDisconnect("Lovense toy disconnected.")
     }
 
@@ -180,9 +203,21 @@ class LovenseBleTransport(
         lastBattery = null
         running = false
         desiredLevel = 0
+        probing.clear()
+        diagService = s.serviceUuid
+        diagDeviceType = null
+        diagAutoSwith = null
+        diagGetAs = null
+        lastMotionAtMs = null
+        lastKeepAliveAtMs = null
+        lastKeepAliveOk = null
+        disconnectedAtMs = null
+        disconnectUnexpected = null
+        s.serviceUuid?.let { log("Lovense: service $it") }
 
         // Identify, then arm and verify the link-loss safety setting.
         sendLocked(LovenseProtocol.CMD_DEVICE_TYPE, awaitReply = true)?.let { reply ->
+            diagDeviceType = reply
             val info = LovenseProtocol.parseDeviceType(reply)
             log("Lovense: DeviceType ${info?.let { "model ${it.model} fw ${it.firmware}" } ?: reply}")
         }
@@ -194,7 +229,7 @@ class LovenseBleTransport(
         // this attempt (the commit below is the last point a drop can land).
         if (name == null) name = s.deviceName
         val committed = synchronized(stateLock) {
-            if (linkLost) false else { ready = true; true }
+            if (linkLost) false else { ready = true; connectedAtMs = clock(); true }
         }
         if (!committed) return abort(DROPPED)
 
@@ -220,10 +255,12 @@ class LovenseBleTransport(
     private suspend fun armLinkLossProtection(): String? {
         val unconfirmed = "Link-loss protection not confirmed: the toy may keep vibrating if Bluetooth drops."
         val reply = sendLocked(LovenseProtocol.CMD_AUTO_SWITCH, awaitReply = true)
+        diagAutoSwith = reply
         log("Lovense: AutoSwith reply ${reply ?: "(none)"}")
         if (reply == null || LovenseProtocol.isErrorReply(reply)) return unconfirmed
         val check = sendLocked(LovenseProtocol.CMD_GET_AUTO_SWITCH, awaitReply = true)
         val state = check?.let { LovenseProtocol.parseAutoSwitch(it) }
+        diagGetAs = check
         log("Lovense: GetAS reply ${check ?: "(none)"}")
         return if (state != null && state.isLinkLossSafe) null else unconfirmed
     }
@@ -261,7 +298,11 @@ class LovenseBleTransport(
         while (replies.tryReceive().isSuccess) { /* drop stale replies */ }
         val cmd = LovenseProtocol.vibrate(level)
         return when (s.write(cmd)) {
-            WriteResult.OK -> { lastLevel = level; TransportResult.OK }
+            WriteResult.OK -> {
+                lastLevel = level
+                if (level > 0) lastMotionAtMs = clock()
+                TransportResult.OK
+            }
             else -> {
                 lastLevel = -1
                 TransportResult(false, "Lovense write failed.", "Lovense: write failed for $cmd")
@@ -269,31 +310,90 @@ class LovenseBleTransport(
         }
     }
 
-    // ---- battery keep-awake ------------------------------------------------
+    // ---- keep-alive ----------------------------------------------------------
 
     private fun startBatteryPoll() {
         pollJob?.cancel()
         pollJob = scope.launch {
             while (isActive && connected) {
-                val reply = opMutex.withLock {
-                    val r = sendLocked(LovenseProtocol.CMD_BATTERY, awaitReply = true)
-                    // Silent keep-alive: while the motor is stopped, also write
-                    // Vibrate:0; so the link never idles (the toy sleeps on a
-                    // quiet link). Checked inside the mutex so it can never
-                    // race a start() and stop a running toy; forced past the
-                    // level dedupe; sendLevel keeps lastLevel correct.
-                    if (connected && !running) sendLevel(0, force = true)
-                    r
+                val mode = keepAliveMode
+                if (mode != KeepAliveMode.OFF) {
+                    val reply = opMutex.withLock {
+                        val r = sendLocked(LovenseProtocol.CMD_BATTERY, awaitReply = true)
+                        // Silent keep-alive: while the motor is stopped, also write
+                        // Vibrate:0; so the link never idles (the toy sleeps on a
+                        // quiet link). Decided inside the mutex so it can never
+                        // race a start() and stop a running toy, and never while a
+                        // probe holds a nonzero level; forced past the level
+                        // dedupe; sendLevel keeps lastLevel correct.
+                        if (mode == KeepAliveMode.BATTERY_AND_VIBRATE0 &&
+                            connected && !running && probing.isEmpty()
+                        ) sendLevel(0, force = true)
+                        r
+                    }
+                    lastKeepAliveAtMs = clock()
+                    lastKeepAliveOk = reply != null && !LovenseProtocol.isErrorReply(reply)
+                    val pct = reply?.let { LovenseProtocol.parseBattery(it) }
+                    if (pct != null && pct != lastBattery) {
+                        lastBattery = pct
+                        log("Lovense: battery $pct%")
+                        listener?.onBattery(pct)
+                    }
                 }
-                val pct = reply?.let { LovenseProtocol.parseBattery(it) }
-                if (pct != null && pct != lastBattery) {
-                    lastBattery = pct
-                    log("Lovense: battery $pct%")
-                    listener?.onBattery(pct)
-                }
-                delay(BATTERY_POLL_MS)
+                delay(keepAliveIntervalS * 1_000L)
             }
         }
+    }
+
+    override fun setKeepAlive(mode: KeepAliveMode, intervalS: Int) {
+        keepAliveMode = mode
+        keepAliveIntervalS = intervalS.coerceIn(5, 3_600)
+        log("Lovense: keep-alive ${mode.id} every ${keepAliveIntervalS}s")
+        // Applies live: restart the loop so a shorter interval does not wait out the old delay.
+        if (ready && connected) startBatteryPoll()
+    }
+
+    override fun diagnostics() = ToyDiagnostics(
+        serviceUuid = diagService,
+        deviceTypeReply = diagDeviceType,
+        autoSwithReply = diagAutoSwith,
+        getAsReply = diagGetAs,
+        connectedAtMs = connectedAtMs,
+        lastMotionAtMs = lastMotionAtMs,
+        lastKeepAliveAtMs = lastKeepAliveAtMs,
+        lastKeepAliveOk = lastKeepAliveOk,
+        keepAliveMode = keepAliveMode,
+        keepAliveIntervalS = keepAliveIntervalS,
+        disconnectedAtMs = disconnectedAtMs,
+        disconnectUnexpected = disconnectUnexpected,
+    )
+
+    // ---- probe ---------------------------------------------------------------
+
+    private fun stamp(): String =
+        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(clock()))
+
+    override suspend fun probe(cmd: String): ProbeResult = opMutex.withLock {
+        val (name, level) = LovenseProtocol.parseProbe(cmd)
+            ?: return@withLock ProbeResult(false, null, "Command not allowed.")
+        if (!connected) return@withLock ProbeResult(false, null, "Lovense toy not connected.")
+        log("${stamp()} probe >> $cmd")
+        // Registered before the write: even a failed or unanswered write may have moved the toy.
+        if (level > 0) { probing += name; lastMotionAtMs = clock() } else probing -= name
+        lastLevel = -1 // the toy's level is no longer what the dedupe cache thinks
+        val reply = sendLocked(cmd, awaitReply = true)
+        log("${stamp()} probe << ${reply ?: "(no reply)"}")
+        ProbeResult(true, reply)
+    }
+
+    override suspend fun probeStopAll() = opMutex.withLock {
+        if (!connected) { probing.clear(); return@withLock }
+        log("${stamp()} probe stop all")
+        // Vibrate last, so lastLevel ends up honestly 0. Replies are ignored.
+        val names = LovenseProtocol.PROBE_NAMES.filter { it != "Vibrate" } + "Vibrate"
+        for (n in names) LovenseProtocol.probeCommand(n, 0)?.let { sendLocked(it) }
+        probing.clear()
+        lastLevel = if (connected) 0 else -1
     }
 
     // ---- DeviceTransport ---------------------------------------------------
@@ -311,6 +411,9 @@ class LovenseBleTransport(
             lastLevel = -1
             running = false
             desiredLevel = 0
+            probing.clear()
+            disconnectedAtMs = clock()
+            disconnectUnexpected = false
         }
         listener?.onBattery(null)
     }

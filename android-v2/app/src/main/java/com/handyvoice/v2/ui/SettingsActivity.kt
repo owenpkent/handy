@@ -176,6 +176,9 @@ class SettingsActivity : AppCompatActivity() {
                 lovenseToyText.text = NO_TOY
             }
         }
+        findViewById<MaterialButton>(R.id.toyLabButton).setOnClickListener {
+            startActivity(Intent(this, ToyLabActivity::class.java))
+        }
         batteryOptButton.setOnClickListener {
             if (!BatteryOptimization.isExempt(this)) {
                 runCatching { startActivity(BatteryOptimization.requestIntent(this)) }

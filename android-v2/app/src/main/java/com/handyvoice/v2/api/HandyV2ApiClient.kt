@@ -136,6 +136,22 @@ class HandyV2ApiClient(
     /** "handy" or "lovense". */
     val transportKind: String get() = transport.kind
 
+    // ---- Lovense test panel passthroughs (no-ops on other transports) -------
+
+    /** Send one allow-listed raw probe command; see [LovenseProtocol.parseProbe]. */
+    suspend fun probe(cmd: String): ProbeResult =
+        if (_connectionState.value != ConnectionState.CONNECTED) ProbeResult(false, null, "Not connected.")
+        else try { transport.probe(cmd) } catch (e: Exception) { ProbeResult(false, null, "Probe error: ${e.message}") }
+
+    /** Zero every probe candidate and resume the normal keep-alive. */
+    suspend fun probeStopAll() {
+        if (_connectionState.value == ConnectionState.CONNECTED) runCatching { transport.probeStopAll() }
+    }
+
+    fun setToyKeepAlive(mode: KeepAliveMode, intervalS: Int) = transport.setKeepAlive(mode, intervalS)
+
+    fun toyDiagnostics(): ToyDiagnostics? = transport.diagnostics()
+
     /**
      * Swap the wire transport. Only allowed while DISCONNECTED; returns false
      * (and changes nothing) otherwise.

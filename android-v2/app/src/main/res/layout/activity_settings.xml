@@ -156,6 +156,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="Allow background use" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/toyLabButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="8dp"
+                        android:text="Toy test panel" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

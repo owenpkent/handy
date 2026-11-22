@@ -3,12 +3,14 @@ package com.handyvoice.v2
 import android.app.Application
 import com.handyvoice.v2.api.HandyRestTransport
 import com.handyvoice.v2.api.HandyV2ApiClient
+import com.handyvoice.v2.api.KeepAliveMode
 import com.handyvoice.v2.api.LovenseBle
 import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.data.PreferencesManager
 import com.handyvoice.v2.dispatch.HumanizeEngine
 import com.handyvoice.v2.dispatch.PatternEngine
 import com.handyvoice.v2.service.ToyConnectionService
+import com.handyvoice.v2.ui.ToyLabFormat
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -61,8 +63,16 @@ class HandyVoiceApp : Application() {
         // background. Driven from the shared client's state so it follows the
         // connection however it was made (splash, Control, any activity).
         appScope.launch {
+            var prev = ConnectionState.DISCONNECTED
             api.connectionState.collectLatest { state ->
                 val toy = api.transportKind == "lovense"
+                // Remember when and after how much idle a toy link ended (test panel history).
+                if (toy && prev == ConnectionState.CONNECTED && state == ConnectionState.DISCONNECTED) {
+                    ToyLabFormat.recordFrom(api.toyDiagnostics())?.let { rec ->
+                        appScope.launch { PreferencesManager(applicationContext).addToyDisconnect(rec) }
+                    }
+                }
+                prev = state
                 if (state == ConnectionState.CONNECTED && toy) ToyConnectionService.start(this@HandyVoiceApp)
                 else if (state != ConnectionState.CONNECTING) ToyConnectionService.stop(this@HandyVoiceApp)
             }
@@ -91,7 +101,7 @@ class HandyVoiceApp : Application() {
             LovenseBle.createTransport(this, snap.lovenseAddress.ifBlank { null }) { address, name ->
                 transportSig = "lovense:$address"
                 appScope.launch { PreferencesManager(applicationContext).setLovenseToy(address, name) }
-            }
+            }.also { it.setKeepAlive(KeepAliveMode.fromId(snap.toyKeepAliveMode), snap.toyKeepAliveIntervalS) }
         } else {
             HandyRestTransport()
         }

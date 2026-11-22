@@ -72,7 +72,7 @@ The Gush 2 has **vibration and oscillation**. The original Gush had vibration on
 
 The app only sends `Vibrate:` today, so on a Gush 2 expect the vibration motor only, unless oscillation responds to the same command.
 
-**Plan: probe it on the toy.** The test panel (Settings, Lovense only, no typing) sends each candidate at low, medium or high, and shows the toy's reply next to the button:
+**Probe it on the toy (built).** The test panel (`ui/ToyLabActivity.kt`: Settings, Connection, "Toy test panel", Lovense only, no typing) has a row per candidate with Low (5), Mid (10) and High (20) buttons. Each sends `<Name>:<N>;` and shows the toy's raw reply beside the row (`OK;`, `ERR;` or `(no reply)`), kept until that row is probed again. STOP ALL zeros every candidate, then `Vibrate:0;`. Commands are allow-listed in `LovenseProtocol` (these names x levels 0..20), so nothing else can be sent. While a probe level is nonzero the keep-alive's silent `Vibrate:0;` is paused, so it cannot cancel the experiment; leaving the screen runs Stop all. Every probe and reply goes to the debug log with a timestamp. Candidates:
 
 `Oscillate:N;`, `Vibrate1:N;`, `Vibrate2:N;`, `Rotate:N;`, `Thrusting:N;`, plus `Vibrate:N;` as the baseline.
 
@@ -99,7 +99,7 @@ Plus a one-time prompt to exempt the app from battery optimization, which aggres
 - `Battery;` every 30 s while connected. It's a query, so it may not count as activity.
 - A silent `Vibrate:0;` every 30 s while **stopped**. A motor command is more likely to reset an idle timer, and it can't move the toy. It is sent under the operation lock and only while not running, so it can never stop a running toy.
 
-**Test:** leave the toy connected and idle for 2+ hours (the Bond's timeout) and see whether it's still on. The test panel lets you switch the keep-alive mode (battery only, silent vibrate 0, off) and interval (30 s, 1 min, 5 min) without a new build, and shows how long the toy has been connected and idle. If it powers off whatever we send, the firmware can't be worked around, and only the DIY sleeve, whose firmware we write, is guaranteed to stay on.
+**Test:** leave the toy connected and idle for 2+ hours (the Bond's timeout) and see whether it's still on. The test panel (built) lets you switch the keep-alive mode (battery only, battery + silent `Vibrate:0;` which is the default, off) and interval (30 s, 1 min, 5 min) live, with no reconnect and no new build (`toy_keepalive_mode`, `toy_keepalive_interval_s`). Its idle timer shows "Connected for 1 h 12 min", "Idle for 45 min" (since the last nonzero motion command, or connect) and "Last keep-alive: 12 s ago (OK)". The last 5 disconnects (time, how long it had been connected, how long idle, unexpected or by you) are saved, so you can come back after hours and see when and after how much idle the toy dropped. Copy report puts all of it (status, probe results, settings, history, last 50 log lines) on the clipboard to paste. If it powers off whatever we send, the firmware can't be worked around, and only the DIY sleeve, whose firmware we write, is guaranteed to stay on.
 
 ---
 
@@ -108,7 +108,7 @@ Plus a one-time prompt to exempt the app from battery optimization, which aggres
 1. Settings: choose **Lovense toy**. Turn the Gush on, then tap Connect on the toy page and allow the Bluetooth (and notification) permissions.
 2. The status line shows the name and battery, with **no** link-loss warning. The debug log (More, then Copy) shows `Lovense: service <uuid>` (which generation), the `DeviceType` reply and the `AutoSwith` and `GetAS` replies.
 3. START, the intensity minus and plus buttons, the slider, patterns and STOP. Do ramps feel smooth at BLE write latency? Does the oscillation motor move?
-4. The test panel: try each oscillation candidate and note which moves it and which reply `ERR;`.
+4. The test panel (Settings, Toy test panel): try each probe row at Low / Mid / High and note which moves the toy and which reply `ERR;`. Check STOP ALL stops everything and that the Status block shows the service UUID, DeviceType and AutoSwith / GetAS replies. Try each keep-alive mode and interval, leave the toy idle, then come back and use Copy report to read the idle timer and the disconnect history.
 5. Turn Bluetooth off mid-run: the toy stops (AutoSwith), the status line goes red, and reconnecting does **not** restart motion until START.
 6. Screen off and another app for a while: still connected, with the notification shown.
 7. The idle test (above).

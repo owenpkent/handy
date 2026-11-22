@@ -130,4 +130,29 @@ class LovenseProtocolTest {
         assertEquals(emptyList<String>(), b.feed("7"))
         assertEquals(listOf("7;"), b.feed(";"))
     }
+
+    @Test
+    fun probeAllowList_acceptsCandidatesAtLevels0To20() {
+        for (name in LovenseProtocol.PROBE_NAMES) {
+            for (level in listOf(0, 1, 5, 10, 20)) {
+                val cmd = "$name:$level;"
+                assertTrue(cmd, LovenseProtocol.isAllowedProbe(cmd))
+                assertEquals(name to level, LovenseProtocol.parseProbe(cmd))
+            }
+        }
+        assertEquals("Oscillate:5;", LovenseProtocol.probeCommand("Oscillate", 5))
+    }
+
+    @Test
+    fun probeAllowList_rejectsEverythingElse() {
+        val bad = listOf(
+            "Vibrate:21;", "Vibrate:-1;", "Vibrate:5", "Vibrate:05;", "Vibrate:+5;", "Vibrate:;", "vibrate:5;",
+            "PowerOff;", "Battery;", "AutoSwith:On:Off;", "Vibrate:5;Vibrate:6;", "Air:5;", "Vibrate3:5;",
+            "Vibrate:5:5;", "Vibrate:5; ", " Vibrate:5;", "", ";",
+        )
+        for (cmd in bad) assertFalse("should reject: '$cmd'", LovenseProtocol.isAllowedProbe(cmd))
+        assertNull(LovenseProtocol.probeCommand("PowerOff", 0))
+        assertNull(LovenseProtocol.probeCommand("Vibrate", 21))
+        assertNull(LovenseProtocol.probeCommand("Vibrate", -1))
+    }
 }
