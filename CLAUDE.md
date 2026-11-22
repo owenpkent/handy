@@ -114,7 +114,8 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 | `COMMANDS.md` | Vocabulary table, dispatch table, VoiceAction semantics, how to add a new command end-to-end, pattern stand-ins + Phase 2 port. |
 | `TRAINING.md` | User-facing recording guide. Recording habits, peak meter, retraining paths, reading match scores. |
 | `TROUBLESHOOTING.md` | Build issues (JAVA_HOME, SDK path, wrapper jar), runtime (mic permission, no match, false fires, threshold), dispatch (global max cap surprises), updates ("package conflicts" signing error). |
-| `SIGNING.md` | App signing & the "App not installed as package conflicts with an existing package" update error. Why per-machine debug keys break updates, the committed shared keystore, and the original-machine runbook to seed it and publish without an uninstall. |
+| `SIGNING.md` | App signing & the "App not installed as package conflicts with an existing package" update error. Why per-machine debug keys break updates, the committed shared keystore, and the original-machine runbook to seed it and publish without an uninstall. |
+| `LOVENSE.md` | Lovense toy research and design: why (the We-Vibe Bond's 2 h idle shut-off), comparable devices and their shut-off timers, the BLE protocol (services, commands, `AutoSwith:On:Off;` write vs `GetAS;` numeric reply), the Gush 2's undocumented oscillation and the probe plan, keeping the link and the toy on (foreground service, wake lock, keep-alive), hardware test checklist, sources. |
 
 ---
 
