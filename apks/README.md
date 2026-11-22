@@ -28,7 +28,7 @@ The filename tracks `versionName` from `android-v2/app/build.gradle.kts`
 ## Publishing for in-app auto-update
 
 The app self-updates from the public releases repo **`owenpkent/handy-releases`**
-(source stays private). To cut an update users will receive:
+(the app polls it without a token, so the source repo's visibility does not matter to the updater). To cut an update users will receive:
 
 1. Bump `versionName` + `versionCode` in `android-v2/app/build.gradle.kts`.
 2. Run `android-v2/publish-release.ps1` (optionally `-Notes "what changed"`).
@@ -39,6 +39,8 @@ It builds the APK, creates the public repo on first run, and publishes a
 shared keystore (`android-v2/app/signing/handy.keystore`), so updates install
 over the top from any machine. See the Auto-update section in the root
 `CLAUDE.md` and `android-v2/docs/SIGNING.md`.
+
+Note: v0.23 (Lovense toy support) was published from the unmerged `feat/lovense-ble` branch as a test build, so `/releases/latest` serves code that is not on `main` yet.
 
 ## Git
 

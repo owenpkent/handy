@@ -1,8 +1,8 @@
 # Lovense toys (BLE)
 
-Research and design notes for driving a Lovense toy from android-v2, written while adding support for the owner's **Lovense Gush 2**. Code lives in `app/src/main/java/com/handyvoice/v2/api/` (`LovenseProtocol.kt`, `LovenseBleTransport.kt`, `LovenseGatt.kt`, `AndroidLovenseGattPort.kt`) and `ui/ToyPanel.kt`. CLAUDE.md has the per-file summary.
+Research and design notes for driving a Lovense toy from android-v2, written while adding support for the owner's **Lovense Gush 2**. Code lives in `app/src/main/java/com/handyvoice/v2/api/` (`LovenseProtocol.kt`, `LovenseBleTransport.kt`, `LovenseGatt.kt`, `AndroidLovenseGattPort.kt`) and, in `ui/`, `ToyPanel.kt` (toy page) and `ToyLabActivity.kt` (test panel), plus `service/ToyConnectionService.kt`. CLAUDE.md has the per-file summary.
 
-Status: **nothing here has been tested on a real toy yet.** Items marked *unverified* are from third-party sources or inference.
+Status: everything below is built and shipped in **v0.23**, published on 2026-11-22 as a test build from the unmerged `feat/lovense-ble` branch (PR #4, stacked on PR #3). **Nothing here has been tested on a real toy yet.** Items marked *unverified* are from third-party sources or inference. The hardware checklist at the end is the open work.
 
 ---
 

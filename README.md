@@ -1,10 +1,10 @@
 # Handy Voice Control
 
-Accessible control apps for The Handy device, designed for users with disabilities.
+Accessible control apps for The Handy device (and, from v0.23, Lovense Bluetooth toys), designed for users with disabilities.
 
 ## Status
 
-**Active Development** — all current work is in [`android-v2/`](android-v2/). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
+**Active Development**: all current work is in [`android-v2/`](android-v2/). Current build is **v0.23** (Lovense toy support, a test build from the unmerged `feat/lovense-ble` branch, PRs #3 and #4 open). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
 
 ## Active app: android-v2
 
@@ -13,6 +13,7 @@ A hands-free Android client that recognizes spoken commands by matching against 
 - Records 3 takes of each command on first launch; matches against the user's voice on-device, fully offline.
 - Voice vocabulary: `begin` / `stop` / `faster` / `slower`. Deliberately small — every extra label narrows the acoustic gaps the matcher relies on.
 - **One-button home screen** (v0.21): opens on a single big Start / Stop listening button; everything else is behind "More controls".
+- **Lovense toy support** (v0.23, untested on hardware): Settings can switch the device from The Handy to a Lovense Bluetooth toy (built for a Gush 2). A dedicated toy page replaces the voice home, a foreground service keeps the link alive with the screen off, and a test panel probes commands and measures the toy's idle shut-off. Published as a test build from the unmerged `feat/lovense-ble` branch. See [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md).
 - Tap-shortcut buttons mirror every voice command, plus a Manual tab with sliders and a 4×3 pattern grid.
 - **Humanized motion** — a steady speed drifts organically (speed *and* stroke depth) so it never feels robotic. Strength is a Settings slider (0 = off).
 - **Gentle stop** — every stop eases the speed down to 0 over ~1.5 s instead of a hard halt.
@@ -30,14 +31,14 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 cd android-v2
 .\gradlew.bat :app:assembleDebug      # build
 .\gradlew.bat :app:installDebug       # install to attached device
-.\gradlew.bat :app:testDebugUnitTest  # JVM unit tests (~30 ms)
+.\gradlew.bat :app:testDebugUnitTest  # JVM unit tests (90, a few seconds)
 ```
 
 Every debug build drops a version-named APK into [`apks/`](apks/) for sideloading.
 
 ## Wearable device (early stage)
 
-A DIY wearable meant to be worn under trousers while seated and to work around an external condom catheter, controlled by the same app over BLE. Vibration first (five LRAs in an open C-shaped silicone sleeve, one DRV2605L each), soft pneumatics later. Nothing physical is built yet.
+A DIY wearable meant to be worn under trousers while seated and to work around an external condom catheter, controlled by the same app over BLE (the app's `DeviceTransport` seam and Lovense BLE support from v0.23 are the groundwork). Vibration first (five LRAs in an open C-shaped silicone sleeve, one DRV2605L each), soft pneumatics later. Nothing physical is built yet.
 
 - Research, safety constraints, parts and build plan: [docs/WEARABLE_DEVICE_RESEARCH.md](docs/WEARABLE_DEVICE_RESEARCH.md)
 - CAD assembly ([nl-cad](https://github.com/owenpkent/nl-cad) project, v5): [hardware/wearable-sleeve/](hardware/wearable-sleeve/)
@@ -61,7 +62,7 @@ Moved to [`legacy/`](legacy/) — see [legacy/README.md](legacy/README.md):
 handy/
 ├── android-v2/             # Android app — prerecorded voice samples (ACTIVE)
 │   ├── README.md
-│   └── docs/               # ARCHITECTURE, VOICE_ENGINE, COMMANDS, TRAINING, TROUBLESHOOTING
+│   └── docs/               # ARCHITECTURE, VOICE_ENGINE, COMMANDS, TRAINING, TROUBLESHOOTING, LOVENSE, SIGNING
 ├── apks/                   # Version-named debug APK installers
 ├── docs/                   # Shared reference (Handy API notes, integration guides)
 │   ├── HANDY_API_NOTES.md

@@ -48,7 +48,16 @@
 - [x] **Wearable device: research** (2026-11-21) - mechanisms, prior art, catheter and skin safety constraints, electronics, app integration plan. [docs/WEARABLE_DEVICE_RESEARCH.md](docs/WEARABLE_DEVICE_RESEARCH.md)
 - [x] **Wearable device: CAD v5** (2026-11-21) - nl-cad assembly in [hardware/wearable-sleeve/](hardware/wearable-sleeve/): open C-shell sleeve with 5 LRAs, chair box with one DRV2605L per motor, TCA9548A mux, STOP button. 32 checks pass.
 
+- [x] **Android v2: Lovense BLE toy support** (v0.22 and v0.23, branch `feat/lovense-ble`) - `DeviceTransport` (Handy REST vs Lovense BLE), per-device max speed, AutoSwith link-loss setting with read-back, dedicated toy page, `ToyConnectionService` foreground service + wake lock + notification Stop, silent `Vibrate:0;` keep-alive, toy test panel (command probe, keep-alive modes, idle timer, disconnect history, copy report), stop retry ("Stop not confirmed by toy"), motion teardown before every connect, `TapPatterns` (Manual Thunder / Ripple / Pulse fixed). 90 JVM tests. v0.23 published 2026-11-22 as a test build. See [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md).
+
 ## Next Up
+
+- [ ] **Lovense: merge PR #3, then PR #4** (`feat/lovense-ble` is stacked on PR #3; v0.23 was published from the branch before either merged)
+- [ ] **Lovense: hardware test on the Gush 2** - run the checklist in [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md): connect and permissions, status line shows name and battery with no link-loss warning, START / intensity / slider / patterns / STOP, ramps at BLE latency
+- [ ] **Lovense: find the Gush 2 oscillation command** with the test panel probe rows (`Oscillate`, `Vibrate1`, `Vibrate2`, `Rotate`, `Thrusting`), then add it to `LovenseProtocol` and expose a second intensity on the toy page
+- [ ] **Lovense: link-loss test** - turn Bluetooth off mid-run; the toy should stop (AutoSwith), the status line go red, and reconnecting not restart motion until START
+- [ ] **Lovense: screen-off / background test** - screen off and another app in front for a while; still connected, notification shown
+- [ ] **Lovense: idle-off test** - leave the toy connected and idle for 2+ hours (the We-Vibe Bond's timeout), try each keep-alive mode and interval, and read the idle timer and disconnect history with Copy report
 
 - [ ] **Wearable: ask the continence nurse / urologist** about over-the-sheath use versus sheath-off sessions, and pressure limits, before anything is worn
 - [ ] **Wearable: place the motor sample order** (DigiKey + Adafruit carts are filled) and add the v5 box parts: 4 more DRV2605L, TCA9548A, Adafruit 559 STOP button, STEMMA QT cables, 1S LiPo, PG7 gland
