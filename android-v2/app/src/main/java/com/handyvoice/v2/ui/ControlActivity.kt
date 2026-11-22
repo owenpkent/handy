@@ -190,6 +190,10 @@ class ControlActivity : AppCompatActivity() {
     private lateinit var homeListenButton: MaterialButton
     private lateinit var homeHeardText: TextView
     private var showingMore = false
+    /** Dedicated Lovense page (panel_toy.xml); replaces homePanel while a toy is selected. */
+    private lateinit var toyPanel: ToyPanel
+    /** True while the toy page (not More) is on screen: voice must not auto-arm then. */
+    private val toyPageShowing: Boolean get() = deviceIsLovense && !showingMore
     private val connectGuard = ConnectGuard()
     /** Mirrors the mic button's on/off look so the home button matches it. */
     private var micOn = false
@@ -358,6 +362,17 @@ class ControlActivity : AppCompatActivity() {
         wireTabs()
         wireManualSliders()
         wireManualPatterns()
+        toyPanel = ToyPanel(this, api, patternEngine, humanizeEngine, prefs, object : ToyPanel.Host {
+            override fun onConnect() = onConnectTapped()
+            override fun onSettings() = startActivity(Intent(this@ControlActivity, SettingsActivity::class.java))
+            override fun onPip() = pip.enter()
+            override fun onMore() = showMore(true)
+            override val connectInFlight get() = connectGuard.inFlight
+            override val globalMaxSpeed get() = this@ControlActivity.globalMaxSpeed
+            override val globalMinStroke get() = this@ControlActivity.globalMinStroke
+            override val globalMaxStroke get() = this@ControlActivity.globalMaxStroke
+            override val pipSupported get() = pip.isSupported
+        })
 
         connectButton.setOnClickListener { onConnectTapped() }
         // The gear goes straight to Settings — no intermediate menu. We're
@@ -613,6 +628,8 @@ class ControlActivity : AppCompatActivity() {
         deviceIsLovense = snap.isLovense
         applyDeviceTypeUi()
         updateHomeButton()
+        // Swap between the voice home screen and the toy page.
+        showMore(showingMore)
         return true
     }
 
@@ -620,7 +637,8 @@ class ControlActivity : AppCompatActivity() {
     private fun showMore(more: Boolean) {
         showingMore = more
         mainScroll.visibility = if (more) View.VISIBLE else View.GONE
-        homePanel.visibility = if (more) View.GONE else View.VISIBLE
+        homePanel.visibility = if (more || deviceIsLovense) View.GONE else View.VISIBLE
+        toyPanel.root.visibility = if (!more && deviceIsLovense) View.VISIBLE else View.GONE
         // System Back returns home from More; on home it behaves normally.
         backToHome.isEnabled = more
     }
@@ -654,6 +672,7 @@ class ControlActivity : AppCompatActivity() {
                 else "Start\nlistening" to R.color.primary
             else -> "Connect" to R.color.primary
         }
+        if (::toyPanel.isInitialized) toyPanel.refresh()
         homeListenButton.isEnabled = !connecting
         homeListenButton.text = label
         homeListenButton.backgroundTintList =
@@ -689,6 +708,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
+            toyPanel.setIntensity(snap.toyIntensity)
             invertStroke = snap.invertStroke
             humanizeStrength = snap.humanizeStrength
             humanizeEngine.setStrength(snap.humanizeStrength)
@@ -746,6 +766,7 @@ class ControlActivity : AppCompatActivity() {
             manualStrokeMin = snap.manualStrokeMin
             manualStrokeMax = snap.manualStrokeMax
             manualSpeed = snap.manualSpeed
+            toyPanel.setIntensity(snap.toyIntensity)
             invertStroke = snap.invertStroke
             humanizeStrength = snap.humanizeStrength
             // Live-apply a strength change from Settings. If the user turned
@@ -794,7 +815,8 @@ class ControlActivity : AppCompatActivity() {
             //     since button listening is tap-gated and must not auto-start.
             if (api.connectionState.value == ConnectionState.CONNECTED) {
                 if (listeningMode == PreferencesManager.MODE_ALWAYS_ON) {
-                    if (!listening.isActive) applyListeningMode()
+                    // Never auto-arm voice while the toy page is showing.
+                    if (!listening.isActive && !toyPageShowing) applyListeningMode()
                 } else if (modeChanged) {
                     applyListeningMode()
                 }
@@ -881,6 +903,7 @@ class ControlActivity : AppCompatActivity() {
         if (isInPictureInPictureMode) {
             mainScroll.visibility = View.GONE
             homePanel.visibility = View.GONE
+            toyPanel.root.visibility = View.GONE
             pipOverlay.visibility = View.VISIBLE
             pipHintText.text = "Tap to open"
             updatePipStatus()
@@ -1053,7 +1076,12 @@ class ControlActivity : AppCompatActivity() {
     private fun applyListeningMode() {
         stopAlwaysOn()
         when (listeningMode) {
-            PreferencesManager.MODE_ALWAYS_ON -> {
+            // The toy page is not voice-first: even in always-on mode the mic
+            // stays off until the user opens More and taps it.
+            PreferencesManager.MODE_ALWAYS_ON -> if (toyPageShowing) {
+                voiceModeLabel.text = "Tap mic to listen"
+                setMicListening(false)
+            } else {
                 voiceModeLabel.text = "Always listening"
                 setMicListening(true)
                 ensureMicThenRun { startAlwaysOn() }

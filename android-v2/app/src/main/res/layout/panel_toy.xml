@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dedicated Lovense toy page. Shown instead of the voice-first homePanel
+     while the device type is Lovense (see ui/ToyPanel.kt). Large touch
+     targets (64 dp minimum); scrolls so it works at 200% font scale and in
+     split-screen. -->
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/toyPanel"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_dark"
+    android:fillViewport="true"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Status row: name, battery, state; PiP float + gear. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/toyStatusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/status_disconnected"
+                android:textColor="@color/text_secondary"
+                android:textSize="18sp"
+                tools:text="Connected: Gush 2, battery 80%" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toyPipButton"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/content_desc_pip"
+                android:visibility="gone"
+                app:icon="@drawable/ic_pip_enter"
+                app:iconSize="24dp"
+                app:iconTint="@color/text_primary"
+                tools:visibility="visible" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toySettingsButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/content_desc_settings"
+                android:text="⚙"
+                android:textColor="@color/text_primary"
+                android:textSize="24sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/toyWarningText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/status_disconnected"
+            android:textSize="16sp"
+            android:visibility="gone"
+            tools:text="Link lost"
+            tools:visibility="visible" />
+
+        <!-- Disconnected: one big Connect button + the failure reason. -->
+        <LinearLayout
+            android:id="@+id/toyConnectGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toyConnectButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="96dp"
+                android:text="Connect"
+                android:textColor="@color/on_primary"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                app:backgroundTint="@color/primary" />
+
+            <TextView
+                android:id="@+id/toyErrorText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:textColor="@color/status_disconnected"
+                android:textSize="18sp"
+                android:visibility="gone"
+                tools:text="Toy not found" />
+        </LinearLayout>
+
+        <!-- Connected: START / STOP, intensity, patterns. -->
+        <LinearLayout
+            android:id="@+id/toyControlGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toyStartStopButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="96dp"
+                android:text="START"
+                android:textColor="@color/on_primary"
+                android:textSize="32sp"
+                android:textStyle="bold"
+                app:backgroundTint="@color/status_connected" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="Intensity"
+                android:textColor="@color/text_secondary"
+                android:textSize="16sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/toyMinusButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="Lower intensity"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="72dp"
+                    android:text="−"
+                    android:textColor="@color/accent_primary"
+                    android:textSize="36sp"
+                    app:strokeColor="@color/accent_primary" />
+
+                <TextView
+                    android:id="@+id/toyIntensityText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:textColor="@color/text_primary"
+                    android:textSize="44sp"
+                    android:textStyle="bold"
+                    app:autoSizeMaxTextSize="44sp"
+                    app:autoSizeMinTextSize="20sp"
+                    app:autoSizeTextType="uniform"
+                    tools:text="40%" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/toyPlusButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="Raise intensity"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="72dp"
+                    android:text="+"
+                    android:textColor="@color/accent_primary"
+                    android:textSize="36sp"
+                    app:strokeColor="@color/accent_primary" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/toyIntensitySlider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:max="20"
+                android:minHeight="64dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Patterns"
+                android:textColor="@color/text_secondary"
+                android:textSize="16sp" />
+
+            <!-- Filled in code (ToyPanel) with the 12 pattern buttons. -->
+            <GridLayout
+                android:id="@+id/toyPatternGrid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:columnCount="2" />
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/toyMoreButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:minHeight="64dp"
+            android:text="Voice &amp; more  →"
+            android:textColor="@color/text_secondary"
+            android:textSize="18sp" />
+    </LinearLayout>
+</ScrollView>

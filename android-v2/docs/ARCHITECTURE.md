@@ -269,6 +269,10 @@ Match work happens on `Dispatchers.Default`; the capture loop doesn't block on t
 
 `HandyVoiceApp.configureDevice(prefs snapshot)` installs the transport chosen in Settings; `useTransport` only works while DISCONNECTED. Transports report back through `TransportListener` (log lines, battery, device name, and an unexpected link drop, which flips the client to DISCONNECTED with a `lastError` so the usual red status line shows it). GATT operations are serialized inside the Lovense transport (one Mutex, suspend until callback, ~1 s timeout); a 30 s `Battery;` poll doubles as keep-awake.
 
+### Toy page
+
+When the selected device is Lovense, `ControlActivity` shows `ToyPanel` (`ui/ToyPanel.kt`, layout `panel_toy.xml`) in place of the voice `homePanel`; `showMore` and `syncDevice` choose between them. `ToyPanel` owns only view wiring and routes motion through the same client, `HumanizeEngine` and `PatternEngine` calls the Manual tab uses (maths in the Android-free `ToyIntensity`). Intensity persists as `toy_intensity`. Listening is gated: `toyPageShowing` stops `applyListeningMode` and the `onResume` re-arm from starting the mic, even in always-on mode, until the user opens More.
+
 ## Things deliberately missing
 
 - **No background service.** The mic is hot while `ControlActivity` is in the foreground task — including across a screen-off, where a partial wake lock keeps the listening loop alive so commands still work with the screen dark (see Lifecycle → `onStop`). It is *not* hot once the user navigates away (Home/Settings): that tears the loop down and drops the wake lock. A true background recorder (mic still hot after Home, or after the task is swapped away) is intentionally avoided — it's a privacy footgun and Android imposes foreground-service requirements that complicate the app. If always-listening-regardless-of-foreground becomes necessary, a `MediaProjection`-style foreground service with a persistent notification is the right path.

@@ -32,6 +32,7 @@ class PreferencesManager(private val context: Context) {
         private val KEY_MANUAL_STROKE_MIN = intPreferencesKey("manual_stroke_min")
         private val KEY_MANUAL_STROKE_MAX = intPreferencesKey("manual_stroke_max")
         private val KEY_MANUAL_SPEED = intPreferencesKey("manual_speed_design")
+        private val KEY_TOY_INTENSITY = intPreferencesKey("toy_intensity")
         private val KEY_HUMANIZE_STRENGTH = intPreferencesKey("humanize_strength")
         private val KEY_DEVICE_TYPE = stringPreferencesKey("device_type")
         private val KEY_LOVENSE_ADDRESS = stringPreferencesKey("lovense_address")
@@ -58,6 +59,7 @@ class PreferencesManager(private val context: Context) {
         const val MAX_IDLE_TIMEOUT_MIN = 30
         const val DEFAULT_MANUAL_STROKE_MIN = 0          // last position of the Manual tab's stroke-min slider.
         const val DEFAULT_MANUAL_STROKE_MAX = 100        // last position of the Manual tab's stroke-max slider.
+        const val DEFAULT_TOY_INTENSITY = 20             // last intensity on the Lovense toy page (design space, own scale from the Handy's).
         const val DEFAULT_MANUAL_SPEED = 0               // last position of the Manual tab's speed slider (design space).
         // Humanize amount for regular (non-pattern) motion: 0 = off (pure
         // constant speed), 100 = strongest organic drift. Default is a gentle
@@ -145,6 +147,7 @@ class PreferencesManager(private val context: Context) {
     suspend fun setManualStrokeMin(value: Int) = edit { it[KEY_MANUAL_STROKE_MIN] = value.coerceIn(0, 100) }
     suspend fun setManualStrokeMax(value: Int) = edit { it[KEY_MANUAL_STROKE_MAX] = value.coerceIn(0, 100) }
     suspend fun setManualSpeed(value: Int) = edit { it[KEY_MANUAL_SPEED] = value.coerceIn(0, 100) }
+    suspend fun setToyIntensity(value: Int) = edit { it[KEY_TOY_INTENSITY] = value.coerceIn(0, 100) }
     suspend fun setHumanizeStrength(value: Int) = edit { it[KEY_HUMANIZE_STRENGTH] = value.coerceIn(0, 100) }
 
     suspend fun snapshot(): Snapshot = context.dataStore.data.first().let {
@@ -162,6 +165,7 @@ class PreferencesManager(private val context: Context) {
             manualStrokeMax = it[KEY_MANUAL_STROKE_MAX] ?: DEFAULT_MANUAL_STROKE_MAX,
             manualSpeed = it[KEY_MANUAL_SPEED] ?: DEFAULT_MANUAL_SPEED,
             humanizeStrength = it[KEY_HUMANIZE_STRENGTH] ?: DEFAULT_HUMANIZE_STRENGTH,
+            toyIntensity = it[KEY_TOY_INTENSITY] ?: DEFAULT_TOY_INTENSITY,
             deviceType = it[KEY_DEVICE_TYPE] ?: DEVICE_HANDY,
             lovenseAddress = it[KEY_LOVENSE_ADDRESS] ?: "",
             lovenseName = it[KEY_LOVENSE_NAME] ?: "",
@@ -189,6 +193,7 @@ class PreferencesManager(private val context: Context) {
         val deviceType: String = DEVICE_HANDY,
         val lovenseAddress: String = "",
         val lovenseName: String = "",
+        val toyIntensity: Int = DEFAULT_TOY_INTENSITY,
     ) {
         val isLovense: Boolean get() = deviceType == DEVICE_LOVENSE
     }
