@@ -99,6 +99,14 @@ class HandyV2ApiClient(
 
     private var transport: DeviceTransport = transport
 
+    /**
+     * Orders a link drop against connect()'s success commit. A drop reported
+     * while CONNECTING sets [droppedDuringConnect]; connect() then fails
+     * instead of overwriting the DISCONNECTED it published with CONNECTED.
+     */
+    private val connectLock = Any()
+    private var droppedDuringConnect = false
+
     private val transportListener = object : TransportListener {
         override fun onLog(message: String) = log(message)
         override fun onBattery(percent: Int?) { _battery.value = percent }
@@ -114,7 +122,10 @@ class HandyV2ApiClient(
             _deviceName.value = null
             _lastError.value = reason
             log(reason)
-            _connectionState.value = ConnectionState.DISCONNECTED
+            synchronized(connectLock) {
+                droppedDuringConnect = true
+                _connectionState.value = ConnectionState.DISCONNECTED
+            }
         }
     }
 
@@ -210,16 +221,28 @@ class HandyV2ApiClient(
             return false
         }
 
-        _connectionState.value = ConnectionState.CONNECTING
+        synchronized(connectLock) {
+            droppedDuringConnect = false
+            _connectionState.value = ConnectionState.CONNECTING
+        }
         _warning.value = null
         startRequired = true
         log("Connecting...")
 
         return try {
             val result = transport.connect()
-            if (result.ok) {
+            val committed = result.ok && synchronized(connectLock) {
+                if (droppedDuringConnect) false
+                else { _connectionState.value = ConnectionState.CONNECTED; true }
+            }
+            if (result.ok && !committed) {
+                // The link dropped after the transport's last check; the drop
+                // handler already published DISCONNECTED and the reason.
+                log("Connection dropped during setup.")
+                _warning.value = null
+                false
+            } else if (result.ok) {
                 startRequired = true
-                _connectionState.value = ConnectionState.CONNECTED
                 _lastError.value = null
                 refreshState()
                 parkAtRetracted()

@@ -409,7 +409,11 @@ class ControlActivity : AppCompatActivity() {
                 if (humanizeEngine.enabled && device > 0) humanizeEngine.start(device)
                 // Speed AFTER start: the client refuses positive speed until a
                 // start, so a slider move made before START never reached the device.
-                else if (api.start() && device > 0) api.setSpeed(device)
+                else if (device > 0) { if (api.start()) api.setSpeed(device) }
+                // Slider at zero: write 0 BEFORE start so start can't resume a
+                // remembered level (Lovense keeps one across stop; the Handy
+                // keeps its last velocity). Zero is allowed before start.
+                else { api.setSpeed(0); api.start() }
             }
         }
         stopButton.setOnClickListener {

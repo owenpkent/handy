@@ -26,7 +26,13 @@ class LovenseBleTransportTest {
 
     /** One GATT link to the fake toy. */
     private class FakeSession(val port: FakePort, val sink: GattSink) : LovenseGattSession {
-        override val deviceName: String? = "LVS-Test"
+        /** Drop the link while the transport reads the device name (last setup step). */
+        var dropOnName = false
+        override val deviceName: String?
+            get() {
+                if (dropOnName) { dropOnName = false; port.dropLink(this) }
+                return "LVS-Test"
+            }
         var cccdOk = true
         var dropDuringCccd = false
 
@@ -246,6 +252,41 @@ class LovenseBleTransportTest {
         assertEquals(ConnectionState.DISCONNECTED, e.api.connectionState.value)
     }
 
+    @Test
+    fun disconnectDuringNameLookup_failsConnect() = runTest {
+        val e = Env(this)                        // saved address, so the name is read from the session
+        e.port.onSession = { it.dropOnName = true }
+        assertFalse(e.api.connect())
+        assertEquals(ConnectionState.DISCONNECTED, e.api.connectionState.value)
+        assertNotNull(e.api.lastError.value)
+        assertFalse(e.api.start())
+    }
+
+    @Test
+    fun dropAfterTransportReturnsOk_clientStillFailsConnect() = runTest {
+        // A drop landing between the transport's last check and the client's
+        // CONNECTED commit must not be overwritten by a successful connect.
+        val t = object : DeviceTransport {
+            override val kind = "fake"
+            override var listener: TransportListener? = null
+            override fun preflightError(): String? = null
+            override suspend fun connect(): TransportResult {
+                listener?.onUnexpectedDisconnect("dropped")
+                return TransportResult.OK
+            }
+            override suspend fun disconnect() {}
+            override suspend fun start() = TransportResult.OK
+            override suspend fun stop() = TransportResult.OK
+            override suspend fun setVelocity(velocity: Int) = TransportResult.OK
+            override suspend fun setSlide(min: Int, max: Int) = TransportResult.OK
+            override suspend fun park(devMin: Int, devMax: Int, target: Int) = true
+        }
+        val api = HandyV2ApiClient(t)
+        assertFalse(api.connect())
+        assertEquals(ConnectionState.DISCONNECTED, api.connectionState.value)
+        assertEquals("dropped", api.lastError.value)
+    }
+
     // ---- 6. stopped speed edits --------------------------------------------------
 
     @Test
@@ -274,6 +315,27 @@ class LovenseBleTransportTest {
         assertTrue(e.api.start())                // explicit start applies the remembered level
         assertTrue(e.port.motor > 0)
         assertTrue(e.api.isRunning.value)
+    }
+
+    @Test
+    fun manualStartWithSliderAtZero_afterHumanize_staysStill() = runTest {
+        val e = Env(this)
+        assertTrue(e.api.connect())
+        val h = HumanizeEngine(e.api, backgroundScope).also { it.setStrength(30) }
+        assertTrue(h.start(60))
+        advanceTimeBy(1500)
+        assertTrue(e.port.motor > 0)
+
+        // Manual slider to zero: ControlActivity cancels humanize, then stops.
+        h.cancel()
+        e.api.stop()
+        assertEquals(0, e.port.motor)
+
+        // START with the slider still at zero (ControlActivity's zero branch).
+        e.api.setSpeed(0)
+        e.api.start()
+        advanceTimeBy(1000)
+        assertEquals(0, e.port.motor)
     }
 
     // ---- 7. paired address kept ---------------------------------------------------

@@ -88,14 +88,20 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
     override suspend fun open(address: String, sink: GattSink): LovenseGattSession? {
         val device = adapter()?.getRemoteDevice(address) ?: return null
         val session = AndroidSession(sink)
-        val g = device.connectGatt(appContext, false, session.callback, BluetoothDevice.TRANSPORT_LE)
-        session.gatt = g
-        val linked = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { session.connectWait.await() } == true
-        if (!linked) {
-            session.close()
-            return null
+        // Until ownership passes to the caller, this method must close the
+        // client on every exit, including cancellation mid-await; otherwise a
+        // canceled attempt leaks a GATT client (and maybe a live link).
+        var handedOff = false
+        try {
+            val g = device.connectGatt(appContext, false, session.callback, BluetoothDevice.TRANSPORT_LE)
+            session.gatt = g
+            val linked = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { session.connectWait.await() } == true
+            if (!linked) return null
+            handedOff = true
+            return session
+        } finally {
+            if (!handedOff) session.close()
         }
-        return session
     }
 
     private class CallResult(val started: Boolean, val status: Int?)

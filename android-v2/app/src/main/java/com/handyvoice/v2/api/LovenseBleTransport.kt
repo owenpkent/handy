@@ -190,12 +190,14 @@ class LovenseBleTransport(
         val warning = armLinkLossProtection()
         if (linkLost) return abort(DROPPED)
 
+        // Name lookup goes before the commit so a drop during it still fails
+        // this attempt (the commit below is the last point a drop can land).
+        if (name == null) name = s.deviceName
         val committed = synchronized(stateLock) {
             if (linkLost) false else { ready = true; true }
         }
         if (!committed) return abort(DROPPED)
 
-        if (name == null) name = s.deviceName
         if (saved == null) {
             address = target
             onPaired(target, name ?: "Lovense toy")

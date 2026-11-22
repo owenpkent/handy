@@ -306,7 +306,7 @@ applicationContext.filesDir/
 
 ### Tests (Android V2)
 
-53 JVM unit tests cover the audio math, the update version-compare, the listening-session lifecycle, the mic-off stop race and the Lovense protocol without needing Android:
+56 JVM unit tests cover the audio math, the update version-compare, the listening-session lifecycle, the mic-off stop race and the Lovense protocol without needing Android:
 
 - `MfccTest` (5) — extraction shape, determinism, frequency discrimination, empty/short input handling.
 - `DtwTest` (5) — self-distance zero, symmetry, similar beats dissimilar, length invariance after normalization, empty handling.
@@ -315,7 +315,7 @@ applicationContext.filesDir/
 - `MicOffStopRegressionTest` (3) — end-to-end with the real `Dispatch` / `PatternEngine` / `HumanizeEngine` / `HandyV2ApiClient` against an in-memory fake `HandyV2ApiService` on virtual time (`kotlinx-coroutines-test`): a "begin" held at the matcher boundary and released mid-stop-ramp must leave the device stopped with a terminal `hamp/stop`, at humanize strength 0 and 30. A third, control test runs the old ordering (recognition outside the session, stop not joined) and asserts the device is left moving, so the fix tests can't pass for the wrong reason.
 - `ConnectGuardTest` (2): a second Connect tap while the first is still persisting the key is dropped (only one connect runs); the slot frees afterwards so a retry works. `ConnectGuard` (`ui/ConnectGuard.kt`) is the single-flight guard shared by the setup-panel Connect button and the home button.
 - `LovenseProtocolTest` (9): velocity to level mapping (endpoints, rounding, any v > 0 is at least 1, monotonic), command strings, `Battery` / `DeviceType` reply parsing, gen3 UUID derivation + regex, service/channel selection for gen1/2/3, the `LVS-` / `LOVE-` name filter, and `ReplyBuffer` reassembly of split / batched replies.
-- `LovenseBleTransportTest` (12): real transport + client + engines against a fake toy on virtual time: AutoSwith write syntax / ERR / bad read-back, surviving humanize and pattern loops not restarting the toy after reconnect, a rejected zero write staying retryable, disconnect during CCCD / init command / failed CCCD write failing the connect, stopped speed edits and Faster-after-Stop not moving the toy, same-process reconnect using the paired address without scanning. `LovenseProtocolTest` is now 11 (adds `GetAS` parsing and ERR detection).
+- `LovenseBleTransportTest` (15): real transport + client + engines against a fake toy on virtual time: AutoSwith write syntax / ERR / bad read-back, surviving humanize and pattern loops not restarting the toy after reconnect, a rejected zero write staying retryable, disconnect during CCCD / init command / name lookup / failed CCCD write failing the connect, a drop between the transport returning OK and the client commit still failing the connect, Manual START with the slider at zero after humanize staying still, stopped speed edits and Faster-after-Stop not moving the toy, same-process reconnect using the paired address without scanning. `LovenseProtocolTest` is now 11 (adds `GetAS` parsing and ERR detection).
 - `UpdaterTest` (7) — `isNewer`: integer-component comparison (so `0.10 > 0.9`, the bug that motivates it), equal / older versions, leading `v` tolerated, differing component counts (`1.0 == 1.0.0`), and malformed versions never updating.
 
 Run: `./gradlew :app:testDebugUnitTest` from `android-v2/`. ~40 ms total runtime.
