@@ -17,6 +17,9 @@ interface TransportListener {
     fun onBattery(percent: Int?)
     fun onDeviceName(name: String?)
 
+    /** A non-fatal problem the user should see (e.g. link-loss protection not confirmed). */
+    fun onWarning(message: String) {}
+
     /** The link dropped without a disconnect() call. [reason] is user-facing. */
     fun onUnexpectedDisconnect(reason: String)
 }

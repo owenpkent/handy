@@ -1,22 +1,5 @@
 package com.handyvoice.v2.api
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
-import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattDescriptor
-import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,62 +12,57 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.UUID
 
 /**
- * Lovense toy over BLE, using [BluetoothGatt] directly. Speaks the ASCII
- * protocol in [LovenseProtocol]. Velocity 0..100 maps to Vibrate levels 0..20;
- * start() and setSlide() are no-ops (Lovense has neither).
+ * Lovense toy over BLE. Speaks the ASCII protocol in [LovenseProtocol] through
+ * a [LovenseGattPort] (Android: [AndroidLovenseGattPort]; tests: a fake toy).
+ * Velocity 0..100 maps to Vibrate levels 0..20; setSlide() is a no-op.
  *
- * @param savedAddress previously paired toy address, or null to scan.
- * @param onPaired called once a toy is found by scan (address, name) so the
- *        caller can persist it.
+ * Motion contract (mirrors the Handy): the toy only vibrates between start()
+ * and stop(). A speed change while stopped is remembered and applied by the
+ * next start(); it never starts the toy by itself.
+ *
+ * @param savedAddress previously paired toy address, or null to scan. After a
+ *        scan pairs a toy the transport keeps that address for later
+ *        reconnects in the same process (no re-scan until a new transport).
+ * @param onPaired called once a toy is found by scan so the caller can persist it.
  */
-@SuppressLint("MissingPermission")
 class LovenseBleTransport(
-    context: Context,
-    private val savedAddress: String?,
+    private val port: LovenseGattPort,
+    savedAddress: String?,
     private val onPaired: (address: String, name: String) -> Unit,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : DeviceTransport {
 
     companion object {
-        private const val SCAN_TIMEOUT_MS = 10_000L
-        private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val OP_TIMEOUT_MS = 1_000L
-        private const val DISCOVER_TIMEOUT_MS = 5_000L
         private const val BATTERY_POLL_MS = 30_000L
-        private val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-
-        /** Runtime permissions needed before connecting on this API level. */
-        fun requiredPermissions(): Array<String> =
-            if (Build.VERSION.SDK_INT >= 31) {
-                arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
-            } else {
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-
-        fun hasPermissions(context: Context): Boolean = requiredPermissions().all {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        }
+        private const val DROPPED = "Toy disconnected during setup. Try again."
     }
 
     override val kind = "lovense"
     override var listener: TransportListener? = null
 
-    private val appContext = context.applicationContext
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** Address used for reconnects; null until a toy is saved or paired. */
+    @Volatile var address: String? = savedAddress?.takeIf { it.isNotBlank() }
+        private set
 
     /** Serializes every GATT operation. */
     private val opMutex = Mutex()
-    @Volatile private var pending: CompletableDeferred<Int>? = null
-    @Volatile private var connectWait: CompletableDeferred<Boolean>? = null
+    private val stateLock = Any()
 
-    private var gatt: BluetoothGatt? = null
-    private var tx: BluetoothGattCharacteristic? = null
-    private var rx: BluetoothGattCharacteristic? = null
-    @Volatile private var connected = false
+    private var session: LovenseGattSession? = null
+    @Volatile private var generation = 0
+    @Volatile private var connected = false   // link usable for writes
+    @Volatile private var ready = false       // setup finished; drops are "unexpected"
+    @Volatile private var linkLost = false    // current session's link dropped
     @Volatile private var closing = false
-    private var lastLevel = -1
+
+    // Motion state, guarded by opMutex.
+    private var lastLevel = -1      // last level the toy acknowledged; -1 = unknown
+    private var running = false
+    private var desiredLevel = 0    // level to apply while running
+
     private var lastBattery: Int? = null
     private var pollJob: Job? = null
 
@@ -93,260 +71,200 @@ class LovenseBleTransport(
 
     private fun log(m: String) { listener?.onLog(m) }
 
-    // ---- GATT callback ----------------------------------------------------
+    // ---- link events -------------------------------------------------------
 
-    private val callback = object : BluetoothGattCallback() {
-        override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                connectWait?.complete(true)
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                connectWait?.complete(false)
-                pending?.complete(-1)
-                if (connected && !closing) {
-                    handleUnexpectedDisconnect()
-                }
-            }
+    private fun onLinkDown(gen: Int) {
+        var unexpected = false
+        synchronized(stateLock) {
+            if (gen != generation) return
+            linkLost = true
+            connected = false
+            unexpected = ready && !closing
+            if (unexpected) ready = false
         }
-
-        override fun onServicesDiscovered(g: BluetoothGatt, status: Int) { pending?.complete(status) }
-        override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
-            pending?.complete(status)
-        }
-        override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
-            pending?.complete(status)
-        }
-
-        @Deprecated("Used below API 33")
-        override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic) {
-            @Suppress("DEPRECATION")
-            handleNotify(c.value)
-        }
-
-        override fun onCharacteristicChanged(
-            g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray,
-        ) {
-            handleNotify(value)
-        }
-    }
-
-    private fun handleNotify(value: ByteArray?) {
-        if (value == null) return
-        for (r in replyBuffer.feed(String(value, Charsets.US_ASCII))) replies.trySend(r)
+        replies.trySend("") // wake any reply wait
+        if (unexpected) handleUnexpectedDisconnect()
     }
 
     private fun handleUnexpectedDisconnect() {
-        connected = false
         pollJob?.cancel()
-        closeGatt()
+        closeSession()
         lastLevel = -1
+        running = false
+        desiredLevel = 0
         listener?.onUnexpectedDisconnect("Lovense toy disconnected.")
     }
 
-    private fun closeGatt() {
-        val g = gatt
-        gatt = null
-        tx = null
-        rx = null
-        runCatching { g?.close() }
+    private fun closeSession() {
+        val s = session
+        session = null
+        runCatching { s?.close() }
     }
 
-    // ---- connect ----------------------------------------------------------
+    // ---- connect -----------------------------------------------------------
 
     override fun preflightError(): String? = null
 
-    override suspend fun connect(): TransportResult = opMutex.withLock {
-        if (!hasPermissions(appContext)) {
-            return TransportResult(false, "Bluetooth permission needed to connect to the toy.")
-        }
-        val adapter = (appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-        if (adapter == null || !adapter.isEnabled) {
-            return TransportResult(false, "Bluetooth is off. Turn it on and try again.")
-        }
-        resetLink()
+    override suspend fun connect(): TransportResult = opMutex.withLock { connectLocked() }
 
-        val device: BluetoothDevice
+    private suspend fun connectLocked(): TransportResult {
+        port.preconnectError()?.let { return TransportResult(false, it) }
+        resetLink()
+        val myGen = synchronized(stateLock) {
+            generation += 1
+            linkLost = false
+            ready = false
+            closing = false
+            generation
+        }
+
+        val saved = address
+        val target: String
         var name: String?
-        if (!savedAddress.isNullOrBlank()) {
-            log("Lovense: connecting to saved toy $savedAddress")
-            device = try {
-                adapter.getRemoteDevice(savedAddress)
-            } catch (e: IllegalArgumentException) {
-                return TransportResult(false, "Saved toy address is invalid. Use Forget toy in Settings.")
-            }
+        if (saved != null) {
+            log("Lovense: connecting to saved toy $saved")
+            target = saved
             name = null
         } else {
             log("Lovense: scanning for a toy...")
-            val found = scan(adapter) ?: return TransportResult(
+            val hit = port.scan() ?: return TransportResult(
                 false,
                 "No Lovense toy found. Turn it on (hold the button until it blinks) and try again.",
             )
-            device = found.device
-            name = found.scanRecord?.deviceName ?: found.device.name
-            log("Lovense: found ${name ?: "toy"} ${device.address}")
+            target = hit.address
+            name = hit.name
+            log("Lovense: found ${name ?: "toy"} $target")
         }
 
-        closing = false
-        val waiter = CompletableDeferred<Boolean>()
-        connectWait = waiter
-        val g = device.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
-        gatt = g
-        val linked = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { waiter.await() } == true
-        connectWait = null
-        if (!linked) {
-            closeGatt()
+        val sink = object : GattSink {
+            override fun onDisconnected() = onLinkDown(myGen)
+            override fun onNotify(text: String) {
+                if (myGen != generation) return
+                for (r in replyBuffer.feed(text)) replies.trySend(r)
+            }
+        }
+        val s = try {
+            port.open(target, sink)
+        } catch (e: IllegalArgumentException) {
+            return TransportResult(false, "Saved toy address is invalid. Use Forget toy in Settings.")
+        }
+        if (s == null) {
             return TransportResult(
                 false,
-                if (savedAddress.isNullOrBlank()) "Could not connect to the toy."
+                if (saved == null) "Could not connect to the toy."
                 else "Could not reach the saved toy. Turn it on, or use Forget toy in Settings to pair a new one.",
             )
         }
+        session = s
 
-        val disc = gattCall(DISCOVER_TIMEOUT_MS) { g.discoverServices() }
-        if (disc != BluetoothGatt.GATT_SUCCESS) {
-            closeGatt()
-            return TransportResult(false, "Toy service discovery failed.")
-        }
-        var chosen: Triple<BluetoothGattCharacteristic, BluetoothGattCharacteristic, UUID>? = null
-        for (svc in g.services) {
-            val ch = LovenseProtocol.channelFor(svc.uuid) ?: continue
-            val t = svc.getCharacteristic(ch.second)
-            val r = svc.getCharacteristic(ch.third)
-            if (t != null && r != null) {
-                chosen = Triple(t, r, svc.uuid)
-                break
-            }
-        }
-        if (chosen == null) {
-            closeGatt()
-            return TransportResult(false, "This device does not look like a Lovense toy.")
-        }
-        tx = chosen.first
-        rx = chosen.second
-        log("Lovense: service ${chosen.third}")
-
-        // Enable notifications on RX.
-        val rxc = chosen.second
-        g.setCharacteristicNotification(rxc, true)
-        rxc.getDescriptor(CCCD)?.let { d ->
-            val st = gattCall(OP_TIMEOUT_MS) { writeDescriptor(g, d) }
-            if (st != BluetoothGatt.GATT_SUCCESS) log("Lovense: enabling notifications returned $st")
+        fun abort(msg: String): TransportResult {
+            synchronized(stateLock) { connected = false; ready = false }
+            closeSession()
+            return TransportResult(false, msg)
         }
 
-        connected = true
+        when (s.discover()) {
+            Discovery.FAILED -> return abort(if (linkLost) DROPPED else "Toy service discovery failed.")
+            Discovery.NOT_LOVENSE -> return abort("This device does not look like a Lovense toy.")
+            Discovery.OK -> Unit
+        }
+        if (linkLost) return abort(DROPPED)
+
+        if (!s.enableNotifications()) {
+            return abort(if (linkLost) DROPPED else "Could not enable toy notifications. Try again.")
+        }
+        synchronized(stateLock) { if (!linkLost) connected = true }
+        if (!connected) return abort(DROPPED)
+
         lastLevel = -1
         lastBattery = null
+        running = false
+        desiredLevel = 0
 
-        // Identify and arm the safety setting. Replies are logged.
+        // Identify, then arm and verify the link-loss safety setting.
         sendLocked(LovenseProtocol.CMD_DEVICE_TYPE, awaitReply = true)?.let { reply ->
             val info = LovenseProtocol.parseDeviceType(reply)
             log("Lovense: DeviceType ${info?.let { "model ${it.model} fw ${it.firmware}" } ?: reply}")
         }
-        sendLocked(LovenseProtocol.CMD_AUTO_SWITCH, awaitReply = true)?.let { log("Lovense: AutoSwith reply $it") }
+        if (linkLost) return abort(DROPPED)
+        val warning = armLinkLossProtection()
+        if (linkLost) return abort(DROPPED)
 
-        if (name == null) name = g.device.name
-        if (savedAddress.isNullOrBlank()) {
-            onPaired(device.address, name ?: "Lovense toy")
+        val committed = synchronized(stateLock) {
+            if (linkLost) false else { ready = true; true }
+        }
+        if (!committed) return abort(DROPPED)
+
+        if (name == null) name = s.deviceName
+        if (saved == null) {
+            address = target
+            onPaired(target, name ?: "Lovense toy")
         }
         listener?.onDeviceName(name ?: "Lovense toy")
+        if (warning != null) {
+            log("Lovense: WARNING $warning")
+            listener?.onWarning(warning)
+        }
         startBatteryPoll()
         return TransportResult.OK
     }
 
+    /**
+     * Write AutoSwith:On:Off; (stop on link loss, never resume by itself),
+     * require a non-ERR reply, then read it back with GetAS;. Returns null if
+     * confirmed, else a user-facing warning. Never fails the connection: the
+     * firmware is untested, so an unsupported toy still connects, flagged.
+     */
+    private suspend fun armLinkLossProtection(): String? {
+        val unconfirmed = "Link-loss protection not confirmed: the toy may keep vibrating if Bluetooth drops."
+        val reply = sendLocked(LovenseProtocol.CMD_AUTO_SWITCH, awaitReply = true)
+        log("Lovense: AutoSwith reply ${reply ?: "(none)"}")
+        if (reply == null || LovenseProtocol.isErrorReply(reply)) return unconfirmed
+        val check = sendLocked(LovenseProtocol.CMD_GET_AUTO_SWITCH, awaitReply = true)
+        val state = check?.let { LovenseProtocol.parseAutoSwitch(it) }
+        log("Lovense: GetAS reply ${check ?: "(none)"}")
+        return if (state != null && state.isLinkLossSafe) null else unconfirmed
+    }
+
     private fun resetLink() {
         pollJob?.cancel()
-        closeGatt()
-        connected = false
+        closeSession()
+        synchronized(stateLock) { connected = false; ready = false }
         replyBuffer.clear()
         while (replies.tryReceive().isSuccess) { /* drain */ }
     }
 
-    private suspend fun scan(adapter: BluetoothAdapter): ScanResult? {
-        val scanner = adapter.bluetoothLeScanner ?: return null
-        val found = CompletableDeferred<ScanResult>()
-        val cb = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val n = result.scanRecord?.deviceName ?: result.device.name
-                if (LovenseProtocol.isLovenseName(n)) found.complete(result)
-            }
-
-            override fun onScanFailed(errorCode: Int) {
-                log("Lovense: scan failed, code $errorCode")
-                found.cancel()
-            }
-        }
-        return try {
-            scanner.startScan(cb)
-            withTimeoutOrNull(SCAN_TIMEOUT_MS) { runCatching { found.await() }.getOrNull() }
-        } finally {
-            runCatching { scanner.stopScan(cb) }
-        }
-    }
-
-    // ---- GATT helpers -----------------------------------------------------
-
-    /** Runs one GATT operation and waits for its callback status; null if it could not start or timed out. */
-    private suspend fun gattCall(timeoutMs: Long, initiate: () -> Boolean): Int? {
-        val d = CompletableDeferred<Int>()
-        pending = d
-        if (!initiate()) {
-            pending = null
-            return null
-        }
-        val r = withTimeoutOrNull(timeoutMs) { d.await() }
-        pending = null
-        return r
-    }
-
-    private fun writeDescriptor(g: BluetoothGatt, d: BluetoothGattDescriptor): Boolean =
-        if (Build.VERSION.SDK_INT >= 33) {
-            g.writeDescriptor(d, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == 0
-        } else {
-            @Suppress("DEPRECATION")
-            run {
-                d.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                g.writeDescriptor(d)
-            }
-        }
+    // ---- writes ------------------------------------------------------------
 
     /** Write one command. Caller must hold [opMutex]. Returns the reply if [awaitReply]. */
     private suspend fun sendLocked(cmd: String, awaitReply: Boolean = false): String? {
-        val g = gatt
-        val c = tx
-        if (g == null || c == null || !connected) return null
+        val s = session
+        if (s == null || !connected) return null
         while (replies.tryReceive().isSuccess) { /* drop stale replies */ }
-        writeCharacteristic(g, c, cmd)
-        return if (awaitReply) withTimeoutOrNull(OP_TIMEOUT_MS) { replies.receive() } else null
+        if (s.write(cmd) != WriteResult.OK) return null
+        if (!awaitReply) return null
+        val r = withTimeoutOrNull(OP_TIMEOUT_MS) { replies.receive() }
+        return r?.takeIf { it.isNotEmpty() }
     }
 
-    private suspend fun writeCharacteristic(g: BluetoothGatt, c: BluetoothGattCharacteristic, cmd: String): Boolean {
-        val bytes = cmd.toByteArray(Charsets.US_ASCII)
-        val withResponse = c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
-        val type = if (withResponse) BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        else BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        val status = gattCall(OP_TIMEOUT_MS) {
-            if (Build.VERSION.SDK_INT >= 33) {
-                g.writeCharacteristic(c, bytes, type) == 0
-            } else {
-                @Suppress("DEPRECATION")
-                run {
-                    c.writeType = type
-                    c.value = bytes
-                    g.writeCharacteristic(c)
-                }
+    /**
+     * Send one vibrate level. Caller must hold [opMutex]. The acknowledged level
+     * is only recorded on success; any failure invalidates it so the next
+     * command (a retried stop included) is always sent, never deduplicated.
+     */
+    private suspend fun sendLevel(level: Int, force: Boolean = false): TransportResult {
+        val s = session
+        if (!connected || s == null) return TransportResult(false, "Lovense toy not connected.")
+        if (!force && level == lastLevel) return TransportResult.OK
+        while (replies.tryReceive().isSuccess) { /* drop stale replies */ }
+        val cmd = LovenseProtocol.vibrate(level)
+        return when (s.write(cmd)) {
+            WriteResult.OK -> { lastLevel = level; TransportResult.OK }
+            else -> {
+                lastLevel = -1
+                TransportResult(false, "Lovense write failed.", "Lovense: write failed for $cmd")
             }
         }
-        // Write-without-response may never call back; treat a timeout there as sent.
-        return status == BluetoothGatt.GATT_SUCCESS || (!withResponse && status == null)
-    }
-
-    private suspend fun command(cmd: String): TransportResult = opMutex.withLock {
-        if (!connected) return@withLock TransportResult(false, "Lovense toy not connected.")
-        val g = gatt
-        val c = tx
-        if (g == null || c == null) return@withLock TransportResult(false, "Lovense toy not connected.")
-        while (replies.tryReceive().isSuccess) { /* drop stale replies */ }
-        if (writeCharacteristic(g, c, cmd)) TransportResult.OK
-        else TransportResult(false, "Lovense write failed.", "Lovense: write failed for $cmd")
     }
 
     // ---- battery keep-awake ------------------------------------------------
@@ -370,38 +288,44 @@ class LovenseBleTransport(
     // ---- DeviceTransport ---------------------------------------------------
 
     override suspend fun disconnect() {
-        closing = true
+        synchronized(stateLock) { closing = true }
         pollJob?.cancel()
         opMutex.withLock {
             if (connected) {
                 // Best effort: make sure it is not left vibrating.
-                val g = gatt
-                val c = tx
-                if (g != null && c != null) runCatching { writeCharacteristic(g, c, LovenseProtocol.CMD_STOP) }
+                runCatching { session?.write(LovenseProtocol.CMD_STOP) }
             }
-            connected = false
-            runCatching { gatt?.disconnect() }
-            closeGatt()
+            synchronized(stateLock) { connected = false; ready = false }
+            closeSession()
             lastLevel = -1
+            running = false
+            desiredLevel = 0
         }
         listener?.onBattery(null)
     }
 
-    override suspend fun start(): TransportResult =
-        if (connected) TransportResult.OK else TransportResult(false, "Lovense toy not connected.")
-
-    override suspend fun stop(): TransportResult {
-        val r = command(LovenseProtocol.CMD_STOP)
-        if (r.ok) lastLevel = 0
-        return r
+    override suspend fun start(): TransportResult = opMutex.withLock {
+        if (!connected) return@withLock TransportResult(false, "Lovense toy not connected.")
+        running = true
+        val r = if (desiredLevel > 0) sendLevel(desiredLevel) else TransportResult.OK
+        if (!r.ok) running = false
+        r
     }
 
-    override suspend fun setVelocity(velocity: Int): TransportResult {
+    override suspend fun stop(): TransportResult = opMutex.withLock {
+        running = false
+        // Always written (never deduplicated): a stop is safety-critical.
+        sendLevel(0, force = true)
+    }
+
+    override suspend fun setVelocity(velocity: Int): TransportResult = opMutex.withLock {
         val level = LovenseProtocol.levelForVelocity(velocity)
-        if (level == lastLevel) return TransportResult.OK
-        val r = command(LovenseProtocol.vibrate(level))
-        if (r.ok) lastLevel = level
-        return r
+        desiredLevel = level
+        if (running) return@withLock sendLevel(level)
+        // Stopped: remember the level, do not move. If the toy might still be
+        // moving (unknown level after a failed write, or never confirmed), make
+        // sure it is stopped; this is also what makes a failed stop retryable.
+        if (lastLevel != 0) sendLevel(0) else TransportResult.OK
     }
 
     override suspend fun setSlide(min: Int, max: Int): TransportResult = TransportResult.OK

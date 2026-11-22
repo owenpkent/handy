@@ -26,8 +26,13 @@ object LovenseProtocol {
 
     const val CMD_DEVICE_TYPE = "DeviceType;"
     const val CMD_BATTERY = "Battery;"
-    /** (sic) Lovense spells it "AutoSwith". 1:0 = stop on accidental disconnect, do not restore on reconnect. */
-    const val CMD_AUTO_SWITCH = "AutoSwith:1:0;"
+    /**
+     * (sic) Lovense spells it "AutoSwith". The WRITE command takes words:
+     * first = stop on accidental disconnect (On), second = restore the last
+     * level on reconnect (Off). The numeric form (1:0) is only the [CMD_GET_AUTO_SWITCH] reply.
+     */
+    const val CMD_AUTO_SWITCH = "AutoSwith:On:Off;"
+    const val CMD_GET_AUTO_SWITCH = "GetAS;"
     const val CMD_STOP = "Vibrate:0;"
 
     /** Velocity 0..100 to level 0..20, rounded, but any non-zero velocity is at least level 1. */
@@ -69,6 +74,22 @@ object LovenseProtocol {
         if (body.isEmpty() || !body.all { it.isDigit() }) return null
         return body.toIntOrNull()?.takeIf { it in 0..100 }
     }
+
+    data class AutoSwitch(val stopOnDisconnect: Boolean, val restoreOnReconnect: Boolean) {
+        /** The safe state we write: stop on link loss, never resume by itself. */
+        val isLinkLossSafe: Boolean get() = stopOnDisconnect && !restoreOnReconnect
+    }
+
+    /** "1:0;" or "AutoSwith:1:0;" gives (true, false). Anything else gives null. */
+    fun parseAutoSwitch(reply: String): AutoSwitch? {
+        val body = reply.trim().removeSuffix(";").removePrefix("AutoSwith:")
+        val parts = body.split(":")
+        if (parts.size != 2 || parts.any { it != "0" && it != "1" }) return null
+        return AutoSwitch(parts[0] == "1", parts[1] == "1")
+    }
+
+    /** "ERR;" style rejection. */
+    fun isErrorReply(reply: String): Boolean = reply.trim().uppercase().startsWith("ERR")
 
     data class DeviceInfo(val model: String, val firmware: String, val address: String)
 

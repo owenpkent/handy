@@ -83,6 +83,18 @@ class HandyV2ApiClient(
     /** Friendly name of the connected device when the transport knows it (Lovense), else null. */
     val deviceName: StateFlow<String?> = _deviceName.asStateFlow()
 
+    private val _warning = MutableStateFlow<String?>(null)
+    /** Non-fatal warning from the transport for the current connection, else null. */
+    val warning: StateFlow<String?> = _warning.asStateFlow()
+
+    /**
+     * True from connect / disconnect until the next successful [start]. While
+     * set, positive velocity writes are refused, so a motion loop that outlived
+     * a lost connection (or a speed edit before any start) can never restart
+     * the device on its own after a reconnect.
+     */
+    @Volatile private var startRequired = true
+
     private var connectionKey: String = ""
 
     private var transport: DeviceTransport = transport
@@ -91,8 +103,11 @@ class HandyV2ApiClient(
         override fun onLog(message: String) = log(message)
         override fun onBattery(percent: Int?) { _battery.value = percent }
         override fun onDeviceName(name: String?) { _deviceName.value = name }
+        override fun onWarning(message: String) { _warning.value = message }
         override fun onUnexpectedDisconnect(reason: String) {
             bumpVelocityEpoch()
+            startRequired = true
+            _warning.value = null
             _isRunning.value = false
             _currentSpeed.value = 0
             _battery.value = null
@@ -196,11 +211,14 @@ class HandyV2ApiClient(
         }
 
         _connectionState.value = ConnectionState.CONNECTING
+        _warning.value = null
+        startRequired = true
         log("Connecting...")
 
         return try {
             val result = transport.connect()
             if (result.ok) {
+                startRequired = true
                 _connectionState.value = ConnectionState.CONNECTED
                 _lastError.value = null
                 refreshState()
@@ -208,6 +226,7 @@ class HandyV2ApiClient(
                 true
             } else {
                 _connectionState.value = ConnectionState.DISCONNECTED
+                _warning.value = null
                 _lastError.value = result.error
                 false
             }
@@ -222,6 +241,8 @@ class HandyV2ApiClient(
     suspend fun disconnect() {
         stop()
         runCatching { transport.disconnect() }
+        startRequired = true
+        _warning.value = null
         _connectionState.value = ConnectionState.DISCONNECTED
         _battery.value = null
         _deviceName.value = null
@@ -240,6 +261,7 @@ class HandyV2ApiClient(
             log("Starting...")
             val result = transport.start()
             if (result.ok) {
+                startRequired = false
                 _isRunning.value = true
                 _lastError.value = null
                 log("Started.")
@@ -285,9 +307,13 @@ class HandyV2ApiClient(
             return false
         }
 
+        val velocity = percent.coerceIn(0, 100)
+        if (velocity > 0 && startRequired) {
+            log("Ignoring speed $velocity%: start() first.")
+            return false
+        }
         // A direct speed set (e.g. begin's velocity write) supersedes a ramp.
         bumpVelocityEpoch()
-        val velocity = percent.coerceIn(0, 100)
         log("Setting speed to $velocity%")
         return putVelocity(velocity)
     }
@@ -310,6 +336,10 @@ class HandyV2ApiClient(
     suspend fun rampSpeed(target: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) {
             _lastError.value = "Not connected"
+            return false
+        }
+        if (target > 0 && startRequired) {
+            log("Ignoring ramp to $target%: start() first.")
             return false
         }
         val myEpoch = bumpVelocityEpoch()
@@ -383,6 +413,7 @@ class HandyV2ApiClient(
      */
     suspend fun setSpeedModulated(velocity: Int): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) return false
+        if (velocity > 0 && startRequired) return false
         // The humanize loop owns velocity once running; its first write here
         // supersedes a draining stop-ramp (begin-with-humanize doesn't call
         // start() when the device is still flagged running mid-wind-down).

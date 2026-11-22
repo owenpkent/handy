@@ -33,7 +33,7 @@ import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
 import com.handyvoice.v2.api.HandyV2ApiClient
-import com.handyvoice.v2.api.LovenseBleTransport
+import com.handyvoice.v2.api.LovenseBle
 import com.handyvoice.v2.audio.AudioCapture
 import com.handyvoice.v2.audio.Vad
 import com.handyvoice.v2.data.PreferencesManager
@@ -48,6 +48,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,6 +72,9 @@ import java.util.Locale
 class ControlActivity : AppCompatActivity() {
 
     companion object {
+        /** Longest a device swap waits for an in-flight connect to settle. */
+        private const val DEVICE_SWAP_WAIT_MS = 30_000L
+
         // MUST match TrainingActivity.WINDOW_SECONDS — the matcher aligns
         // query MFCC frames against stored templates, and DTW's band ratio
         // can't bridge a 60-70% length mismatch. If you bump one, bump
@@ -246,6 +251,9 @@ class ControlActivity : AppCompatActivity() {
 
     /** True when Settings selects a Lovense toy (no connection key needed). */
     private var deviceIsLovense = false
+
+    /** Cancel + join of the motion engines after a lost connection. Reconnect and device swap wait for it. */
+    private var motionTeardown: Job? = null
 
     private val requestBle = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         if (grants.values.all { it }) {
@@ -467,6 +475,7 @@ class ControlActivity : AppCompatActivity() {
         // Lovense: keep the "Connected: name, battery N%" line current.
         lifecycleScope.launch { api.battery.collectLatest { refreshConnectedStatus() } }
         lifecycleScope.launch { api.deviceName.collectLatest { refreshConnectedStatus() } }
+        lifecycleScope.launch { api.warning.collectLatest { refreshConnectedStatus() } }
         lifecycleScope.launch {
             api.currentSpeed.collectLatest { updatePipStatus() }
         }
@@ -520,6 +529,14 @@ class ControlActivity : AppCompatActivity() {
                     )
                 }
                 stopAlwaysOn()
+                // A lost (or ended) connection must not leave a humanize /
+                // pattern loop alive: it would drive the device again the
+                // moment a reconnect lands. Cancel and join both; reconnect
+                // and device swaps wait on this job.
+                motionTeardown = lifecycleScope.launch {
+                    humanizeEngine.cancel()
+                    patternEngine.cancel()
+                }
             }
         }
         homeStatusText.text = statusText.text
@@ -531,13 +548,16 @@ class ControlActivity : AppCompatActivity() {
     private fun setConnectedStatusText() {
         val name = api.deviceName.value
         val battery = api.battery.value
+        val warning = api.warning.value
         if (api.transportKind != "lovense" || name == null) {
             statusText.setText(R.string.status_connected)
+            if (warning != null) statusText.text = "${statusText.text}\n$warning"
             return
         }
         statusText.text = buildString {
             append("Connected: ").append(name)
             if (battery != null) append(", battery ").append(battery).append("%")
+            if (warning != null) append("\n").append(warning)
         }
     }
 
@@ -556,22 +576,38 @@ class ControlActivity : AppCompatActivity() {
     }
 
     /**
-     * Pick the transport the prefs ask for. If the device type (or paired
-     * toy) changed while connected, wind everything down and disconnect first,
-     * since the transport can only be swapped while disconnected.
+     * Pick the transport the prefs ask for. Returns true if the installed
+     * transport now matches [snap]; only then does the caller adopt the selected
+     * device's speed cap (the old device keeps its cap until the swap succeeds).
+     * A connect still in flight is waited out first; a live connection is wound
+     * down and disconnected, since the transport can only be swapped while
+     * disconnected. If the swap cannot happen, nothing about the screen changes
+     * and the next onResume retries.
      */
-    private suspend fun syncDevice(snap: PreferencesManager.Snapshot) {
+    private suspend fun syncDevice(snap: PreferencesManager.Snapshot): Boolean {
         val app = application as HandyVoiceApp
-        deviceIsLovense = snap.isLovense
-        if (app.deviceChanged(snap) && api.connectionState.value == ConnectionState.CONNECTED) {
+        if (app.deviceChanged(snap)) {
+            if (api.connectionState.value == ConnectionState.CONNECTING) {
+                val settled = withTimeoutOrNull(DEVICE_SWAP_WAIT_MS) {
+                    api.connectionState.first { it != ConnectionState.CONNECTING }
+                }
+                if (settled == null) return false
+            }
+            if (api.connectionState.value == ConnectionState.CONNECTED) {
+                humanizeEngine.cancel()
+                patternEngine.cancel()
+                stopAlwaysOn()
+                api.disconnect()
+            }
+            motionTeardown?.join()
             humanizeEngine.cancel()
             patternEngine.cancel()
-            stopAlwaysOn()
-            api.disconnect()
         }
-        app.configureDevice(snap)
+        if (!app.configureDevice(snap)) return false
+        deviceIsLovense = snap.isLovense
         applyDeviceTypeUi()
         updateHomeButton()
+        return true
     }
 
     /** Switch between the one-button home screen and "More controls". */
@@ -640,7 +676,6 @@ class ControlActivity : AppCompatActivity() {
     private fun bootstrap() {
         lifecycleScope.launch {
             val snap = prefs.snapshot()
-            globalMaxSpeed = snap.globalMaxSpeed
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
@@ -653,8 +688,8 @@ class ControlActivity : AppCompatActivity() {
             humanizeEngine.setStrength(snap.humanizeStrength)
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
+            if (syncDevice(snap)) globalMaxSpeed = snap.globalMaxSpeed
             applyManualCaps()
-            syncDevice(snap)
 
             // Onboarding gate: only force training on first run. After the user
             // has been through (or deliberately bailed out of) onboarding, trust
@@ -679,7 +714,7 @@ class ControlActivity : AppCompatActivity() {
                 if (snap.isLovense) {
                     // Toy: no key. Auto-connect only if BLE permission is
                     // already granted; otherwise the first tap asks for it.
-                    if (LovenseBleTransport.hasPermissions(this@ControlActivity)) api.connect()
+                    if (LovenseBle.hasPermissions(this@ControlActivity)) api.connect()
                 } else if (snap.connectionKey.isNotBlank()) {
                     api.setConnectionKey(snap.connectionKey)
                     api.connect()
@@ -698,7 +733,6 @@ class ControlActivity : AppCompatActivity() {
             val invertChanged = invertStroke != snap.invertStroke
             val bandChanged = globalMinStroke != snap.globalMinStroke ||
                 globalMaxStroke != snap.globalMaxStroke
-            globalMaxSpeed = snap.globalMaxSpeed
             globalMinStroke = snap.globalMinStroke
             globalMaxStroke = snap.globalMaxStroke
             threshold = snap.matchThreshold
@@ -713,7 +747,7 @@ class ControlActivity : AppCompatActivity() {
             // back onto the plain constant speed / user band.
             humanizeEngine.setStrength(snap.humanizeStrength)
             if (snap.humanizeStrength == 0 && humanizeEngine.isRunning) humanizeEngine.cancel()
-            syncDevice(snap)
+            if (syncDevice(snap)) globalMaxSpeed = snap.globalMaxSpeed
             api.setInvertStroke(snap.invertStroke)
             api.setGlobalStrokeBand(snap.globalMinStroke, snap.globalMaxStroke)
             applyManualCaps()
@@ -957,8 +991,8 @@ class ControlActivity : AppCompatActivity() {
             toast("Connection key required.")
             return
         }
-        if (deviceIsLovense && !LovenseBleTransport.hasPermissions(this)) {
-            requestBle.launch(LovenseBleTransport.requiredPermissions())
+        if (deviceIsLovense && !LovenseBle.hasPermissions(this)) {
+            requestBle.launch(LovenseBle.requiredPermissions())
             return
         }
         // Flip the UI to its busy state immediately on tap, before the
@@ -974,6 +1008,7 @@ class ControlActivity : AppCompatActivity() {
                 updateHomeButton()
             },
         ) {
+            motionTeardown?.join()
             if (!deviceIsLovense) {
                 prefs.setConnectionKey(key)
                 api.setConnectionKey(key)

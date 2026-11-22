@@ -3,7 +3,7 @@ package com.handyvoice.v2
 import android.app.Application
 import com.handyvoice.v2.api.HandyRestTransport
 import com.handyvoice.v2.api.HandyV2ApiClient
-import com.handyvoice.v2.api.LovenseBleTransport
+import com.handyvoice.v2.api.LovenseBle
 import com.handyvoice.v2.data.PreferencesManager
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +49,7 @@ class HandyVoiceApp : Application() {
         val sig = sigFor(snap)
         if (sig == transportSig) return true
         val t = if (snap.isLovense) {
-            LovenseBleTransport(this, snap.lovenseAddress.ifBlank { null }) { address, name ->
+            LovenseBle.createTransport(this, snap.lovenseAddress.ifBlank { null }) { address, name ->
                 transportSig = "lovense:$address"
                 appScope.launch { PreferencesManager(applicationContext).setLovenseToy(address, name) }
             }

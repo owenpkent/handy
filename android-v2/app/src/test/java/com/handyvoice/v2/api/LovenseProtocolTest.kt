@@ -40,7 +40,30 @@ class LovenseProtocolTest {
         assertEquals("Vibrate:0;", LovenseProtocol.CMD_STOP)
         assertEquals("Battery;", LovenseProtocol.CMD_BATTERY)
         assertEquals("DeviceType;", LovenseProtocol.CMD_DEVICE_TYPE)
-        assertEquals("AutoSwith:1:0;", LovenseProtocol.CMD_AUTO_SWITCH)
+        // The WRITE takes words; the numeric 1:0 form is only the GetAS reply.
+        assertEquals("AutoSwith:On:Off;", LovenseProtocol.CMD_AUTO_SWITCH)
+        assertEquals("GetAS;", LovenseProtocol.CMD_GET_AUTO_SWITCH)
+    }
+
+    @Test
+    fun parseAutoSwitch_readsNumericReply() {
+        val safe = LovenseProtocol.parseAutoSwitch("1:0;")!!
+        assertTrue(safe.stopOnDisconnect)
+        assertFalse(safe.restoreOnReconnect)
+        assertTrue(safe.isLinkLossSafe)
+        assertTrue(LovenseProtocol.parseAutoSwitch("AutoSwith:1:0;")!!.isLinkLossSafe)
+        assertFalse(LovenseProtocol.parseAutoSwitch("0:0;")!!.isLinkLossSafe)
+        assertFalse(LovenseProtocol.parseAutoSwitch("1:1;")!!.isLinkLossSafe)
+        assertNull(LovenseProtocol.parseAutoSwitch("ERR;"))
+        assertNull(LovenseProtocol.parseAutoSwitch("On:Off;"))
+        assertNull(LovenseProtocol.parseAutoSwitch("1;"))
+    }
+
+    @Test
+    fun errorReply() {
+        assertTrue(LovenseProtocol.isErrorReply("ERR;"))
+        assertTrue(LovenseProtocol.isErrorReply("err;"))
+        assertFalse(LovenseProtocol.isErrorReply("OK;"))
     }
 
     @Test

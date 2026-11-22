@@ -14,7 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.handyvoice.v2.HandyVoiceApp
 import com.handyvoice.v2.R
 import com.handyvoice.v2.api.ConnectionState
-import com.handyvoice.v2.api.LovenseBleTransport
+import com.handyvoice.v2.api.LovenseBle
 import com.handyvoice.v2.data.PreferencesManager
 import kotlinx.coroutines.launch
 
@@ -111,7 +111,7 @@ class SplashActivity : AppCompatActivity() {
             if (snap.isLovense) {
                 // No key for a toy; but a BLE connect needs the runtime
                 // permissions, which Control asks for on the first tap.
-                if (!LovenseBleTransport.hasPermissions(applicationContext)) return@launch
+                if (!LovenseBle.hasPermissions(applicationContext)) return@launch
             } else if (snap.connectionKey.isBlank()) {
                 return@launch
             }
