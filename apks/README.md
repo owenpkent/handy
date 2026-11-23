@@ -40,7 +40,7 @@ shared keystore (`android-v2/app/signing/handy.keystore`), so updates install
 over the top from any machine. See the Auto-update section in the root
 `CLAUDE.md` and `android-v2/docs/SIGNING.md`.
 
-Note: v0.23 (Lovense toy support) was published from the unmerged `feat/lovense-ble` branch as a test build, so `/releases/latest` serves code that is not on `main` yet.
+Note: v0.23 (Lovense toy support) was published as a test build from the `feat/lovense-ble` branch before it merged; the branch is on `main` now. v0.23 cannot connect to a Gush 2 (fixed in v0.24).
 
 ## Git
 

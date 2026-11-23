@@ -281,6 +281,7 @@ class ControlActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_control)
+        padForSystemBars()
 
         // Keep the screen on the whole time this screen is in the foreground,
         // not just while listening. The OS only honors this flag while the

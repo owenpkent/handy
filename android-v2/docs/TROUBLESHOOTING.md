@@ -276,9 +276,17 @@ By design. Android caps the PiP control bar at `getMaxNumPictureInPictureActions
 
 `onPictureInPictureModeChanged` should swap the home / More screens (`homePanel`, `mainScroll`) for the `pipOverlay` status text. If you see the full layout, the activity was likely recreated on the PiP resize — confirm `ControlActivity` still has `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"` in the manifest.
 
+## Runtime: layout
+
+### The top of the screen sits under the status bar, or the bottom under the navigation bar
+
+Seen on Android 15 with v0.23 and earlier: the red status text overlapped the clock and "More controls" was cut off by the navigation bar. With targetSdk 35, Android 15+ draws every activity edge to edge and the app did not pad for the system bars. Fixed in v0.24 (`ui/SystemBars.kt`, `padForSystemBars()`, called by every activity after `setContentView`). A new activity must call it too, and its layout must cope with the height the bars take: Training's card is a `ScrollView` for that reason (a fixed, centred card clipped the Play button on a compact screen).
+
+---
+
 ## Lovense toy
 
-Lovense support (v0.23) has not been tested on a real toy yet, so expect surprises. The debug log (More controls, Show Debug, Copy) or the test panel's Copy report is the first thing to capture. Background and checklist: [LOVENSE.md](LOVENSE.md).
+Lovense support has had one hardware try (a Gush 2 on v0.23, which failed at service discovery and is fixed in v0.24) and no successful session yet, so expect surprises. The debug log (More controls, Show Debug, Copy) or the test panel's Copy report is the first thing to capture. Background and checklist: [LOVENSE.md](LOVENSE.md).
 
 ### `Bluetooth permission is required to connect to the toy.` or `Bluetooth permission needed to connect to the toy.`
 
@@ -291,6 +299,10 @@ Turn Bluetooth on and tap Connect.
 ### `No Lovense toy found. Turn it on (hold the button until it blinks) and try again.`
 
 The first connect scans for about 10 seconds for a device named `LVS-` or `LOVE-`. Turn the toy on and keep it close, and make sure no other app (the Lovense Remote app, a computer) is connected to it: a toy normally accepts only one Bluetooth connection at a time.
+
+### `This device does not look like a Lovense toy.` (v0.23) or `Toy found, but its Bluetooth service was not recognised. Copy the debug log.` (v0.24+)
+
+The scan found the toy by name, but none of its GATT services could be used as the command channel. On **v0.23** this hit a real Gush 2: the app only accepted gen 3 services shaped `xx300001-...`, and Lovense ships about 40 with other prefixes. **Update to v0.24**, which accepts all of them and otherwise falls back to any vendor service with a writable and a notifying characteristic. If v0.24 still shows the second message, the debug log (More controls, Show Debug, Copy) has a line `Lovense: no usable service. Toy exposed: ...` listing every service UUID; that list is what a fix needs. On success the log line `Lovense: service <uuid>` ends with "(unlisted, matched by write + notify)" when the fallback was used.
 
 ### `Could not reach the saved toy. Turn it on, or use Forget toy in Settings to pair a new one.`
 
@@ -357,7 +369,7 @@ Wipes prefs and templates. Next launch is exactly like first install.
 
 ### Run unit tests
 
-The 102 JVM tests (90 unit tests plus the fuzz targets replaying their saved inputs; MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
+The 107 JVM tests (95 unit tests plus the fuzz targets replaying their saved inputs; MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest

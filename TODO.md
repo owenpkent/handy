@@ -52,8 +52,10 @@
 
 ## Next Up
 
-- [ ] **Lovense: merge PR #3, then PR #4** (`feat/lovense-ble` is stacked on PR #3; v0.23 was published from the branch before either merged)
-- [ ] **Lovense: hardware test on the Gush 2** - run the checklist in [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md): connect and permissions, status line shows name and battery with no link-loss warning, START / intensity / slider / patterns / STOP, ramps at BLE latency
+- [x] **Lovense: merge PR #3, then PR #4** (both merged 2026-11-22)
+- [x] **Android v2: Gush 2 rejected at connect, and layout under the system bars** (v0.24) - the first hardware try found the Gush 2 and then failed with "This device does not look like a Lovense toy": the gen 3 service match only accepted `xx300001-...`, but Buttplug's device config lists about 40 services and half use other prefixes (`4c410001`, `455a0001`, ...). `LovenseProtocol.pickChannel` now accepts every prefix and falls back to any vendor service with a write + notify pair; a failure logs every service UUID the toy exposed. Also `padForSystemBars()` on all five activities, since targetSdk 35 draws edge to edge on Android 15 (status text was under the status bar, "More controls" under the navigation bar). PR #5 review fixes: an RX that only indicates is subscribed with the indication value (`02 00`), and Training's card scrolls so the system-bar padding cannot clip the Play button. 95 JVM tests.
+- [ ] **Publish v0.24** (`android-v2/publish-release.ps1`) so the phone can update, then re-run the Gush 2 connect
+- [ ] **Lovense: hardware test on the Gush 2** - needs v0.24 (v0.23 could not connect). Record the service UUID from the connect log in LOVENSE.md, then run the checklist in [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md): connect and permissions, status line shows name and battery with no link-loss warning, START / intensity / slider / patterns / STOP, ramps at BLE latency
 - [ ] **Lovense: find the Gush 2 oscillation command** with the test panel probe rows (`Oscillate`, `Vibrate1`, `Vibrate2`, `Rotate`, `Thrusting`), then add it to `LovenseProtocol` and expose a second intensity on the toy page
 - [ ] **Lovense: link-loss test** - turn Bluetooth off mid-run; the toy should stop (AutoSwith), the status line go red, and reconnecting not restart motion until START
 - [ ] **Lovense: screen-off / background test** - screen off and another app in front for a while; still connected, notification shown
