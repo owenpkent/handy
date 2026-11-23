@@ -322,7 +322,7 @@ applicationContext.filesDir/
 
 ### Tests (Android V2)
 
-95 JVM unit tests cover the audio math, the update version-compare, the listening-session lifecycle, the mic-off stop race and the Lovense protocol without needing Android:
+107 JVM tests (95 unit tests, plus the 5 fuzz targets replaying their seed corpus, 12 cases) cover the audio math, the update version-compare, the listening-session lifecycle, the mic-off stop race and the Lovense protocol without needing Android:
 
 - `MfccTest` (5) — extraction shape, determinism, frequency discrimination, empty/short input handling.
 - `DtwTest` (5) — self-distance zero, symmetry, similar beats dissimilar, length invariance after normalization, empty handling.
@@ -336,6 +336,7 @@ applicationContext.filesDir/
 - `ToyIntensityTest` (4): the toy page intensity maths (`ui/ToyIntensity.kt`).
 - `DeviceIdentityTest` (4): `deviceMatches`, the installed-transport vs saved-prefs comparison, including a just-paired toy whose address is not saved yet (must not read as a device change).
 - `UpdaterTest` (7) — `isNewer`: integer-component comparison (so `0.10 > 0.9`, the bug that motivates it), equal / older versions, leading `v` tolerated, differing component counts (`1.0 == 1.0.0`), and malformed versions never updating.
+- **Fuzz targets** (`app/src/test/java/com/handyvoice/v2/fuzz/`, [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer) `@FuzzTest`, JUnit 5; one `@FuzzTest` per class, because Jazzer fuzzes one target per JVM): `LovenseReplyFuzzTest` (notification chunking through `ReplyBuffer` never changes the replies; no reply parser throws; link-loss reads safe only for `1:0`), `LovenseCommandFuzzTest` (the probe allow-list accepts only canonical `<Name>:<N>;`; velocity to level stays 0..20 and monotonic; every `vibrate()` output is allow-listed), `UpdaterVersionFuzzTest` (`isNewer` never throws, is a strict order, and equals a plain integer compare for well-formed versions), `ToyHistoryFuzzTest` (a damaged disconnect history never throws, never exceeds 5, new record first), `VoiceMatchFuzzTest` (MFCC stays finite and mean-normalized on arbitrary audio; DTW is 0 to itself, symmetric, finite; a stored take matches itself). Seeds and kept reproducers live in `app/src/test/resources/com/handyvoice/v2/fuzz/<Class>Inputs/<method>/` (raw bytes, `-text` in `.gitattributes`). With `JAZZER_FUZZ` unset they only replay those files; `JAZZER_FUZZ=1` fuzzes for the `maxDuration` (10 min), one class per Gradle run. The existing JUnit 4 tests run on the JUnit Platform through the vintage engine.
 
 Run: `./gradlew :app:testDebugUnitTest` from `android-v2/`. a few seconds total runtime.
 
@@ -438,7 +439,7 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 5. **Always-on capture loop is gated by a `Job.isActive` check**, not a separate flag. Cancelling the job lets the unbounded loop drain and `AudioRecord.release()` run.
 6. **Template format is versioned in JSON.** Even though Phase 1 only has `format: 1`, the field exists so future migrations are mechanical. Reads silently skip mismatched takes rather than crash.
 7. **`TemplateStore.sanitize()` lowercases and replaces non-alphanumerics.** Dispatch labels are already clean, but this is defence-in-depth — a misconfigured label can never break the filesystem.
-8. **The gradle wrapper jar in the legacy v1 app's `legacy/android/gradle/wrapper/` is the wrong file** (it's the launcher jar). `android-v2/` has a correct wrapper regenerated from the current wrapper version (Gradle 9.4.1). If you copy the v1 wrapper, `gradlew.bat` will fail with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`.
+8. **The legacy v1 app has no gradle wrapper jar.** The one that used to sit in `legacy/android/gradle/wrapper/` was the wrong file (the launcher jar): `gradlew.bat` failed with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`, and it failed Gradle's wrapper checksum validation, so it was removed when the repo was prepared for outside contributors (an unverifiable binary has no place in a public repo). `android-v2/` has a correct wrapper (Gradle 9.4.1). To build the legacy app, open it in Android Studio or regenerate a wrapper with an installed Gradle (`gradle wrapper`).
 
 ### Engine math (Android V2 specific)
 
@@ -482,7 +483,8 @@ git add -A; git commit -m "feat: description"; git push
   cd C:\Users\Owen\dev\handy\android-v2
   .\gradlew.bat :app:assembleDebug
   ```
-- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest`: 95 tests, a few seconds.
+- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest`: 107 tests, a few seconds.
+- After adding or bumping a dependency, regenerate the lockfile: `.\gradlew.bat :app:dependencies --write-locks` and commit `app/gradle.lockfile` (CI fails when it is stale; OSV-Scanner reads it).
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
 - Every debug build drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The task is hooked to `packageDebug` (not `assembleDebug`) so it fires for `installDebug` too. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.
 - First launch on device routes straight to TrainingActivity. Record 3 takes per command, tap **Build templates**, then enter connection key.
@@ -512,6 +514,27 @@ The app self-updates from a **public releases repo**, so it needs no token to re
 - **Never hardcode API keys** — stored in DataStore (Android) or localStorage (web)
 - **Deepgram API key** — only needed if using Deepgram engine (not default)
 - **Connection key** — required for all Handy API operations
+
+---
+
+## Open-source housekeeping
+
+The repo is public and takes outside contributions. Community files: `CONTRIBUTING.md` (what reviewers look for: stop paths, tap-only accessibility, JVM-testable logic), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (private reports through GitHub's advisory form; lists what is known and intended, such as the committed keystore), and `.github/` (issue forms for bugs, device reports and ideas; a pull request template; `workflows/android-tests.yml`, which runs `:app:testDebugUnitTest` and `:app:assembleDebug` on every pull request and push to `main` that touches `android-v2/`). When behaviour a contributor relies on changes (build steps, review rules, what the debug log or test panel report contains), update those files too. Actions in the workflows are pinned to commit hashes; bump the hash and the version comment together.
+
+**Scanning and fuzzing** (added 2026-11-22, ported from `../openmouse`, the other public Kotlin Android repo; keep the two in step). Every workflow checks out only `android-v2` and `.github` (sparse), because `setup-gradle` rejects the frozen `legacy/android` wrapper jar.
+
+| File | What it does |
+|------|--------------|
+| `.github/workflows/codeql.yml` | CodeQL `java-kotlin` from a traced clean `:app:assembleDebug` (build-mode manual). Pull requests, pushes to `main`, Wednesdays. Results under Security, Code scanning. |
+| `.github/workflows/osv.yml` | Weekly full OSV-Scanner run over `android-v2/app/gradle.lockfile`; fails on any finding (the tree had none on 2026-11-22). |
+| `.github/workflows/osv-diff.yml` | The pull request gate, called by the `osv` job in `android-tests.yml`: scans merge base and head, fails only on an advisory the pull request introduces. Result files are kept outside the checkout (see its header for why). |
+| `.github/workflows/osv-selftest.yml` | Proves the gate still catches a planted vulnerable artifact. Weekly and on changes to the gate. Needs the lockfile on `main`. |
+| `.github/workflows/nightly-fuzz.yml` | Each fuzz target for 10 minutes at 03:17 UTC, corpus carried between runs in the Actions cache. A finding opens or comments on the issue "Fuzz crash: <target>" with the input. The target matrix must list every `*FuzzTest.kt` (checked in `android-tests.yml`). |
+| `android-v2/scripts/collect-fuzz-findings.sh` | Gathers the reproducers a fuzz run left behind; `--self-test` runs in `android-tests.yml`. |
+| `.github/dependabot.yml` | Weekly Gradle (`/android-v2`) and GitHub Actions updates, minor and patch grouped. A Gradle bump needs the lockfile regenerated before its checks pass. `androidx.core` 1.19+ is held until compileSdk 37. |
+| `android-v2/app/gradle.lockfile` | Gradle dependency locking for the debug and release runtime classpaths only (see the end of `app/build.gradle.kts`). |
+
+Repository settings: secret scanning and push protection are on, private vulnerability reporting is on, CodeQL default setup stays off (the workflow above is the advanced setup; the two conflict). GitHub disables a scheduled workflow after 60 days without a commit; a manual run restarts it.
 
 ---
 

@@ -1,5 +1,9 @@
 # Handy Voice Control
 
+[![Android tests](https://github.com/owenpkent/handy/actions/workflows/android-tests.yml/badge.svg)](https://github.com/owenpkent/handy/actions/workflows/android-tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/owenpkent/handy-releases?label=release)](https://github.com/owenpkent/handy-releases/releases/latest)
+
 Accessible control apps for The Handy device (and, from v0.23, Lovense Bluetooth toys), designed for users with disabilities.
 
 ## Status
@@ -24,15 +28,23 @@ A hands-free Android client that recognizes spoken commands by matching against 
 
 See [android-v2/README.md](android-v2/README.md) and [android-v2/docs/](android-v2/docs/) for architecture, the voice engine, the command vocabulary, training, and troubleshooting.
 
+### Install
+
+Download the latest APK from the [releases page](https://github.com/owenpkent/handy-releases/releases/latest) and open it on an Android phone (Android 8.0 or newer). Android will ask you to allow installing from that source, since the app is not in an app store. After the first install the app updates itself: it offers each new release with one tap.
+
+First launch walks you through recording your voice commands, then asks for your Handy connection key (or, for a Lovense toy, Bluetooth permission).
+
 ### Build
 
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-cd android-v2
-.\gradlew.bat :app:assembleDebug      # build
-.\gradlew.bat :app:installDebug       # install to attached device
-.\gradlew.bat :app:testDebugUnitTest  # JVM unit tests (90, a few seconds)
+Needs JDK 17 or newer and the Android SDK (Android Studio provides both). From `android-v2/`:
+
+```bash
+./gradlew :app:testDebugUnitTest  # JVM unit tests, a few seconds, no device needed
+./gradlew :app:assembleDebug      # build
+./gradlew :app:installDebug       # install to an attached device
 ```
+
+On Windows use `.\gradlew.bat`, and if Gradle cannot find Java set `JAVA_HOME` first, for example `$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'`.
 
 Every debug build drops a version-named APK into [`apks/`](apks/) for sideloading.
 
@@ -75,7 +87,12 @@ handy/
 │   ├── cad/                # Vendor CAD source list (files gitignored)
 │   └── wearable-sleeve/    # nl-cad project: brief, parts, assembly, builds
 ├── legacy/                 # Archived apps (see legacy/README.md)
+├── .github/                # Issue forms, pull request template, test workflow
 ├── CLAUDE.md               # AI assistant reference (auto-loaded by Claude Code)
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE
+├── SECURITY.md
 ├── README.md               # This file
 └── TODO.md                 # Task tracking
 ```
@@ -96,10 +113,19 @@ API findings and gotchas: [docs/HANDY_API_NOTES.md](docs/HANDY_API_NOTES.md).
 - **Ignores the device's own sound** — a trained reject class stops the motor noise from false-triggering commands.
 - **Visual + audible feedback** — every action is confirmed on screen and with an ack tone.
 
+## Contributing
+
+Contributions are welcome, and you do not need to write code to help. The most useful thing right now is a **device report** from anyone who owns a Lovense toy: support was written from public protocol notes and has barely been tested on hardware.
+
+- How to help, build and submit changes: [CONTRIBUTING.md](CONTRIBUTING.md)
+- [Report a bug](https://github.com/owenpkent/handy/issues/new?template=bug_report.yml), [report how a device behaves](https://github.com/owenpkent/handy/issues/new?template=device_report.yml), or [suggest an idea](https://github.com/owenpkent/handy/issues/new?template=feature_request.yml)
+- Security problems, privately: [SECURITY.md](SECURITY.md)
+- Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md)
+
 ## License
 
-MIT
+[MIT](LICENSE). The software comes with no warranty. It is not a medical device, and it controls motors that act on the body: set the speed and stroke limits in Settings before use, and use it at your own risk.
 
 ---
 
-**Note**: Independent accessibility project, not affiliated with Ohdoki/The Handy.
+**Note**: Independent accessibility project. It is not affiliated with, endorsed by or supported by Ohdoki (The Handy) or Lovense; those names are trademarks of their owners and are used only to say which devices the app works with.

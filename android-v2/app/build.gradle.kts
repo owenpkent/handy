@@ -71,6 +71,27 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.all { test ->
+            // JUnit Platform: the existing JUnit 4 tests run through the vintage
+            // engine, and Jazzer's @FuzzTest (src/test/.../fuzz) through Jupiter.
+            test.useJUnitPlatform()
+
+            // Fuzzing is opt-in: with JAZZER_FUZZ unset the fuzz tests only replay
+            // their seed corpus, so an ordinary `gradlew test` stays fast. With
+            // JAZZER_FUZZ=1 each target fuzzes for its @FuzzTest maxDuration, and
+            // Jazzer fuzzes only one target per JVM, so every test class gets its
+            // own JVM in that mode or the second target is silently skipped.
+            // A fuzz campaign is also never up to date and never cached: JAZZER_FUZZ
+            // is not a task input, so Gradle would otherwise answer a fuzz request
+            // with the last seed replay (UP-TO-DATE) and no fuzzer would run.
+            System.getenv("JAZZER_FUZZ")?.let {
+                test.environment("JAZZER_FUZZ", it)
+                test.setForkEvery(1)
+                test.doNotTrackState("a fuzz campaign is open-ended; never reuse a previous result")
+            }
+            // Jazzer attaches its agent at runtime; JDK 21+ warns unless this is set.
+            test.jvmArgs("-XX:+EnableDynamicAgentLoading")
+        }
     }
 }
 
@@ -114,7 +135,27 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.2.0")
 
     testImplementation("junit:junit:4.13.2")
+    // JUnit Platform runs both: the JUnit 4 tests above (vintage engine) and the
+    // Jazzer fuzz targets (Jupiter). Jazzer is the JVM libFuzzer; see
+    // .github/workflows/nightly-fuzz.yml.
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
+    testImplementation("com.code-intelligence:jazzer-junit:0.30.0")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:6.1.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+}
+
+// Lock what ships: the debug and release runtime classpaths, in
+// app/gradle.lockfile, so a build is reproducible and OSV-Scanner
+// (.github/workflows/osv.yml) has the full list of artifacts that reach a
+// phone. Test and lint configurations are left unlocked on purpose: their
+// tooling pulls its own, often old, libraries that never ship, and a
+// vulnerability scan of them is noise. After changing a dependency, update with:
+// ./gradlew :app:dependencies --write-locks
+configurations.configureEach {
+    if (name.endsWith("RuntimeClasspath") && !name.contains("Test")) {
+        resolutionStrategy.activateDependencyLocking()
+    }
 }

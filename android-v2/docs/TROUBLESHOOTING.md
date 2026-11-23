@@ -369,7 +369,7 @@ Wipes prefs and templates. Next launch is exactly like first install.
 
 ### Run unit tests
 
-The 95 JVM unit tests (MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
+The 107 JVM tests (95 unit tests plus the fuzz targets replaying their saved inputs; MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest

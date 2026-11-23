@@ -45,3 +45,14 @@ yarn-error.log*
 /hardware/*/builds/*/renders/*.png
 /hardware/*/builds/*/*_viewer_v*.html
 __pycache__/
+
+# Jazzer fuzzing scratch: the working corpus, and raw findings dropped in the
+# module directory when Jazzer cannot find the seed corpus. Anchored to the
+# module directory on purpose: a reproducer Jazzer writes next to the seed corpus
+# (android-v2/app/src/test/resources/**/*FuzzTestInputs/<method>/crash-<hash>)
+# must stay visible, because it gets committed as a regression test.
+/android-v2/app/.cifuzz-corpus/
+/android-v2/app/crash-*
+/android-v2/app/timeout-*
+/android-v2/app/slow-unit-*
+/android-v2/app/oom-*
