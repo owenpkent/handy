@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the Android app does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Short answers are fine, and you can skip anything you do not know.
+
+        **Before you paste a log:** the debug log and the test panel report can include your toy's Bluetooth name and address. Remove anything you do not want public. Never post your Handy connection key.
+
+        If the problem is that the device **would not stop**, say so in the title. Those are fixed first.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Settings, About.
+      placeholder: "0.24"
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Which device were you controlling?
+      options:
+        - The Handy
+        - Lovense toy
+        - None (the problem is in the app itself)
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: "Galaxy S24, Android 15"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen again
+      placeholder: |
+        1. Open the app
+        2. Tap ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Debug log
+      description: More controls, Show Debug, Copy. For a Lovense toy, Settings, Toy test panel, Copy report is even better.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, font size or display size settings, split-screen, an accessibility service in use.

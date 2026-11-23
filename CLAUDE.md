@@ -437,7 +437,7 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 5. **Always-on capture loop is gated by a `Job.isActive` check**, not a separate flag. Cancelling the job lets the unbounded loop drain and `AudioRecord.release()` run.
 6. **Template format is versioned in JSON.** Even though Phase 1 only has `format: 1`, the field exists so future migrations are mechanical. Reads silently skip mismatched takes rather than crash.
 7. **`TemplateStore.sanitize()` lowercases and replaces non-alphanumerics.** Dispatch labels are already clean, but this is defence-in-depth — a misconfigured label can never break the filesystem.
-8. **The gradle wrapper jar in the legacy v1 app's `legacy/android/gradle/wrapper/` is the wrong file** (it's the launcher jar). `android-v2/` has a correct wrapper regenerated from the current wrapper version (Gradle 9.4.1). If you copy the v1 wrapper, `gradlew.bat` will fail with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`.
+8. **The legacy v1 app has no gradle wrapper jar.** The one that used to sit in `legacy/android/gradle/wrapper/` was the wrong file (the launcher jar): `gradlew.bat` failed with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`, and it failed Gradle's wrapper checksum validation, so it was removed when the repo was prepared for outside contributors (an unverifiable binary has no place in a public repo). `android-v2/` has a correct wrapper (Gradle 9.4.1). To build the legacy app, open it in Android Studio or regenerate a wrapper with an installed Gradle (`gradle wrapper`).
 
 ### Engine math (Android V2 specific)
 
@@ -511,6 +511,12 @@ The app self-updates from a **public releases repo**, so it needs no token to re
 - **Never hardcode API keys** — stored in DataStore (Android) or localStorage (web)
 - **Deepgram API key** — only needed if using Deepgram engine (not default)
 - **Connection key** — required for all Handy API operations
+
+---
+
+## Open-source housekeeping
+
+The repo is public and takes outside contributions. Community files: `CONTRIBUTING.md` (what reviewers look for: stop paths, tap-only accessibility, JVM-testable logic), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (private reports through GitHub's advisory form; lists what is known and intended, such as the committed keystore), and `.github/` (issue forms for bugs, device reports and ideas; a pull request template; `workflows/android-tests.yml`, which runs `:app:testDebugUnitTest` and `:app:assembleDebug` on every pull request and push to `main` that touches `android-v2/`). When behaviour a contributor relies on changes (build steps, review rules, what the debug log or test panel report contains), update those files too. Actions in the workflow are pinned to commit hashes; bump the hash and the version comment together.
 
 ---
 

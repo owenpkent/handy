@@ -1,0 +1,56 @@
+name: Device report
+description: Tell us how a toy or device behaves with the app, working or not. These reports are how device support grows.
+labels: ["device"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lovense support was written from public protocol notes and has had very little hardware testing, so a report from a real toy is valuable even when everything works.
+
+        The fastest way to fill this in: connect (or try to), then **Settings, Toy test panel, Copy report** and paste it below. If the toy will not connect at all, use **More controls, Show Debug, Copy** instead.
+
+        The report can include your toy's Bluetooth name and address. Remove anything you do not want public.
+  - type: input
+    id: model
+    attributes:
+      label: Device model
+      placeholder: "Lovense Gush 2"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Settings, About.
+      placeholder: "0.24"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: What happened?
+      options:
+        - Connects and works
+        - Connects, but some things do not work
+        - Found, but will not connect
+        - Not found by the scan
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Test panel report or debug log
+      description: The lines that matter most are "Lovense: service ...", the DeviceType reply, and the AutoSwith / GetAS replies.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: probes
+    attributes:
+      label: Command probes (optional)
+      description: In the Toy test panel, which probe rows made the toy move, and which replied ERR? This is how undocumented commands, such as the Gush 2's oscillation, get found.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Did the toy stop when Bluetooth was turned off mid-run? Did it turn itself off after a while idle, and after how long?
