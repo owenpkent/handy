@@ -37,6 +37,8 @@ The sections below (particularly [Voice engine architecture](#voice-engine-archi
 
 ### Building
 
+The Gradle wrapper jar is not in the repository (the copy that was here was a wrong file and was removed). Open the project in Android Studio, which supplies its own Gradle, or regenerate the wrapper with an installed Gradle: `gradle wrapper`.
+
 1. Open the `android` folder in Android Studio
 2. Sync Gradle
 3. Build and run on device

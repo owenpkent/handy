@@ -35,9 +35,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Only the active app. setup-gradle validates every Gradle wrapper
-          # jar it finds, and the frozen legacy/android wrapper jar is a known
-          # wrong file (see CLAUDE.md), which would fail the run.
+          # Only the active app: legacy/ is frozen and is not built or
+          # tested here, so there is no reason to fetch it.
           sparse-checkout: |
             android-v2
             .github
