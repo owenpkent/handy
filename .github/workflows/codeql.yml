@@ -1,0 +1,63 @@
+# Static analysis of the android-v2 Kotlin code, for GitHub code scanning and the
+# OpenSSF Scorecard SAST check. Results appear under Security, Code scanning.
+# Kotlin is analysed from a real build (build-mode manual), so the job assembles
+# the debug APK the same way android-tests.yml does. The frozen apps under
+# legacy/ are not analysed.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 5 * * 3'  # Wednesdays 05:00 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java-kotlin]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Only the active app. setup-gradle validates every Gradle wrapper
+          # jar it finds, and the frozen legacy/android wrapper jar is a known
+          # wrong file (see CLAUDE.md), which would fail the run.
+          sparse-checkout: |
+            android-v2
+            .github
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: manual
+      - name: Build (traced by CodeQL)
+        # A clean build with the build cache off: setup-gradle restores its
+        # cache, and a compileDebugKotlin that came back FROM-CACHE would leave
+        # CodeQL with no Kotlin compilation to see.
+        working-directory: android-v2
+        run: ./gradlew clean :app:assembleDebug --no-daemon --no-build-cache
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          category: "/language:${{ matrix.language }}"

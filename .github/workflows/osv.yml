@@ -1,0 +1,49 @@
+# The weekly (and on-demand) full vulnerability scan, using Google's OSV-Scanner
+# reusable workflow. This is how an advisory published after a dependency landed
+# gets noticed. It fails on any finding: the tree carried none when this gate
+# was added (2026-11-22, 96 packages), so a red run means something new to read.
+#
+# The pull request gate (fail only on an advisory the pull request introduces) is
+# the `osv` job in android-tests.yml; its steps are in osv-diff.yml, which does
+# not use the reusable pull request workflow, for the reason given there. Keep
+# the scanner version and the lockfile here in step with osv-diff.yml.
+#
+# What is scanned: android-v2/app/gradle.lockfile, which Gradle dependency
+# locking keeps complete for what ships (the debug and release runtime
+# classpaths). Test and lint tooling is left out on purpose: it pulls its own,
+# often old, libraries that never reach a phone. The frozen apps under legacy/
+# are not scanned.
+#
+# Permissions: the reusable workflow declares `security-events: write` on its job
+# (for the SARIF upload to Code Scanning), and a caller must grant at least what
+# a called job asks for, even with the upload off. So that one permission is
+# granted on the scan job only, the upload is switched off, and the findings are
+# read from the job log.
+#
+# When a finding shows up: bump the artifact in android-v2/app/build.gradle.kts
+# (or wait for Dependabot's pull request), regenerate the lockfile with
+# `./gradlew :app:dependencies --write-locks` from android-v2/, and commit both.
+# A finding with no fix, or one that does not apply, is the owner's call.
+name: Vulnerabilities
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Mondays 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    name: Every known vulnerability in the tree
+    permissions:
+      actions: read
+      contents: read
+      security-events: write  # required by the reusable workflow's job, unused with upload-sarif off
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
+    with:
+      upload-sarif: false
+      fail-on-vuln: true
+      scan-args: |-
+        --lockfile=android-v2/app/gradle.lockfile
