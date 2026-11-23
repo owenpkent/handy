@@ -43,6 +43,18 @@ No device is needed for most work. The voice matcher, the command dispatch, the 
 
 The same tests and a debug build run automatically on every pull request.
 
+### Checks
+
+These run by themselves; you only need to act when one goes red.
+
+- **Tests and build** (`android-tests.yml`): the unit tests and a debug build, on every pull request that touches `android-v2/`.
+- **Dependency lockfile**: `android-v2/app/gradle.lockfile` lists every library that ships in the app. If you add or bump a dependency in `app/build.gradle.kts`, run `./gradlew :app:dependencies --write-locks` from `android-v2/` and commit the changed lockfile, or the check fails. Dependabot's pull requests need the same step.
+- **Known vulnerabilities** (`osv-diff.yml`, `osv.yml`): a pull request fails if it introduces a library with a published advisory. The whole tree is rescanned every week.
+- **CodeQL** (`codeql.yml`): static analysis of the Kotlin code. Findings appear on the pull request.
+- **Fuzzing** (`nightly-fuzz.yml`): the tests in `app/src/test/.../fuzz/` are [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer) fuzz targets for code that reads input the app does not control (replies from a toy, release tags, stored history, microphone audio). In a normal test run they only replay their saved inputs, so they are fast. Every night each one fuzzes for ten minutes, and a failure opens a "Fuzz crash" issue with the input attached. To fix one, put the input file where the issue says, run the tests to reproduce it, fix the bug, and commit the input next to the fix so it stays as a regression test. Do not loosen the checks in the target to make it pass. If you add a fuzz target, add its class name to the list in `nightly-fuzz.yml`; a check fails if the two differ. To fuzz locally, set `JAZZER_FUZZ=1` and run one target: `./gradlew :app:testDebugUnitTest --tests '*LovenseReplyFuzzTest'`.
+
+Code that parses input from outside the app (a device, the network, a file) should come with a fuzz target.
+
 ## Making a change
 
 1. For anything bigger than a small fix, open an issue first so we can agree on the approach before you spend time on it.

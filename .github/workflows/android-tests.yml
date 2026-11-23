@@ -3,17 +3,25 @@ name: Android tests
 # Runs the android-v2 JVM unit tests and a debug build. No emulator and no
 # hardware: everything here is the Android-free logic (voice matching, dispatch,
 # the Lovense protocol and transport against a fake toy) plus a compile of the app.
+# The unit tests also replay the fuzz seed corpus (JAZZER_FUZZ is unset here; the
+# open-ended fuzzing is nightly-fuzz.yml). On a pull request the `osv` job fails
+# on a known vulnerability the pull request introduces; its steps are in
+# osv-diff.yml.
 
 on:
   pull_request:
     paths:
       - "android-v2/**"
       - ".github/workflows/android-tests.yml"
+      - ".github/workflows/nightly-fuzz.yml"
+      - ".github/workflows/osv-diff.yml"
   push:
     branches: [main]
     paths:
       - "android-v2/**"
       - ".github/workflows/android-tests.yml"
+      - ".github/workflows/nightly-fuzz.yml"
+      - ".github/workflows/osv-diff.yml"
   workflow_dispatch:
 
 permissions:
@@ -55,6 +63,34 @@ jobs:
       - name: Debug build
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # Each fuzz target runs nightly only if nightly-fuzz.yml lists it, and a
+      # target missing from that matrix would only ever replay its seeds.
+      - name: Every fuzz target is in the nightly matrix
+        run: |
+          tree=$(find app/src/test -name '*FuzzTest.kt' -exec basename {} .kt \; | sort)
+          matrix=$(sed -n '/^        target:$/,/^    steps:$/p' ../.github/workflows/nightly-fuzz.yml | sed -n 's/^          - \([A-Za-z0-9]*FuzzTest\)$/\1/p' | sort)
+          if [ -z "$tree" ] || [ "$tree" != "$matrix" ]; then
+            echo "::error::nightly-fuzz.yml's target matrix does not match the *FuzzTest.kt classes."
+            echo "classes:"; echo "$tree"
+            echo "matrix:"; echo "$matrix"
+            exit 1
+          fi
+
+      # The nightly fuzz workflow's reproducer collection is shell, not Gradle,
+      # so nothing else would notice it break.
+      - name: Fuzz findings collector self-test
+        run: sh scripts/collect-fuzz-findings.sh --self-test
+
+      # app/gradle.lockfile must describe the build that just ran: OSV-Scanner
+      # reads it instead of resolving anything.
+      - name: Check that the dependency lockfile is current
+        run: |
+          ./gradlew :app:dependencies --write-locks -q > /dev/null
+          if ! git diff --exit-code -- app/gradle.lockfile; then
+            echo "::error::android-v2/app/gradle.lockfile is out of date. Run ./gradlew :app:dependencies --write-locks from android-v2/ and commit the result."
+            exit 1
+          fi
+
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -63,3 +99,15 @@ jobs:
           path: android-v2/app/build/reports/tests/testDebugUnitTest
           if-no-files-found: ignore
           retention-days: 7
+
+  # Known vulnerabilities this pull request introduces, compared against the
+  # merge base. The steps are in osv-diff.yml rather than Google's reusable pull
+  # request workflow, for the reason given there; osv-selftest.yml runs the same
+  # steps on a hostile fixture to prove the gate still catches what it should.
+  osv:
+    name: New vulnerabilities in this pull request
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/osv-diff.yml
+    with:
+      base_ref: ${{ github.base_ref }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
