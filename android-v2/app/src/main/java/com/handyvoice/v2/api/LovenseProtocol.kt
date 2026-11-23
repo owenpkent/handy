@@ -92,13 +92,41 @@ object LovenseProtocol {
         }
     }
 
-    /** One characteristic as GATT discovery reports it (Android-free, so the choice is testable). */
-    data class GattChar(val uuid: UUID, val writable: Boolean, val notifies: Boolean)
+    /**
+     * One characteristic as GATT discovery reports it (Android-free, so the
+     * choice is testable). [notifies] and [indicates] are the two separate
+     * GATT properties: they need different subscription values ([cccdValue]).
+     */
+    data class GattChar(
+        val uuid: UUID,
+        val writable: Boolean,
+        val notifies: Boolean,
+        val indicates: Boolean = false,
+    )
 
     data class GattService(val uuid: UUID, val chars: List<GattChar>)
 
-    /** The command channel picked for a toy. [guessed] = chosen by properties, not a known UUID layout. */
-    data class Channel(val service: UUID, val tx: UUID, val rx: UUID, val guessed: Boolean)
+    /**
+     * The command channel picked for a toy. [guessed] = chosen by properties,
+     * not a known UUID layout. [indicate] = RX can only indicate, so it must be
+     * subscribed with the indication value, not the notification one.
+     */
+    data class Channel(
+        val service: UUID,
+        val tx: UUID,
+        val rx: UUID,
+        val guessed: Boolean,
+        val indicate: Boolean = false,
+    )
+
+    /**
+     * The value to write to RX's client configuration descriptor (0x2902):
+     * `01 00` enables notifications, `02 00` enables indications. A
+     * characteristic that only indicates ignores (or rejects) `01 00`, so the
+     * toy's replies would never arrive.
+     */
+    fun cccdValue(indicate: Boolean): ByteArray =
+        if (indicate) byteArrayOf(0x02, 0x00) else byteArrayOf(0x01, 0x00)
 
     private const val SIG_BASE_SUFFIX = "-0000-1000-8000-00805f9b34fb"
     private const val LOVENSE_SUFFIX = "-4bd4-bbd5-a6920e4c5653"
@@ -115,7 +143,8 @@ object LovenseProtocol {
      * First a known UUID layout ([channelFor]) whose TX and RX both exist.
      * Failing that, by characteristic properties: Lovense keeps shipping new
      * service UUIDs, and every one so far is a UART-style pair (one writable
-     * characteristic, one that notifies). Only vendor services are considered
+     * characteristic, one that notifies; one that only indicates is accepted
+     * too, notify preferred). Only vendor services are considered
      * (standard Bluetooth SIG services and firmware-update services are
      * skipped), Lovense-style UUIDs first. The caller has already matched the
      * toy by its advertised name, so a property match is a safe guess.
@@ -123,8 +152,9 @@ object LovenseProtocol {
     fun pickChannel(services: List<GattService>): Channel? {
         for (svc in services) {
             val ch = channelFor(svc.uuid) ?: continue
-            if (svc.chars.any { it.uuid == ch.second } && svc.chars.any { it.uuid == ch.third }) {
-                return Channel(svc.uuid, ch.second, ch.third, guessed = false)
+            val rx = svc.chars.firstOrNull { it.uuid == ch.third } ?: continue
+            if (svc.chars.any { it.uuid == ch.second }) {
+                return Channel(svc.uuid, ch.second, ch.third, guessed = false, indicate = indicateOnly(rx))
             }
         }
         val candidates = services
@@ -134,16 +164,20 @@ object LovenseProtocol {
             }
             .sortedByDescending { it.uuid.toString().lowercase().endsWith(LOVENSE_SUFFIX) }
         for (svc in candidates) {
-            val tx = svc.chars.firstOrNull { it.writable && !it.notifies }
+            val tx = svc.chars.firstOrNull { it.writable && !it.notifies && !it.indicates }
                 ?: svc.chars.firstOrNull { it.writable }
                 ?: continue
             val rx = svc.chars.firstOrNull { it.notifies && it.uuid != tx.uuid }
                 ?: svc.chars.firstOrNull { it.notifies }
+                ?: svc.chars.firstOrNull { it.indicates && it.uuid != tx.uuid }
+                ?: svc.chars.firstOrNull { it.indicates }
                 ?: continue
-            return Channel(svc.uuid, tx.uuid, rx.uuid, guessed = true)
+            return Channel(svc.uuid, tx.uuid, rx.uuid, guessed = true, indicate = indicateOnly(rx))
         }
         return null
     }
+
+    private fun indicateOnly(rx: GattChar): Boolean = rx.indicates && !rx.notifies
 
     /** "85;" gives 85. Anything else gives null. */
     fun parseBattery(reply: String): Int? {

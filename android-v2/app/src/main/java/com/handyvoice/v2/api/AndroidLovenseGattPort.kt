@@ -114,6 +114,9 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
         private var tx: BluetoothGattCharacteristic? = null
         private var rx: BluetoothGattCharacteristic? = null
 
+        /** RX only indicates: subscribe with the indication value, not the notification one. */
+        private var rxIndicate = false
+
         override val deviceName: String? get() = gatt?.device?.name
         @Volatile override var serviceUuid: String? = null
             private set
@@ -172,8 +175,6 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
             if (!r.started || r.status != BluetoothGatt.GATT_SUCCESS) return Discovery.FAILED
             val writeMask = BluetoothGattCharacteristic.PROPERTY_WRITE or
                 BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
-            val notifyMask = BluetoothGattCharacteristic.PROPERTY_NOTIFY or
-                BluetoothGattCharacteristic.PROPERTY_INDICATE
             discoveredServices = g.services.map { it.uuid.toString() }
             val ch = LovenseProtocol.pickChannel(
                 g.services.map { svc ->
@@ -183,7 +184,8 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
                             LovenseProtocol.GattChar(
                                 c.uuid,
                                 writable = c.properties and writeMask != 0,
-                                notifies = c.properties and notifyMask != 0,
+                                notifies = c.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0,
+                                indicates = c.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0,
                             )
                         },
                     )
@@ -194,6 +196,7 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
             rx = svc.getCharacteristic(ch.rx) ?: return Discovery.NOT_LOVENSE
             serviceUuid = svc.uuid.toString()
             channelGuessed = ch.guessed
+            rxIndicate = ch.indicate
             return Discovery.OK
         }
 
@@ -206,16 +209,18 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
             return r.started && r.status == BluetoothGatt.GATT_SUCCESS
         }
 
-        private fun writeDescriptor(g: BluetoothGatt, d: BluetoothGattDescriptor): Boolean =
-            if (Build.VERSION.SDK_INT >= 33) {
-                g.writeDescriptor(d, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == 0
+        private fun writeDescriptor(g: BluetoothGatt, d: BluetoothGattDescriptor): Boolean {
+            val value = LovenseProtocol.cccdValue(rxIndicate)
+            return if (Build.VERSION.SDK_INT >= 33) {
+                g.writeDescriptor(d, value) == 0
             } else {
                 @Suppress("DEPRECATION")
                 run {
-                    d.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    d.value = value
                     g.writeDescriptor(d)
                 }
             }
+        }
 
         override suspend fun write(text: String): WriteResult {
             val g = gatt ?: return WriteResult.FAILED

@@ -280,7 +280,7 @@ By design. Android caps the PiP control bar at `getMaxNumPictureInPictureActions
 
 ### The top of the screen sits under the status bar, or the bottom under the navigation bar
 
-Seen on Android 15 with v0.23 and earlier: the red status text overlapped the clock and "More controls" was cut off by the navigation bar. With targetSdk 35, Android 15+ draws every activity edge to edge and the app did not pad for the system bars. Fixed in v0.24 (`ui/SystemBars.kt`, `padForSystemBars()`, called by every activity after `setContentView`). A new activity must call it too.
+Seen on Android 15 with v0.23 and earlier: the red status text overlapped the clock and "More controls" was cut off by the navigation bar. With targetSdk 35, Android 15+ draws every activity edge to edge and the app did not pad for the system bars. Fixed in v0.24 (`ui/SystemBars.kt`, `padForSystemBars()`, called by every activity after `setContentView`). A new activity must call it too, and its layout must cope with the height the bars take: Training's card is a `ScrollView` for that reason (a fixed, centred card clipped the Play button on a compact screen).
 
 ---
 
@@ -369,7 +369,7 @@ Wipes prefs and templates. Next launch is exactly like first install.
 
 ### Run unit tests
 
-The 94 JVM unit tests (MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
+The 95 JVM unit tests (MFCC + DTW math, the updater's version compare, the listening session, the mic-off stop race, and the Lovense protocol and transport against a fake toy) run without an emulator:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest

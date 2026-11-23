@@ -1,5 +1,6 @@
 package com.handyvoice.v2.api
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -121,8 +122,12 @@ class LovenseProtocolTest {
     private fun svc(uuid: String, vararg chars: LovenseProtocol.GattChar) =
         LovenseProtocol.GattService(UUID.fromString(uuid), chars.toList())
 
-    private fun chr(uuid: String, write: Boolean = false, notify: Boolean = false) =
-        LovenseProtocol.GattChar(UUID.fromString(uuid), write, notify)
+    private fun chr(
+        uuid: String,
+        write: Boolean = false,
+        notify: Boolean = false,
+        indicate: Boolean = false,
+    ) = LovenseProtocol.GattChar(UUID.fromString(uuid), write, notify, indicate)
 
     private val battery = svc(
         "0000180f-0000-1000-8000-00805f9b34fb",
@@ -170,6 +175,46 @@ class LovenseProtocolTest {
         assertEquals(UUID.fromString("1234567a-9abc-4def-8123-456789abcdef"), ch.tx)
         assertEquals(UUID.fromString("12345679-9abc-4def-8123-456789abcdef"), ch.rx)
         assertTrue(ch.guessed)
+    }
+
+    @Test
+    fun indicationOnlyRxIsSubscribedWithTheIndicationValue() {
+        // Review finding on PR #5: the fallback accepted an RX that can only
+        // indicate, but the subscription always wrote the notification value
+        // (01 00), so replies would never arrive.
+        val vendor = "12345678-9abc-4def-8123-456789abcdef"
+        val tx = chr("1234567a-9abc-4def-8123-456789abcdef", write = true)
+        val indicating = chr("12345679-9abc-4def-8123-456789abcdef", indicate = true)
+        val notifying = chr("1234567b-9abc-4def-8123-456789abcdef", notify = true)
+
+        val ind = LovenseProtocol.pickChannel(listOf(battery, svc(vendor, tx, indicating)))!!
+        assertEquals(indicating.uuid, ind.rx)
+        assertTrue(ind.guessed)
+        assertTrue(ind.indicate)
+        assertArrayEquals(byteArrayOf(2, 0), LovenseProtocol.cccdValue(ind.indicate))
+
+        // A notifying characteristic wins over an indicating one, whatever the order.
+        val both = LovenseProtocol.pickChannel(listOf(svc(vendor, tx, indicating, notifying)))!!
+        assertEquals(notifying.uuid, both.rx)
+        assertFalse(both.indicate)
+        assertArrayEquals(byteArrayOf(1, 0), LovenseProtocol.cccdValue(both.indicate))
+
+        // RX with both properties uses notifications.
+        val dual = chr("1234567c-9abc-4def-8123-456789abcdef", notify = true, indicate = true)
+        assertFalse(LovenseProtocol.pickChannel(listOf(svc(vendor, tx, dual)))!!.indicate)
+
+        // A known layout whose RX only indicates is flagged too.
+        val known = LovenseProtocol.pickChannel(
+            listOf(
+                svc(
+                    "455a0001-0023-4bd4-bbd5-a6920e4c5653",
+                    chr("455a0002-0023-4bd4-bbd5-a6920e4c5653", write = true),
+                    chr("455a0003-0023-4bd4-bbd5-a6920e4c5653", indicate = true),
+                ),
+            ),
+        )!!
+        assertFalse(known.guessed)
+        assertTrue(known.indicate)
     }
 
     @Test

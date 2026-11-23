@@ -51,19 +51,28 @@
         app:layout_constraintTop_toBottomOf="@id/titleRow"
         tools:text="Command 1 of 9" />
 
-    <!-- Card area -->
-    <LinearLayout
+    <!-- Card area. A ScrollView so nothing is lost when the card is shorter
+         than its content: a compact window, split-screen, large text, or the
+         height the system bars take on Android 15+ (edge to edge). With
+         fillViewport the inner column is at least as tall as the card, so its
+         content stays centred when it fits and scrolls when it does not. -->
+    <ScrollView
         android:id="@+id/card"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="20dp"
         android:layout_marginBottom="20dp"
         android:background="@color/card_dark"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="24dp"
+        android:fillViewport="true"
         app:layout_constraintBottom_toTopOf="@id/bottomBar"
         app:layout_constraintTop_toBottomOf="@id/commandProgressText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -140,6 +149,7 @@
             android:textColor="@color/text_primary"
             app:strokeColor="@color/text_secondary" />
     </LinearLayout>
+    </ScrollView>
 
     <LinearLayout
         android:id="@+id/bottomBar"
