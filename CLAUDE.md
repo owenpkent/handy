@@ -514,6 +514,12 @@ The app self-updates from a **public releases repo**, so it needs no token to re
 
 ---
 
+## Open-source housekeeping
+
+The repo is public and takes outside contributions. Community files: `CONTRIBUTING.md` (what reviewers look for: stop paths, tap-only accessibility, JVM-testable logic), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (private reports through GitHub's advisory form; lists what is known and intended, such as the committed keystore), and `.github/` (issue forms for bugs, device reports and ideas; a pull request template; `workflows/android-tests.yml`, which runs `:app:testDebugUnitTest` and `:app:assembleDebug` on every pull request and push to `main` that touches `android-v2/`). When behaviour a contributor relies on changes (build steps, review rules, what the debug log or test panel report contains), update those files too. Actions in the workflow are pinned to commit hashes; bump the hash and the version comment together.
+
+---
+
 ## Constellation
 
 This repo is tracked by [Constellation](https://github.com/owenpkent/constellation).

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/owenpkent/handy/blob/main/android-v2/docs/TROUBLESHOOTING.md
+    about: Error messages and their fixes, including connecting, voice matching and updating.
+  - name: Report a security problem privately
+    url: https://github.com/owenpkent/handy/security/advisories/new
+    about: Please do not open a public issue for a security problem. This form reaches only the maintainer.
