@@ -21,8 +21,13 @@ object LovenseProtocol {
     const val GEN2_TX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
     const val GEN2_RX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 
-    // Gen 3: xx300001-002y-4bd4-bbd5-a6920e4c5653, TX = ...300002..., RX = ...300003...
-    private val GEN3_REGEX = Regex("^[0-9a-f]{2}300001-002[0-9a-f]-4bd4-bbd5-a6920e4c5653$")
+    // Gen 3: xxxx0001-002y-4bd4-bbd5-a6920e4c5653, TX = the same with ...0002, RX with ...0003.
+    // The first four hex digits vary per model and are NOT always "xx30": Buttplug's
+    // device config lists about 40 (50300001, 5a300001, 4c410001, 455a0001, ...), plus
+    // one odd 50300011 (TX 50300012, RX 50300013). An earlier "xx300001" pattern here
+    // rejected a real Gush 2.
+    private val GEN3_REGEX =
+        Regex("^(?:[0-9a-f]{4}0001|50300011)-002[0-9a-f]-4bd4-bbd5-a6920e4c5653$")
 
     const val CMD_DEVICE_TYPE = "DeviceType;"
     const val CMD_BATTERY = "Battery;"
@@ -70,11 +75,11 @@ object LovenseProtocol {
 
     fun isGen3Service(uuid: String): Boolean = GEN3_REGEX.matches(uuid.lowercase())
 
-    /** TX characteristic UUID for a gen 3 service UUID. */
-    fun gen3Tx(service: String): String = service.lowercase().replaceRange(2, 8, "300002")
+    /** TX characteristic UUID for a gen 3 service UUID (last digit of the first group becomes 2). */
+    fun gen3Tx(service: String): String = service.lowercase().replaceRange(7, 8, "2")
 
-    /** RX characteristic UUID for a gen 3 service UUID. */
-    fun gen3Rx(service: String): String = service.lowercase().replaceRange(2, 8, "300003")
+    /** RX characteristic UUID for a gen 3 service UUID (last digit of the first group becomes 3). */
+    fun gen3Rx(service: String): String = service.lowercase().replaceRange(7, 8, "3")
 
     /** The (service, tx, rx) UUIDs for a service UUID, or null if it is not a Lovense service. */
     fun channelFor(service: UUID): Triple<UUID, UUID, UUID>? {
@@ -85,6 +90,59 @@ object LovenseProtocol {
             isGen3Service(s) -> Triple(service, UUID.fromString(gen3Tx(s)), UUID.fromString(gen3Rx(s)))
             else -> null
         }
+    }
+
+    /** One characteristic as GATT discovery reports it (Android-free, so the choice is testable). */
+    data class GattChar(val uuid: UUID, val writable: Boolean, val notifies: Boolean)
+
+    data class GattService(val uuid: UUID, val chars: List<GattChar>)
+
+    /** The command channel picked for a toy. [guessed] = chosen by properties, not a known UUID layout. */
+    data class Channel(val service: UUID, val tx: UUID, val rx: UUID, val guessed: Boolean)
+
+    private const val SIG_BASE_SUFFIX = "-0000-1000-8000-00805f9b34fb"
+    private const val LOVENSE_SUFFIX = "-4bd4-bbd5-a6920e4c5653"
+
+    /** Vendor services that have a write + notify pair but are not the command channel. */
+    private val NOT_COMMAND_SERVICES = setOf(
+        "00001530-1212-efde-1523-785feabcd123", // legacy Nordic DFU
+        "8e400001-f315-4f60-9fb8-838830daea50", // Nordic buttonless DFU
+    )
+
+    /**
+     * Picks the command channel from a toy's discovered services.
+     *
+     * First a known UUID layout ([channelFor]) whose TX and RX both exist.
+     * Failing that, by characteristic properties: Lovense keeps shipping new
+     * service UUIDs, and every one so far is a UART-style pair (one writable
+     * characteristic, one that notifies). Only vendor services are considered
+     * (standard Bluetooth SIG services and firmware-update services are
+     * skipped), Lovense-style UUIDs first. The caller has already matched the
+     * toy by its advertised name, so a property match is a safe guess.
+     */
+    fun pickChannel(services: List<GattService>): Channel? {
+        for (svc in services) {
+            val ch = channelFor(svc.uuid) ?: continue
+            if (svc.chars.any { it.uuid == ch.second } && svc.chars.any { it.uuid == ch.third }) {
+                return Channel(svc.uuid, ch.second, ch.third, guessed = false)
+            }
+        }
+        val candidates = services
+            .filter { svc ->
+                val u = svc.uuid.toString().lowercase()
+                channelFor(svc.uuid) != null || (!u.endsWith(SIG_BASE_SUFFIX) && u !in NOT_COMMAND_SERVICES)
+            }
+            .sortedByDescending { it.uuid.toString().lowercase().endsWith(LOVENSE_SUFFIX) }
+        for (svc in candidates) {
+            val tx = svc.chars.firstOrNull { it.writable && !it.notifies }
+                ?: svc.chars.firstOrNull { it.writable }
+                ?: continue
+            val rx = svc.chars.firstOrNull { it.notifies && it.uuid != tx.uuid }
+                ?: svc.chars.firstOrNull { it.notifies }
+                ?: continue
+            return Channel(svc.uuid, tx.uuid, rx.uuid, guessed = true)
+        }
+        return null
     }
 
     /** "85;" gives 85. Anything else gives null. */

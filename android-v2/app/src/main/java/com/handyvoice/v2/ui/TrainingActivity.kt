@@ -153,6 +153,7 @@ class TrainingActivity : AppCompatActivity() {
         // <activity> is silently ignored — this is the flag that works.)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_training)
+        padForSystemBars()
 
         // Optional label subset (e.g. just the reject/noise class). Fall back
         // to the full command set when the extra is absent or empty.

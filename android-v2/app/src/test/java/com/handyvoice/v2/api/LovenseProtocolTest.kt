@@ -100,6 +100,96 @@ class LovenseProtocolTest {
     }
 
     @Test
+    fun gen3AcceptsEveryPrefixInButtplugsList() {
+        // The first four hex digits are per model, not always "xx30" (the
+        // pattern that rejected a real Gush 2).
+        for (prefix in listOf("50300001", "4c410001", "455a0001", "45440001", "5a410001", "51420001")) {
+            val svc = "$prefix-0023-4bd4-bbd5-a6920e4c5653"
+            assertTrue(svc, LovenseProtocol.isGen3Service(svc))
+            assertEquals("${prefix.dropLast(1)}2-0023-4bd4-bbd5-a6920e4c5653", LovenseProtocol.gen3Tx(svc))
+            assertEquals("${prefix.dropLast(1)}3-0023-4bd4-bbd5-a6920e4c5653", LovenseProtocol.gen3Rx(svc))
+        }
+        // The one odd entry: service ...0011, TX ...0012, RX ...0013.
+        val odd = "50300011-0023-4bd4-bbd5-a6920e4c5653"
+        assertTrue(LovenseProtocol.isGen3Service(odd))
+        assertEquals("50300012-0023-4bd4-bbd5-a6920e4c5653", LovenseProtocol.gen3Tx(odd))
+        assertEquals("50300013-0023-4bd4-bbd5-a6920e4c5653", LovenseProtocol.gen3Rx(odd))
+        // A TX / RX characteristic UUID is not itself a service.
+        assertFalse(LovenseProtocol.isGen3Service("4c410002-0023-4bd4-bbd5-a6920e4c5653"))
+    }
+
+    private fun svc(uuid: String, vararg chars: LovenseProtocol.GattChar) =
+        LovenseProtocol.GattService(UUID.fromString(uuid), chars.toList())
+
+    private fun chr(uuid: String, write: Boolean = false, notify: Boolean = false) =
+        LovenseProtocol.GattChar(UUID.fromString(uuid), write, notify)
+
+    private val battery = svc(
+        "0000180f-0000-1000-8000-00805f9b34fb",
+        chr("00002a19-0000-1000-8000-00805f9b34fb", notify = true),
+    )
+
+    @Test
+    fun pickChannelUsesKnownLayout() {
+        val ch = LovenseProtocol.pickChannel(
+            listOf(
+                battery,
+                svc(
+                    "455a0001-0023-4bd4-bbd5-a6920e4c5653",
+                    chr("455a0002-0023-4bd4-bbd5-a6920e4c5653", write = true),
+                    chr("455a0003-0023-4bd4-bbd5-a6920e4c5653", notify = true),
+                ),
+            ),
+        )!!
+        assertEquals(UUID.fromString("455a0001-0023-4bd4-bbd5-a6920e4c5653"), ch.service)
+        assertEquals(UUID.fromString("455a0002-0023-4bd4-bbd5-a6920e4c5653"), ch.tx)
+        assertEquals(UUID.fromString("455a0003-0023-4bd4-bbd5-a6920e4c5653"), ch.rx)
+        assertFalse(ch.guessed)
+    }
+
+    @Test
+    fun pickChannelFallsBackToWriteAndNotifyOnAnUnlistedService() {
+        // A layout nobody has documented yet: still a UART-style pair.
+        val ch = LovenseProtocol.pickChannel(
+            listOf(
+                battery,
+                // Firmware update service: write + notify, but never the command channel.
+                svc(
+                    "00001530-1212-efde-1523-785feabcd123",
+                    chr("00001531-1212-efde-1523-785feabcd123", write = true, notify = true),
+                    chr("00001532-1212-efde-1523-785feabcd123", write = true),
+                ),
+                svc(
+                    "12345678-9abc-4def-8123-456789abcdef",
+                    chr("12345679-9abc-4def-8123-456789abcdef", notify = true),
+                    chr("1234567a-9abc-4def-8123-456789abcdef", write = true),
+                ),
+            ),
+        )!!
+        assertEquals(UUID.fromString("12345678-9abc-4def-8123-456789abcdef"), ch.service)
+        assertEquals(UUID.fromString("1234567a-9abc-4def-8123-456789abcdef"), ch.tx)
+        assertEquals(UUID.fromString("12345679-9abc-4def-8123-456789abcdef"), ch.rx)
+        assertTrue(ch.guessed)
+    }
+
+    @Test
+    fun pickChannelFindsNothingOnADeviceWithNoCommandPair() {
+        assertNull(LovenseProtocol.pickChannel(listOf(battery)))
+        assertNull(LovenseProtocol.pickChannel(emptyList()))
+        // Write-only vendor service: no way to read replies, so not usable.
+        assertNull(
+            LovenseProtocol.pickChannel(
+                listOf(
+                    svc(
+                        "12345678-9abc-4def-8123-456789abcdef",
+                        chr("1234567a-9abc-4def-8123-456789abcdef", write = true),
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun channelSelection() {
         val g1 = LovenseProtocol.channelFor(UUID.fromString(LovenseProtocol.GEN1_SERVICE))!!
         assertEquals(UUID.fromString(LovenseProtocol.GEN1_TX), g1.second)

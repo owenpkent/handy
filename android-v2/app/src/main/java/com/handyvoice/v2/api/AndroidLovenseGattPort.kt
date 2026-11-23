@@ -117,6 +117,10 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
         override val deviceName: String? get() = gatt?.device?.name
         @Volatile override var serviceUuid: String? = null
             private set
+        @Volatile override var channelGuessed: Boolean = false
+            private set
+        @Volatile override var discoveredServices: List<String> = emptyList()
+            private set
 
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
@@ -166,18 +170,31 @@ class AndroidLovenseGattPort(private val appContext: Context) : LovenseGattPort 
             val g = gatt ?: return Discovery.FAILED
             val r = gattCall(DISCOVER_TIMEOUT_MS) { g.discoverServices() }
             if (!r.started || r.status != BluetoothGatt.GATT_SUCCESS) return Discovery.FAILED
-            for (svc in g.services) {
-                val ch = LovenseProtocol.channelFor(svc.uuid) ?: continue
-                val t = svc.getCharacteristic(ch.second)
-                val rr = svc.getCharacteristic(ch.third)
-                if (t != null && rr != null) {
-                    tx = t
-                    rx = rr
-                    serviceUuid = svc.uuid.toString()
-                    return Discovery.OK
-                }
-            }
-            return Discovery.NOT_LOVENSE
+            val writeMask = BluetoothGattCharacteristic.PROPERTY_WRITE or
+                BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+            val notifyMask = BluetoothGattCharacteristic.PROPERTY_NOTIFY or
+                BluetoothGattCharacteristic.PROPERTY_INDICATE
+            discoveredServices = g.services.map { it.uuid.toString() }
+            val ch = LovenseProtocol.pickChannel(
+                g.services.map { svc ->
+                    LovenseProtocol.GattService(
+                        svc.uuid,
+                        svc.characteristics.map { c ->
+                            LovenseProtocol.GattChar(
+                                c.uuid,
+                                writable = c.properties and writeMask != 0,
+                                notifies = c.properties and notifyMask != 0,
+                            )
+                        },
+                    )
+                },
+            ) ?: return Discovery.NOT_LOVENSE
+            val svc = g.getService(ch.service) ?: return Discovery.NOT_LOVENSE
+            tx = svc.getCharacteristic(ch.tx) ?: return Discovery.NOT_LOVENSE
+            rx = svc.getCharacteristic(ch.rx) ?: return Discovery.NOT_LOVENSE
+            serviceUuid = svc.uuid.toString()
+            channelGuessed = ch.guessed
+            return Discovery.OK
         }
 
         override suspend fun enableNotifications(): Boolean {
