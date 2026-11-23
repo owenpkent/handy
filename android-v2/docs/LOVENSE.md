@@ -2,7 +2,7 @@
 
 Research and design notes for driving a Lovense toy from android-v2, written while adding support for the owner's **Lovense Gush 2**. Code lives in `app/src/main/java/com/handyvoice/v2/api/` (`LovenseProtocol.kt`, `LovenseBleTransport.kt`, `LovenseGatt.kt`, `AndroidLovenseGattPort.kt`) and, in `ui/`, `ToyPanel.kt` (toy page) and `ToyLabActivity.kt` (test panel), plus `service/ToyConnectionService.kt`. CLAUDE.md has the per-file summary.
 
-Status: everything below is built and merged to `main` (PRs #3 and #4). **v0.23**, published on 2026-11-22 as a test build, had the first hardware try: the Gush 2 was found and then rejected at service discovery (see GATT services below). **v0.24** fixes that and has not been re-tested on the toy, so nothing past the scan is confirmed on hardware yet. Items marked *unverified* are from third-party sources or inference. The hardware checklist at the end is the open work.
+Status: everything below is built and merged to `main` (PRs #3 and #4). **v0.23**, published on 2026-11-22 as a test build, had the first hardware try: the Gush 2 was found and then rejected at service discovery (see GATT services below). **v0.24** (published 2026-11-23) fixes that and has not been re-tested on the toy, so nothing past the scan is confirmed on hardware yet. Items marked *unverified* are from third-party sources or inference. The hardware checklist at the end is the open work.
 
 ---
 

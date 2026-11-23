@@ -8,7 +8,7 @@ Accessible control apps for The Handy device (and, from v0.23, Lovense Bluetooth
 
 ## Status
 
-**Active Development**: all current work is in [`android-v2/`](android-v2/). Current build is **v0.24** (Lovense toy support, merged to `main`; v0.24 fixes the first hardware try, where a Gush 2 was found but rejected, and the layout sitting under the system bars on Android 15). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
+**Active Development**: all current work is in [`android-v2/`](android-v2/). Current build is **v0.24**, published 2026-11-23 (Lovense toy support, merged to `main`; v0.24 fixes the first hardware try, where a Gush 2 was found but rejected, and the layout sitting under the system bars on Android 15). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
 
 ## Active app: android-v2
 
