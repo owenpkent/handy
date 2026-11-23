@@ -25,6 +25,10 @@ updates:
     ignore:
       - dependency-name: androidx.core:core-ktx
         versions: [">= 1.19"]
+      # OkHttp 5 (okhttp-android) also requires compileSdk 37. okhttp and
+      # logging-interceptor must move together.
+      - dependency-name: com.squareup.okhttp3:*
+        versions: [">= 5"]
 
   - package-ecosystem: github-actions
     directory: /

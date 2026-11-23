@@ -139,7 +139,7 @@ The active app. Recognizes voice commands by matching against **prerecorded samp
 | HTTP (Android) | Retrofit 3 + OkHttp 4 + Gson |
 | Preferences (Android) | Jetpack DataStore |
 | Device API | `https://www.handyfeeling.com/api/handy/v2` |
-| Gradle / Kotlin | Gradle 9.4.1 (wrapper), Kotlin 2.2.10, AGP 9.0.1, JDK 17+ |
+| Gradle / Kotlin | Gradle 9.9.2 (wrapper), Kotlin 2.4.21, AGP 9.5.2, JDK 17+ |
 | Min / Target SDK | minSdk 26 (Android 8.0), targetSdk 35 |
 
 ---
@@ -439,7 +439,7 @@ Presets are scaled by global limits: `scaledMin = globalMin + (posMin / 100) * g
 5. **Always-on capture loop is gated by a `Job.isActive` check**, not a separate flag. Cancelling the job lets the unbounded loop drain and `AudioRecord.release()` run.
 6. **Template format is versioned in JSON.** Even though Phase 1 only has `format: 1`, the field exists so future migrations are mechanical. Reads silently skip mismatched takes rather than crash.
 7. **`TemplateStore.sanitize()` lowercases and replaces non-alphanumerics.** Dispatch labels are already clean, but this is defence-in-depth — a misconfigured label can never break the filesystem.
-8. **The legacy v1 app has no gradle wrapper jar.** The one that used to sit in `legacy/android/gradle/wrapper/` was the wrong file (the launcher jar): `gradlew.bat` failed with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`, and it failed Gradle's wrapper checksum validation, so it was removed when the repo was prepared for outside contributors (an unverifiable binary has no place in a public repo). `android-v2/` has a correct wrapper (Gradle 9.4.1). To build the legacy app, open it in Android Studio or regenerate a wrapper with an installed Gradle (`gradle wrapper`).
+8. **The legacy v1 app has no gradle wrapper jar.** The one that used to sit in `legacy/android/gradle/wrapper/` was the wrong file (the launcher jar): `gradlew.bat` failed with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`, and it failed Gradle's wrapper checksum validation, so it was removed when the repo was prepared for outside contributors (an unverifiable binary has no place in a public repo). `android-v2/` has a correct wrapper (Gradle 9.9.2). To build the legacy app, open it in Android Studio or regenerate a wrapper with an installed Gradle (`gradle wrapper`).
 
 ### Engine math (Android V2 specific)
 
@@ -531,7 +531,7 @@ The repo is public and takes outside contributions. Community files: `CONTRIBUTI
 | `.github/workflows/osv-selftest.yml` | Proves the gate still catches a planted vulnerable artifact. Weekly and on changes to the gate. Needs the lockfile on `main`. |
 | `.github/workflows/nightly-fuzz.yml` | Each fuzz target for 10 minutes at 03:17 UTC, corpus carried between runs in the Actions cache. A finding opens or comments on the issue "Fuzz crash: <target>" with the input. The target matrix must list every `*FuzzTest.kt` (checked in `android-tests.yml`). |
 | `android-v2/scripts/collect-fuzz-findings.sh` | Gathers the reproducers a fuzz run left behind; `--self-test` runs in `android-tests.yml`. |
-| `.github/dependabot.yml` | Weekly Gradle (`/android-v2`) and GitHub Actions updates, minor and patch grouped. A Gradle bump needs the lockfile regenerated before its checks pass. `androidx.core` 1.19+ is held until compileSdk 37. |
+| `.github/dependabot.yml` | Weekly Gradle (`/android-v2`) and GitHub Actions updates, minor and patch grouped. A Gradle bump needs the lockfile regenerated before its checks pass. `androidx.core` 1.19+ and OkHttp 5 are held until compileSdk 37. |
 | `android-v2/app/gradle.lockfile` | Gradle dependency locking for the debug and release runtime classpaths only (see the end of `app/build.gradle.kts`). |
 
 Repository settings: secret scanning and push protection are on, private vulnerability reporting is on, CodeQL default setup stays off (the workflow above is the advanced setup; the two conflict). GitHub disables a scheduled workflow after 60 days without a commit; a manual run restarts it.
