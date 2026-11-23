@@ -60,9 +60,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         viewBinding = true
         // Needed so the in-app updater can read VERSION_NAME / VERSION_CODE
@@ -92,6 +89,13 @@ android {
             // Jazzer attaches its agent at runtime; JDK 21+ warns unless this is set.
             test.jvmArgs("-XX:+EnableDynamicAgentLoading")
         }
+    }
+}
+
+// Kotlin 2.4 made the old android { kotlinOptions { jvmTarget } } block an error.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

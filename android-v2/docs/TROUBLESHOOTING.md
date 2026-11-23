@@ -40,8 +40,8 @@ The `gradle/wrapper/gradle-wrapper.jar` is corrupt or missing. Regenerate it:
 ```powershell
 # Use any installed gradle to run the `wrapper` task in this project:
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-& "C:\Users\<you>\.gradle\wrapper\dists\gradle-9.4.1-bin\<hash>\gradle-9.4.1\bin\gradle.bat" `
-    -p . wrapper --gradle-version=9.4.1
+& "C:\Users\<you>\.gradle\wrapper\dists\gradle-9.9.2-bin\<hash>\gradle-9.9.2\bin\gradle.bat" `
+    -p . wrapper --gradle-version=9.9.2
 ```
 
 Or just open the project in Android Studio and let it sync — it regenerates the wrapper as part of normal sync.
@@ -50,7 +50,7 @@ Or just open the project in Android Studio and let it sync — it regenerates th
 
 Expected. First-run downloads:
 
-- Gradle 9.4.1 distribution (~150 MB).
+- Gradle 9.9.2 distribution (~150 MB).
 - JDK 21 toolchain from Foojay (~190 MB), provisioned per `gradle/gradle-daemon-jvm.properties`.
 - Android SDK platform 36 (~70 MB).
 - Build tools 36 (~70 MB).

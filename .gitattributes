@@ -3,3 +3,5 @@
 
 # Fuzz seed corpus and reproducers are raw bytes, never line-ending normalized.
 android-v2/app/src/test/resources/**/*FuzzTestInputs/** -text
+# Batch files need CRLF: cmd.exe can misread labels in LF files
+*.bat text eol=crlf
