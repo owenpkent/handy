@@ -92,7 +92,7 @@ JVM unit tests for the audio math run without the emulator:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 101 tests, a few seconds (90 unit tests plus the fuzz targets under `fuzz/` replaying their saved inputs; they fuzz for real only in the nightly workflow, see [CONTRIBUTING](../CONTRIBUTING.md#checks)). They also cover the Lovense protocol, the Lovense transport against a fake toy, the toy page intensity maths, the test-panel formatting and the device-identity check.
+These cover MFCC determinism + shape + frequency discrimination, DTW symmetry + length-invariance + sanity, engine label routing, the updater's version-compare gate, the listening-session lifecycle, and an end-to-end regression for the mic-off stop race (real dispatch + engines + API client against a fake device on virtual time). 102 tests, a few seconds (90 unit tests plus the fuzz targets under `fuzz/` replaying their saved inputs; they fuzz for real only in the nightly workflow, see [CONTRIBUTING](../CONTRIBUTING.md#checks)). They also cover the Lovense protocol, the Lovense transport against a fake toy, the toy page intensity maths, the test-panel formatting and the device-identity check.
 
 ## Vocabulary
 

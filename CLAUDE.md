@@ -321,7 +321,7 @@ applicationContext.filesDir/
 
 ### Tests (Android V2)
 
-101 JVM tests (90 unit tests, plus the 5 fuzz targets replaying their seed corpus, 11 cases) cover the audio math, the update version-compare, the listening-session lifecycle, the mic-off stop race and the Lovense protocol without needing Android:
+102 JVM tests (90 unit tests, plus the 5 fuzz targets replaying their seed corpus, 12 cases) cover the audio math, the update version-compare, the listening-session lifecycle, the mic-off stop race and the Lovense protocol without needing Android:
 
 - `MfccTest` (5) — extraction shape, determinism, frequency discrimination, empty/short input handling.
 - `DtwTest` (5) — self-distance zero, symmetry, similar beats dissimilar, length invariance after normalization, empty handling.
@@ -482,7 +482,7 @@ git add -A; git commit -m "feat: description"; git push
   cd C:\Users\Owen\dev\handy\android-v2
   .\gradlew.bat :app:assembleDebug
   ```
-- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest`: 101 tests, a few seconds.
+- Tests (JVM, no emulator): `.\gradlew.bat :app:testDebugUnitTest`: 102 tests, a few seconds.
 - After adding or bumping a dependency, regenerate the lockfile: `.\gradlew.bat :app:dependencies --write-locks` and commit `app/gradle.lockfile` (CI fails when it is stale; OSV-Scanner reads it).
 - Install to attached device: `.\gradlew.bat :app:installDebug`.
 - Every debug build drops a version-named copy of the APK into the repo-root `apks/` folder (`SmartDongV2-v<versionName>-debug.apk`) via the `copyDebugApkToRoot` task — a stable place to grab an installer for sideloading (USB, Google Drive, a local link). The task is hooked to `packageDebug` (not `assembleDebug`) so it fires for `installDebug` too. The `.apk` files are gitignored; bump `versionName` / `versionCode` in `app/build.gradle.kts` to cut a new versioned file. See `apks/README.md`.

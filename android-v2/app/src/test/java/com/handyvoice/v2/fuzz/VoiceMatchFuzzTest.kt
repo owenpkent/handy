@@ -27,6 +27,12 @@ import kotlin.math.abs
  *   is never better than the winner.
  *
  * Without `JAZZER_FUZZ=1` this only replays the seed corpus as a JUnit test.
+ * The `two-tones` seed must give both clips at least one frame, or replay skips
+ * every DTW and matcher check. Jazzer reads `consumeInt` from the END of the
+ * input (last byte most significant, two bytes for these ranges) and the shorts
+ * from the front, little-endian: the seed is 320 + 160 tone samples, then the
+ * tail bytes for split 320, lenB 6000, lenA 4000 (lenA last). `empty` keeps the
+ * empty-input case.
  */
 class VoiceMatchFuzzTest {
 
