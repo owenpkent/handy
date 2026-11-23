@@ -220,7 +220,11 @@ class LovenseBleTransport(
 
         when (s.discover()) {
             Discovery.FAILED -> return abort(if (linkLost) DROPPED else "Toy service discovery failed.")
-            Discovery.NOT_LOVENSE -> return abort("This device does not look like a Lovense toy.")
+            Discovery.NOT_LOVENSE -> {
+                // Keep the evidence: these UUIDs are what a fix would need.
+                log("Lovense: no usable service. Toy exposed: ${s.discoveredServices.joinToString().ifEmpty { "none" }}")
+                return abort("Toy found, but its Bluetooth service was not recognised. Copy the debug log.")
+            }
             Discovery.OK -> Unit
         }
         if (linkLost) return abort(DROPPED)
@@ -246,7 +250,9 @@ class LovenseBleTransport(
         lastKeepAliveOk = null
         disconnectedAtMs = null
         disconnectUnexpected = null
-        s.serviceUuid?.let { log("Lovense: service $it") }
+        s.serviceUuid?.let {
+            log("Lovense: service $it" + if (s.channelGuessed) " (unlisted, matched by write + notify)" else "")
+        }
 
         // Identify, then arm and verify the link-loss safety setting.
         sendLocked(LovenseProtocol.CMD_DEVICE_TYPE, awaitReply = true)?.let { reply ->

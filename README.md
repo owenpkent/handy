@@ -8,7 +8,7 @@ Accessible control apps for The Handy device (and, from v0.23, Lovense Bluetooth
 
 ## Status
 
-**Active Development**: all current work is in [`android-v2/`](android-v2/). Current build is **v0.23** (Lovense toy support, a test build from the unmerged `feat/lovense-ble` branch, PRs #3 and #4 open). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
+**Active Development**: all current work is in [`android-v2/`](android-v2/). Current build is **v0.24** (Lovense toy support, merged to `main`; v0.24 fixes the first hardware try, where a Gush 2 was found but rejected, and the layout sitting under the system bars on Android 15). Everything else has moved to [`legacy/`](legacy/) and is kept for reference only. A second, early-stage track designs our own low-profile wearable device: see [Wearable device](#wearable-device-early-stage).
 
 ## Active app: android-v2
 
@@ -17,7 +17,7 @@ A hands-free Android client that recognizes spoken commands by matching against 
 - Records 3 takes of each command on first launch; matches against the user's voice on-device, fully offline.
 - Voice vocabulary: `begin` / `stop` / `faster` / `slower`. Deliberately small — every extra label narrows the acoustic gaps the matcher relies on.
 - **One-button home screen** (v0.21): opens on a single big Start / Stop listening button; everything else is behind "More controls".
-- **Lovense toy support** (v0.23, untested on hardware): Settings can switch the device from The Handy to a Lovense Bluetooth toy (built for a Gush 2). A dedicated toy page replaces the voice home, a foreground service keeps the link alive with the screen off, and a test panel probes commands and measures the toy's idle shut-off. Published as a test build from the unmerged `feat/lovense-ble` branch. See [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md).
+- **Lovense toy support** (v0.23, fixed in v0.24, hardware test still open): Settings can switch the device from The Handy to a Lovense Bluetooth toy (built for a Gush 2). A dedicated toy page replaces the voice home, a foreground service keeps the link alive with the screen off, and a test panel probes commands and measures the toy's idle shut-off. The first try on a real Gush 2 (v0.23) failed at Bluetooth service discovery; v0.24 widens the service match and has not been re-tested on the toy yet. See [android-v2/docs/LOVENSE.md](android-v2/docs/LOVENSE.md).
 - Tap-shortcut buttons mirror every voice command, plus a Manual tab with sliders and a 4×3 pattern grid.
 - **Humanized motion** — a steady speed drifts organically (speed *and* stroke depth) so it never feels robotic. Strength is a Settings slider (0 = off).
 - **Gentle stop** — every stop eases the speed down to 0 over ~1.5 s instead of a hard halt.

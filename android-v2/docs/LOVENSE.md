@@ -2,7 +2,7 @@
 
 Research and design notes for driving a Lovense toy from android-v2, written while adding support for the owner's **Lovense Gush 2**. Code lives in `app/src/main/java/com/handyvoice/v2/api/` (`LovenseProtocol.kt`, `LovenseBleTransport.kt`, `LovenseGatt.kt`, `AndroidLovenseGattPort.kt`) and, in `ui/`, `ToyPanel.kt` (toy page) and `ToyLabActivity.kt` (test panel), plus `service/ToyConnectionService.kt`. CLAUDE.md has the per-file summary.
 
-Status: everything below is built and shipped in **v0.23**, published on 2026-11-22 as a test build from the unmerged `feat/lovense-ble` branch (PR #4, stacked on PR #3). **Nothing here has been tested on a real toy yet.** Items marked *unverified* are from third-party sources or inference. The hardware checklist at the end is the open work.
+Status: everything below is built and merged to `main` (PRs #3 and #4). **v0.23**, published on 2026-11-22 as a test build, had the first hardware try: the Gush 2 was found and then rejected at service discovery (see GATT services below). **v0.24** fixes that and has not been re-tested on the toy, so nothing past the scan is confirmed on hardware yet. Items marked *unverified* are from third-party sources or inference. The hardware checklist at the end is the open work.
 
 ---
 
@@ -41,9 +41,13 @@ From the [Buttplug Lovense protocol page](https://buttplug.io/stpihkal/protocols
 |---|---|---|---|
 | 1 | `0000fff0-0000-1000-8000-00805f9b34fb` | `0000fff2-...` | `0000fff1-...` |
 | 2 | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` (Nordic UART) | `6e400002-...` | `6e400003-...` |
-| 3 | `XY300001-002Z-4bd4-bbd5-a6920e4c5653` (X usually 4 or 5, Y 0x0 to 0xf, Z usually 3 or 4) | same UUID with `...300002...` | `...300003...` |
+| 3 | `PPPP0001-002Z-4bd4-bbd5-a6920e4c5653` (`PPPP` is four hex digits that vary per model, Z is 3 or 4) | same UUID with `PPPP0002` | `PPPP0003` |
 
-Enable notifications on RX (CCCD `0x2902`). **Which generation the Gush 2 uses is unknown.** It isn't in the protocol page's model table (only Nora, Max, Ambi, Lush, Hush, Domi, Edge, Osci, Solace). The connect log line `Lovense: service <uuid>` will tell us.
+**The gen 3 prefix is not always `XY30`.** The protocol page describes the pattern as `XY300001-002Z-...`, and the app's first matcher followed it. Buttplug's device config ([`lovense.yml`](https://raw.githubusercontent.com/buttplugio/buttplug/master/crates/buttplug_server_device_config/device-config/protocols/lovense.yml)), which is the list real clients use, has about 40 services, and half of them do not fit: `4c410001`, `45440001`, `45420001`, `45490001`, `45410001`, `45460001`, `454c0001`, `53440001`, `46530001`, `42410001`, `43410001`, `4f430001`, `455a0001`, `57440001`, `414e0001`, `5a410001`, `43420001`, `51420001`, alongside the `xx300001` family (`50`, `5a`, `57`, `53`, `4f`, `42`, `43`, `4c`, `56`, `58`, `52`, `46`, `4a`, `54`, `4e`, `51`, `55`, `48`). One entry is odd: service `50300011-0023-...` with TX `50300012` and RX `50300013`. Buttplug matches an explicit list, and its discovered-services list is longer than its advertised-services list, so match on what discovery returns, not on the advertisement.
+
+**First hardware attempt (2026-11-22, v0.23): the Gush 2 was found by the scan and then rejected** with "This device does not look like a Lovense toy", because its service did not fit `xx300001`. From v0.24, `LovenseProtocol.pickChannel` accepts any `PPPP0001-002Z-4bd4-bbd5-a6920e4c5653` service (plus the odd `50300011`), and if no known layout matches it falls back to **any vendor service with one writable and one notifying characteristic** (standard Bluetooth SIG services and the Nordic firmware-update services are skipped). An RX that can only *indicate* is accepted as well (notify preferred); it is subscribed by writing `02 00` to the CCCD, not the notification value `01 00`, which such a characteristic ignores. The scan has already matched the name, so that guess is safe. If even that fails, the debug log lists every service UUID the toy exposed.
+
+Enable notifications on RX (CCCD `0x2902`). **Which service the Gush 2 uses is still unrecorded.** It isn't in the protocol page's model table (only Nora, Max, Ambi, Lush, Hush, Domi, Edge, Osci, Solace), and Buttplug's config gives it no UUID of its own. The connect log line `Lovense: service <uuid>` will tell us (it adds "unlisted, matched by write + notify" when the fallback picked it); write the UUID here once seen.
 
 **Commands.** ASCII, terminated by `;`. Replies also end in `;` and can be split across notifications or batched, so `LovenseProtocol.ReplyBuffer` reassembles them.
 
@@ -51,7 +55,7 @@ Enable notifications on RX (CCCD `0x2902`). **Which generation the Gush 2 uses i
 |---|---|---|
 | `Vibrate:N;` (N 0..20) | `OK;` | Intensity. 0 stops. |
 | `Battery;` | e.g. `85;` | Battery percent. Also the keep-alive poll. |
-| `DeviceType;` | e.g. `C:11:0082059AD3BD;` (model letter, firmware, BT address) | Logged on connect. |
+| `DeviceType;` | e.g. `C:11:0082059AD3BD;` (model code, firmware, BT address). The code is one or two letters: Buttplug lists the Gush as `ED` and the **Gush 2 as `EZ`**. | Logged on connect. |
 | `PowerOff;` | `OK;` | Not used: the whole point is to stay on. |
 | `AutoSwith:On:Off;` | `OK;` or `ERR;` | Safety settings (below). |
 | `GetAS;` | e.g. `AutoSwith:1:0;` | Read the safety settings back. |
@@ -69,6 +73,9 @@ The Gush 2 has **vibration and oscillation**. The original Gush had vibration on
 **No public source gives the raw oscillation command.**
 - The community protocol write-up lists the Gush as single-vibrator. Its command table covers only `Vibrate`, `Rotate`, `Air`, `Battery`, `DeviceType` and `PowerOff`. It notes that stroker oscillation "isn't reliably documented publicly", and that Buttplug abstracts it as `Oscillate` with position and duration.
 - A [Soulkyn forum report](https://bb.soulkyn.com/t/lovense-gush-2-motion-not-supported/2188) on the **Gush 2 Motion** (a separate variant) describes it connecting but not responding. The Lovense app called the mode "Oscillation" while the integration sent vibrate. That suggests oscillation is a distinct command (*unverified*).
+
+- Buttplug itself (checked 2026-11-22) gives the Gush (`ED`) and Gush 2 (`EZ`) its default feature set: one vibrate actuator, 0 to 20, plus battery. Its single-actuator Lovense code sends `Vibrate:N;` even for an oscillate request, and nothing in it sends `Oscillate:` to a Gush. So Buttplug users get vibration only, and the test panel's probe rows are still the way to find the real command.
+- Kinky Makers (the OSSM / OSFM open-source machine community) publish nothing on Lovense: a search of their GitHub repos (OSSM-controller, OSFM-docs, OSFM-app and others) for "lovense" finds no hits. Their Bluetooth work is a private control path for their own machines. Their Discord was not searched.
 
 The app only sends `Vibrate:` today, so on a Gush 2 expect the vibration motor only, unless oscillation responds to the same command.
 
@@ -119,9 +126,24 @@ Plus a one-time prompt to exempt the app from battery optimization, which aggres
 
 ---
 
+## Related: Ferality and Intiface (future option)
+
+[Ferality](https://ferality.app) (solo project, invite-only beta as of 2026-11) plays erotic audio with a haptic score composed on a timeline, so the listener presses one play button and the toy follows the score. It reaches toys over Bluetooth through Intiface / Buttplug, and its author tests mainly on Lovense, We-Vibe and one Svakom, with Thrust / Stroke run on a Handy among others. Handy position mapping was still untested when we heard of it, and the author said the Bluetooth / Intiface route had no dead-man cutoff yet.
+
+Why it matters here:
+
+- **Score playback.** A timeline score is a richer version of `PatternEngine`'s looping envelopes. If Ferality (or anyone) exports a score format, android-v2 could play scores alongside the 12 built-in patterns, with voice `stop` and the idle auto-stop still on top.
+- **Intiface / Buttplug as a transport.** Buttplug covers far more toys than our hand-written Lovense transport. A Buttplug-backed `DeviceTransport` (talking to Intiface Central over its local WebSocket) would bring them in without new protocol work, at the cost of a second app running and an extra hop of latency. Not planned; the hand-written transport stays while only the Gush 2 matters.
+- **Shared findings.** Its author has Lovense and We-Vibe hardware, so the Gush 2 oscillation probe results and the We-Vibe Bond idle shut-off findings above are worth swapping with them.
+
+---
+
 ## Sources
 
 - Lovense BLE protocol: https://buttplug.io/stpihkal/protocols/lovense/
+- Buttplug's Lovense device config (the full service UUID list and model codes): https://raw.githubusercontent.com/buttplugio/buttplug/master/crates/buttplug_server_device_config/device-config/protocols/lovense.yml
+- Buttplug's Lovense protocol code: https://github.com/buttplugio/buttplug/tree/master/crates/buttplug_server/src/device/protocol_impl/lovense
+- Kinky Makers (nothing Lovense-related): https://github.com/KinkyMakers
 - Community protocol notes: https://github.com/kerstz/lovense-remote/blob/main/docs/research/lovense-ble-protocol.md
 - Gush 2: https://futureofsex.net/sex-tech/lovense-gush-2-review-enjoy-the-embrace-of-this-newest-male-massager/, https://manuals.plus/asin/B0DJ2M34XF, https://manuals.plus/asin/B0DSPNGLVN
 - Gush 2 Motion oscillation report: https://bb.soulkyn.com/t/lovense-gush-2-motion-not-supported/2188

@@ -67,6 +67,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        padForSystemBars()
         // Keep the screen on while the app is in the foreground, same as
         // ControlActivity and TrainingActivity. Honored only while visible,
         // so it costs nothing once the user navigates away.

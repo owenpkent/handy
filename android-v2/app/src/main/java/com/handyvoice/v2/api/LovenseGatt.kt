@@ -35,6 +35,12 @@ interface LovenseGattSession {
     /** The GATT service UUID in use (which protocol generation), once discovered. */
     val serviceUuid: String? get() = null
 
+    /** True when the channel was picked by characteristic properties, not a known UUID layout. */
+    val channelGuessed: Boolean get() = false
+
+    /** Every service UUID the toy exposed, for the log when none could be used. */
+    val discoveredServices: List<String> get() = emptyList()
+
     /** Discover services and pick the Lovense TX/RX channel. */
     suspend fun discover(): Discovery
 
